@@ -27,7 +27,6 @@ const isLocator = (value: unknown): value is Locator =>
 export const createSqlSyncStore = (
   activeStorage: ActiveStorage,
   dataStore: DataStorePort,
-  clock: HybridLogicalClock,
 ): SyncStore => {
   const { storage, clocks } = activeStorage;
 

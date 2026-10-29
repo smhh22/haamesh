@@ -33,4 +33,63 @@ describe('sanitizeEpubHtml', () => {
     const html = '<html><head></head><body><p dir="rtl">سلام</p></body></html>';
     expect(sanitizeEpubHtml(html)).toContain('<p dir="rtl">سلام</p>');
   });
+
+  it('strips embedded frames and objects', () => {
+    const html = `<html><head></head><body>
+      <iframe src="https://evil.example/track"></iframe>
+      <object data="https://evil.example/x"></object>
+      <embed src="https://evil.example/y">
+      text
+    </body></html>`;
+    const clean = sanitizeEpubHtml(html);
+    expect(clean).not.toContain('<iframe');
+    expect(clean).not.toContain('<object');
+    expect(clean).not.toContain('<embed');
+    expect(clean).toContain('text');
+  });
+
+  it('strips meta refresh navigation', () => {
+    const html =
+      '<html><head><meta http-equiv="refresh" content="0;url=https://evil.example/"></head><body>x</body></html>';
+    const clean = sanitizeEpubHtml(html);
+    expect(clean).not.toContain('refresh');
+    expect(clean).not.toContain('evil.example/"></head>');
+  });
+
+  it('defeats tag reassembly across removals', () => {
+    const variants = [
+      '<scr<script>ipt>alert(1)</scr</script>ipt>',
+      '<script<script>>alert(1)</script>',
+      '<<script>alert(1)//<</script>',
+      '<a href="jav&#x0A;ascript:alert(1)">x</a>',
+      '<a href="JaVaScRiPt:alert(1)">x</a>',
+    ];
+    for (const html of variants) {
+      const clean = sanitizeEpubHtml(`<html><head></head><body>${html}</body></html>`);
+      expect(clean, `variant: ${html}`).not.toMatch(/<\s*script/i);
+      expect(clean).not.toMatch(/alert\s*\(/);
+    }
+  });
+
+  it('blocks vbscript and data:text/html URLs on link-bearing attributes', () => {
+    const html = `<html><head></head><body>
+      <a href="vbscript:msgbox(1)">x</a>
+      <a formaction="data:text/html;base64,PHNjcmlwdD4=">y</a>
+    </body></html>`;
+    const clean = sanitizeEpubHtml(html);
+    expect(clean).not.toContain('vbscript:');
+    expect(clean).not.toContain('data:text/html');
+  });
+
+  it('gives headless documents a valid head with the CSP', () => {
+    const clean = sanitizeEpubHtml('<p>no head</p>');
+    expect(clean.startsWith('<head>')).toBe(true);
+    expect(clean).toContain('Content-Security-Policy');
+  });
+
+  it('still injects CSP for documents with html but no head', () => {
+    const clean = sanitizeEpubHtml('<html><body>x</body></html>');
+    expect(clean).toContain('<head>');
+    expect(clean).toContain('Content-Security-Policy');
+  });
 });

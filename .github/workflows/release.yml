@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
+    tags: ["v*"]
 
 permissions:
   contents: write
@@ -14,9 +14,9 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-22.04
-            args: ''
+            args: ""
           - platform: windows-latest
-            args: ''
+            args: ""
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -55,8 +55,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'Hāmesh ${{ github.ref_name }}'
-          releaseBody: 'Installers for Hāmesh, a local-first ebook reader. See the repository README for details.'
+          releaseName: "Hāmesh ${{ github.ref_name }}"
+          releaseBody: "Installers for Hāmesh, a local-first ebook reader. See the repository README for details."
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

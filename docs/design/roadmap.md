@@ -98,22 +98,24 @@ Exit criteria:
 Goal: the reading state worth syncing exists, and the second format proves the
 engine adapter.
 
-Status (2026-10-29): highlights, bookmarks, notes, Markdown/JSON export,
-in-book search, and note persistence are implemented on the Phase 1 JSON
-adapter, with browser coverage. The JSON-to-SQLite migration and the PDF track
-remain. The migration must land before annotations ship in a release (ADR-0010).
+Status (2026-10-29): highlights, bookmarks, notes, Markdown/JSON export, and
+in-book search are implemented and covered by Playwright. Persistence migrated
+to SQLite: rusqlite on desktop, sql.js with OPFS on web, with a one-time JSON
+import and the manifest retained as a backup. The PDF track, a layout-drift
+visual test for annotations, and library FTS remain.
 
 Deliverables:
 
-- Migrate the Phase 1 JSON manifest to SQLite (desktop) and SQLite-WASM on web,
+- [x] Migrate the Phase 1 JSON manifest to SQLite (desktop) and SQLite on web,
   with a one-way migration from schema version 1.
-- Highlights (colors), bookmarks, notes; per-book sidebar; direction-aware
-  selection handles and popovers.
-- Annotation rendering across reflow, font size, theme, and resize.
-- In-book search; FTS for library metadata.
-- Note editing, deletion, export to Markdown/JSON.
-- PDF adapter behind `packages/engine`: open, page, zoom, page locator, and the
-  same annotation model where practical (parallel track).
+- [x] Highlights (colors), bookmarks, notes; per-book sidebar; direction-aware
+  selection popovers.
+- [ ] Annotation rendering across reflow, font size, theme, and resize; overlap
+  is implemented, but add a drift regression test.
+- [x] In-book search. Library FTS remains open.
+- [x] Note editing, deletion, export to Markdown/JSON.
+- [ ] PDF adapter behind `packages/engine`: open, page, zoom, page locator, and
+  the same annotation model where practical (parallel track).
 
 Exit criteria:
 

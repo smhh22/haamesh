@@ -22,12 +22,14 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-i18next": "^17.1.9",
+    "sql.js": "^1.15.2",
     "zustand": "^5.0.16"
   },
   "devDependencies": {
     "@hamesh/test-fixtures": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.12.4",
+    "@types/sql.js": "^1.4.11",
     "@vitejs/plugin-react": "^6.1.2",
     "tailwindcss": "^4.3.3",
     "vite": "^8.3.5"

@@ -42,9 +42,11 @@ Keep Tauri commands thin: filesystem, SQLite, keychain, and native parsers. No
 business logic in Rust that belongs in `packages/*`.
 
 Desktop library data lives under the app data directory
-(`~/.local/share/app.hamesh.reader` on Linux): `library.json`,
-`books/<sha256>.epub`, and `covers/<sha256>`. Web development uses OPFS under the
-same relative layout.
+(`~/.local/share/app.hamesh.reader` on Linux): `hamesh.db` (SQLite),
+`library.json` (Phase 1 import and backup), `books/<sha256>.epub`, and
+`covers/<sha256>`. Web development uses sql.js with OPFS under the same relative
+layout. On first launch, `library.json` is imported into SQLite once and marked
+with `json_migrated`; later launches read SQLite.
 
 Open a book from the shell:
 

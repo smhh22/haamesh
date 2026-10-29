@@ -39,7 +39,8 @@ features that actually need SQL; they are Phase 2 work.
 
 ## Status note (2026-10-29)
 
-Highlights, bookmarks, notes, and in-book search were implemented on this JSON
-adapter during development, and the manifest now carries a `notes` array.
-The Phase 2 SQLite migration is still required before annotations ship in a
-release; the JSON path is not the final annotation store.
+The SQLite migration landed on the same day. Desktop uses rusqlite in the app
+data directory; web uses sql.js with OPFS. The JSON manifest is imported once
+(`json_migrated` marker) and retained as a debounced backup. Annotations,
+reading state, and books read and write SQLite now; this JSON adapter remains
+the fallback when SQLite is unavailable (for example, a browser without OPFS).

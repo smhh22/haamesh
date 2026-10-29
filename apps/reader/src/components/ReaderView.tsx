@@ -139,7 +139,6 @@ export const ReaderView = ({
   const flowRef = useRef(settings.flow);
   const lastCfiRef = useRef<string | null>(null);
   const lastFractionRef = useRef(initialFraction);
-  const pdfZoomRef = useRef(settings.pdfZoom);
   const [progress, setProgress] = useState(initialFraction);
   const [pageInfo, setPageInfo] = useState<{ current: number; total: number } | null>(null);
   const [failed, setFailed] = useState(false);

@@ -1,0 +1,313 @@
+import { HybridLogicalClock } from '@hamesh/core';
+import { describe, expect, it } from 'vitest';
+import type { SyncRecord, SyncStore } from './engine';
+import { createSyncEngine } from './engine';
+import { createMemoryProvider } from './providers/memory';
+
+interface MemoryStore extends SyncStore {
+  clock: HybridLogicalClock;
+  records: Map<string, SyncRecord>;
+  localEdit(record: SyncRecord): Promise<void>;
+}
+
+/**
+ * Minimal SyncStore over plain maps: records merge field-wise on apply.
+ * `localEdit` mirrors the real app write path — every local write stamps the
+ * record clock (the engine stamps clocks only for remote pulls).
+ */
+const createMemoryStore = (deviceId: string, now: () => number): MemoryStore => {
+  const clock = new HybridLogicalClock(deviceId, now);
+  const records = new Map<string, SyncRecord>();
+  const clocks = new Map<string, string>();
+  const key = (kind: string, id: string) => `${kind}:${id}`;
+  const build: MemoryStore = {
+    clock,
+    records,
+    async list() {
+      return [...records.values()];
+    },
+    async apply(record: SyncRecord) {
+      const id = key(record.kind, record.id);
+      const existing = records.get(id);
+      if (existing) {
+        existing.fields = { ...existing.fields, ...record.fields };
+        existing.updatedAt = Math.max(existing.updatedAt, now());
+        // Tombstones are sticky; revival uses a new id (ADR-0006).
+        existing.deleted = existing.deleted || record.deleted;
+      } else {
+        records.set(id, { ...record, fields: { ...record.fields } });
+      }
+    },
+    async clocks() {
+      return Object.fromEntries(clocks);
+    },
+    async setClocks(entries: Array<readonly [string, string]>) {
+      for (const [k, t] of entries) clocks.set(k, t);
+    },
+    async bookFile(sha256: string) {
+      const record = [...records.values()].find(
+        (item) => item.kind === 'book' && item.fields.sha256 === sha256 && !item.deleted,
+      );
+      const data = blobs.get(sha256);
+      if (!record || !data) return null;
+      return { ext: String(record.fields.ext ?? 'epub'), data };
+    },
+    async saveBookFile(sha256: string, ext: string, data: Uint8Array) {
+      blobs.set(sha256, data);
+      void ext;
+    },
+    /** Local write: replaces the record and stamps its clock. */
+    async localEdit(record: SyncRecord) {
+      records.set(`${record.kind}:${record.id}`, { ...record, fields: { ...record.fields } });
+      await build.setClocks([[`${record.kind}:${record.id}`, clock.now()]]);
+    },
+  };
+  return build;
+};
+
+const blobs = new Map<string, Uint8Array>();
+
+const bookRecord = (id: string, title: string, updatedAt: number): SyncRecord => ({
+  id,
+  kind: 'book',
+  fields: { sha256: `sha-${id}`, ext: 'epub', title },
+  deleted: false,
+  updatedAt,
+});
+
+describe('sync engine', () => {
+  it('propagates a new book from device A to device B', async () => {
+    const provider = createMemoryProvider();
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    await storeA.localEdit(bookRecord('1', 'Persian Book', 1000));
+    const storeB = createMemoryStore('device-b', now);
+
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    wall = 2000;
+    const report = await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+
+    expect(report.ok).toBe(true);
+    expect(report.providers[0]?.pulledRecords).toBeGreaterThan(0);
+    const pulled = storeB.records.get('book:1');
+    expect(pulled?.fields.title).toBe('Persian Book');
+    expect(pulled?.fields.sha256).toBe('sha-1');
+  });
+
+  it('converges concurrent title edits to one winner', async () => {
+    const provider = createMemoryProvider();
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    const storeB = createMemoryStore('device-b', now);
+
+    await storeA.localEdit(bookRecord('1', 'from-a', 1000));
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+
+    wall = 2000;
+    await storeA.localEdit(bookRecord('1', 'edited-on-a', 2000));
+    await storeB.localEdit(bookRecord('1', 'edited-on-b', 2000));
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+
+    const titleA = storeA.records.get('book:1')?.fields.title;
+    const titleB = storeB.records.get('book:1')?.fields.title;
+    expect(titleA).toBe(titleB);
+    expect(['edited-on-a', 'edited-on-b']).toContain(titleA);
+  });
+
+  it('propagates reading state as book fields', async () => {
+    const provider = createMemoryProvider();
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    await storeA.localEdit(bookRecord('1', 'Book', 1000));
+    await storeA.localEdit({
+      id: '1',
+      kind: 'reading',
+      fields: { fraction: 0.42, status: 'reading' },
+      deleted: false,
+      updatedAt: 1100,
+    });
+    const storeB = createMemoryStore('device-b', now);
+
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    wall = 3000;
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+
+    const reading = storeB.records.get('reading:1');
+    expect(reading?.fields.fraction).toBe(0.42);
+  });
+
+  it('transfers the book blob to a provider that lacks it', async () => {
+    const provider = createMemoryProvider();
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    await storeA.localEdit(bookRecord('1', 'Book', 1000));
+    blobs.set('sha-1', new Uint8Array([1, 2, 3]));
+    const storeB = createMemoryStore('device-b', now);
+
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    expect(await provider.head('Hamesh/books/sha-1/book.epub')).not.toBeNull();
+
+    wall = 2000;
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+    const file = await storeB.bookFile('sha-1');
+    expect([...(file?.data ?? [])]).toEqual([1, 2, 3]);
+  });
+
+  it('propagates a note tombstone as remove-wins', async () => {
+    const provider = createMemoryProvider();
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    await storeA.localEdit(bookRecord('1', 'Book', 1000));
+    await storeA.localEdit({
+      id: 'note-1',
+      kind: 'note',
+      fields: { bookId: '1', text: 'highlighted text' },
+      deleted: false,
+      updatedAt: 1100,
+    });
+    const storeB = createMemoryStore('device-b', now);
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+    expect(storeB.records.get('note:note-1')?.fields.text).toBe('highlighted text');
+
+    wall = 2000;
+    await storeA.localEdit({
+      id: 'note-1',
+      kind: 'note',
+      fields: {},
+      deleted: true,
+      updatedAt: 2000,
+    });
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    wall = 2500;
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+    const note = storeB.records.get('note:note-1');
+    expect(note?.deleted).toBe(true);
+  });
+
+  it('reports a failed provider without failing the others', async () => {
+    const failing = createMemoryProvider({ id: 'flaky', failFirst: 1 });
+    const healthy = createMemoryProvider({ id: 'solid' });
+    const wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    await storeA.localEdit(bookRecord('1', 'Book', 1000));
+
+    const report = await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [failing, healthy],
+    }).sync();
+
+    expect(report.ok).toBe(false);
+    expect(report.providers.find((r) => r.providerId === 'flaky')?.ok).toBe(false);
+    expect(report.providers.find((r) => r.providerId === 'solid')?.ok).toBe(true);
+    expect(await healthy.readText('Hamesh/index.json')).not.toBeNull();
+  });
+
+  it('a second sync round is a no-op (idempotent convergence)', async () => {
+    const provider = createMemoryProvider();
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    await storeA.localEdit(bookRecord('1', 'Book', 1000));
+    const engineA = createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    });
+    await engineA.sync();
+    wall = 1500;
+    const first = await engineA.sync();
+    const second = await engineA.sync();
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    expect(second.providers[0]?.pulledRecords).toBe(0);
+    expect(second.providers[0]?.uploadedBlobs).toBe(0);
+  });
+});

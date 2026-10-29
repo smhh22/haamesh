@@ -8,7 +8,11 @@ import { ReaderView } from './components/ReaderView';
 import { type BookSort, type BookView, filterAndSortBooks } from './library/bookList';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
 import { importBookFile } from './services/importBook';
-import { deletePersistedBook, persistBook, schedulePersist } from './services/libraryPersistence';
+import {
+  deletePersistedBook,
+  persistBook,
+  persistReadingState,
+} from './services/libraryPersistence';
 import { useLibraryStore } from './stores/libraryStore';
 import { useReadingStore } from './stores/readingStore';
 
@@ -144,14 +148,15 @@ export const App = () => {
           initialLocation={start?.locator?.kind === 'cfi' ? start.locator.cfi : null}
           initialFraction={start?.fraction ?? 0}
           onProgress={({ locator, fraction }) => {
-            saveReadingState({
+            const state = {
               bookId: readerSession.book.id,
               locator,
               fraction,
-              status: 'reading',
+              status: 'reading' as const,
               updatedAt: Date.now(),
-            });
-            schedulePersist();
+            };
+            saveReadingState(state);
+            void persistReadingState(state);
           }}
           onClose={() => setReaderSession(null)}
         />

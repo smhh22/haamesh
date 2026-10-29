@@ -48,12 +48,14 @@ export interface BookRepository {
 }
 
 export interface ReadingStateRepository {
+  list(): Promise<ReadingState[]>;
   get(bookId: string): Promise<ReadingState | null>;
   save(state: ReadingState): Promise<void>;
 }
 
 export interface NoteRepository {
   list(bookId: string): Promise<BookNoteRecord[]>;
+  listAll(): Promise<BookNoteRecord[]>;
   upsert(note: BookNoteRecord): Promise<void>;
 }
 
@@ -68,5 +70,7 @@ export interface Storage {
   notes: NoteRepository;
 }
 
+export type { SqlDatabase, SqlValue } from './sql';
+export { createSqlStorage, migrate, migrateJsonSnapshot } from './sql';
 /** Re-exported for storage implementations that do not import core directly. */
 export type { BookFormat, Locator, ReadingStatus };

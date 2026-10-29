@@ -7,7 +7,7 @@ import { type FoliateBook, makeBook } from 'foliate-js/view.js';
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buildReaderCss } from '../readerStyles';
-import { schedulePersist } from '../services/libraryPersistence';
+import { persistNoteRecord } from '../services/libraryPersistence';
 import { notesForBook, useNotesStore } from '../stores/notesStore';
 import { useReaderSettings } from '../stores/readerSettingsStore';
 
@@ -433,7 +433,7 @@ export const ReaderView = ({
     });
     addNote(note);
     applyAnnotation(note);
-    schedulePersist();
+    void persistNoteRecord(note);
     setSelection(null);
     setNoteMode(false);
     setNoteDraft('');
@@ -451,7 +451,7 @@ export const ReaderView = ({
     });
     addNote(note);
     applyAnnotation(note);
-    schedulePersist();
+    void persistNoteRecord(note);
     setSelection(null);
     setNoteMode(false);
     setNoteDraft('');
@@ -469,7 +469,7 @@ export const ReaderView = ({
       fraction: lastFractionRef.current,
     });
     addNote(note);
-    schedulePersist();
+    void persistNoteRecord(note);
     setPanel('notes');
   };
 
@@ -479,13 +479,15 @@ export const ReaderView = ({
       void viewRef.current?.deleteAnnotation({ value: note.locator.cfi });
     }
     if (editingNoteId === note.id) setEditingNoteId(null);
-    schedulePersist();
+    const tombstoned = useNotesStore.getState().notes.find((item) => item.id === note.id);
+    if (tombstoned) void persistNoteRecord(tombstoned);
   };
 
   const saveNoteEdit = (note: BookNoteRecord) => {
     updateNote(note.id, { color: note.color, note: editDraft.trim() || null });
     setEditingNoteId(null);
-    schedulePersist();
+    const updated = useNotesStore.getState().notes.find((item) => item.id === note.id);
+    if (updated) void persistNoteRecord(updated);
   };
 
   const exportNotes = (format: 'markdown' | 'json') => {

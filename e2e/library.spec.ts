@@ -232,5 +232,14 @@ test('imports and reads a PDF', async ({ page }) => {
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-format', 'pdf');
   await expect(page.getByRole('button', { name: 'Search' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Notes' })).toHaveCount(0);
+  await expect(page.locator('.reader-progress')).toHaveText('Page 1 of 1');
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const shell = page.locator('.reader-shell');
+  await expect(shell).toHaveAttribute('data-zoom', 'fit-page');
+  await page.getByRole('button', { name: 'Fit width' }).click();
+  await expect(shell).toHaveAttribute('data-zoom', 'fit-width');
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await expect(shell).toHaveAttribute('data-zoom', '1.25');
   await page.getByRole('button', { name: 'Next' }).click();
 });

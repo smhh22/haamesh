@@ -148,6 +148,7 @@ export const App = () => {
           book={readerSession.book}
           file={openFile}
           initialLocation={start?.locator?.kind === 'cfi' ? start.locator.cfi : null}
+          initialPage={start?.locator?.kind === 'page' ? start.locator.page : null}
           initialFraction={start?.fraction ?? 0}
           onProgress={({ locator, fraction }) => {
             const state = {

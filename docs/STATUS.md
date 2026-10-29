@@ -1,11 +1,12 @@
 # Project status
 
-Last updated: 2026-10-30, 02:20 (overnight autonomous session — read with `AGENTS.md`).
+Last updated: 2026-10-30, 02:50 (overnight autonomous session — read with `AGENTS.md`).
 
 ## Where the project is
 
 - **Phases 0–2 complete. Phase 3 (sync) functionally complete end-to-end.**
-- 14 commits on `main`, newest first: sanitizer hardening (`72e47cd`), app sync
+- 17 commits on `main`, newest first: auto-sync (`94c5cf1`), ReaderView refactor
+  (`f1f9ba6`), STATUS update (`e811b2f`), sanitizer hardening (`72e47cd`), app sync
   integration (`f395623`), WebDAV provider (`84ea213`), sync engine core
   (`6c6d072`), CI e2e + release workflow (`66a13d1`), Phase 2 close (`e634d8e`),
   app icons (`f3c9fcb`), then the 7 earlier commits (PDF zoom, PDF reading,
@@ -110,10 +111,12 @@ Last updated: 2026-10-30, 02:20 (overnight autonomous session — read with `AGE
 
 1. Connect GitHub (user) → CI goes green; push a `v0.0.1` tag to smoke the
    release workflow.
-2. Sync: auto-sync on app open/close; local-folder provider (Syncthing
-   story); move credentials to OS keychain; real WebDAV server test (user
-   said they may provide one).
-3. ReaderView.tsx refactor (still ~1000 lines; extract panels).
+2. Sync: auto-sync on app open/pagehide DONE (`94c5cf1`); remaining:
+   local-folder provider (Syncthing story), keychain credentials, real
+   WebDAV server test (user said they may provide one), S3/SFTP providers.
+3. ReaderView.tsx refactor — DONE for the three clean extractions
+   (TocTree/SettingsPanel/SelectionPopover in `components/reader/`, e2e-guarded);
+   notes/search panels still inline if further splitting is wanted.
 4. Library content FTS; PDF annotation support (deliberately deferred);
    RTL page-progression detection for Persian PDFs.
 5. Windows smoke test on real hardware (friend with Windows).

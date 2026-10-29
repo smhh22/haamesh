@@ -211,6 +211,9 @@ importers:
       '@hamesh/storage':
         specifier: workspace:*
         version: link:../../packages/storage
+      '@hamesh/sync':
+        specifier: workspace:*
+        version: link:../../packages/sync
       '@hamesh/ui':
         specifier: workspace:*
         version: link:../../packages/ui

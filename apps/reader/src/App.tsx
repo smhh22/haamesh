@@ -5,6 +5,7 @@ import { DirectionProvider } from '@hamesh/ui';
 import { type ChangeEvent, type DragEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ReaderView } from './components/ReaderView';
+import { SyncSettings } from './components/SyncSettings';
 import { type BookSort, type BookView, filterAndSortBooks } from './library/bookList';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
 import { importBookFile } from './services/importBook';
@@ -299,6 +300,8 @@ export const App = () => {
             </ul>
           )}
         </section>
+
+        <SyncSettings />
 
         <p className="hint" dir="auto">
           {t('library.bidiSample')}

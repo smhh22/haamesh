@@ -97,5 +97,21 @@
     "pageOf": "صفحهٔ {{current}} از {{total}}",
     "paginated": "صفحه‌ای",
     "scrolled": "اسکرولی"
+  },
+  "sync": {
+    "title": "همگام‌سازی",
+    "provider": "سرویس ذخیره‌سازی",
+    "providerNone": "هیچ",
+    "providerWebdav": "وب‌داو",
+    "baseUrl": "نشانی سرور",
+    "username": "نام کاربری",
+    "password": "گذرواژه",
+    "test": "تست اتصال",
+    "syncNow": "همگام‌سازی کن",
+    "working": "در حال همگام‌سازی…",
+    "lastSync": "آخرین همگام‌سازی",
+    "never": "هنوز همگام‌سازی نشده است.",
+    "report": "{{pulled}} تغییر دریافت شد، {{uploaded}} کتاب بارگذاری و {{downloaded}} کتاب دانلود شد.",
+    "failed": "همگام‌سازی ناموفق بود"
   }
 }

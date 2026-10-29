@@ -58,13 +58,23 @@ CREATE TABLE IF NOT EXISTS notes (
 );
 CREATE INDEX IF NOT EXISTS notes_book ON notes(book_id);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-PRAGMA user_version = 1;
+PRAGMA user_version = 2;
 `;
+
+const SYNC_CLOCKS_TABLE = `CREATE TABLE IF NOT EXISTS sync_clocks (
+  key TEXT PRIMARY KEY,
+  hlc TEXT NOT NULL
+);`;
 
 export const migrate = async (db: SqlDatabase): Promise<void> => {
   const rows = await db.all<{ user_version: number }>('PRAGMA user_version');
   const version = Number(rows[0]?.user_version ?? 0);
   if (version < 1) await db.exec(SCHEMA);
+  // v2 adds the per-record sync clock table (ADR-0006).
+  if (version < 2) {
+    await db.exec(SYNC_CLOCKS_TABLE);
+    await db.exec('PRAGMA user_version = 2');
+  }
 };
 
 const parseJson = <T>(value: unknown, fallback: T): T => {
@@ -258,6 +268,32 @@ export const createSqlStorage = (db: SqlDatabase): Storage => ({
   books: createBookRepository(db),
   reading: createReadingRepository(db),
   notes: createNoteRepository(db),
+});
+
+/**
+ * Per-record sync clocks (ADR-0006): `${kind}:${id}` -> packed HLC. The app
+ * stamps on local writes, the sync engine stamps with the pulled timestamp on
+ * remote applies. A `:deleted` suffix marks tombstones for records whose rows
+ * are gone.
+ */
+export interface SyncClockRepository {
+  list(): Promise<Record<string, string>>;
+  set(entries: Array<readonly [string, string]>): Promise<void>;
+}
+
+export const createSyncClockRepository = (db: SqlDatabase): SyncClockRepository => ({
+  async list() {
+    const rows = await db.all<{ key: string; hlc: string }>('SELECT key, hlc FROM sync_clocks');
+    return Object.fromEntries(rows.map((row) => [row.key, row.hlc]));
+  },
+  async set(entries) {
+    for (const [key, hlc] of entries) {
+      await db.run(
+        'INSERT INTO sync_clocks (key, hlc) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET hlc = excluded.hlc',
+        [key, hlc],
+      );
+    }
+  },
 });
 
 /** One-way import of the Phase 1 JSON manifest into SQLite. */

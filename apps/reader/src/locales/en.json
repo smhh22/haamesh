@@ -97,5 +97,21 @@
     "pageOf": "Page {{current}} of {{total}}",
     "paginated": "Paginated",
     "scrolled": "Scrolled"
+  },
+  "sync": {
+    "title": "Sync",
+    "provider": "Provider",
+    "providerNone": "None",
+    "providerWebdav": "WebDAV",
+    "baseUrl": "Server URL",
+    "username": "Username",
+    "password": "Password",
+    "test": "Test connection",
+    "syncNow": "Sync now",
+    "working": "Syncing…",
+    "lastSync": "Last sync",
+    "never": "Never synced.",
+    "report": "Pulled {{pulled}} changes, uploaded {{uploaded}} books, downloaded {{downloaded}} books.",
+    "failed": "Sync failed"
   }
 }

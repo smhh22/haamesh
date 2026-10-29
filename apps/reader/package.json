@@ -1,0 +1,34 @@
+{
+  "name": "@hamesh/reader",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "@fontsource/vazirmatn": "^5.3.0",
+    "@hamesh/core": "workspace:*",
+    "@hamesh/engine": "workspace:*",
+    "@hamesh/storage": "workspace:*",
+    "@hamesh/ui": "workspace:*",
+    "i18next": "^26.5.11",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-i18next": "^17.1.9",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@hamesh/test-fixtures": "workspace:*",
+    "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/cli": "^2.12.4",
+    "@vitejs/plugin-react": "^6.1.2",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.5"
+  }
+}

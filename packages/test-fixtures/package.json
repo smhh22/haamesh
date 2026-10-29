@@ -1,0 +1,20 @@
+{
+  "name": "@hamesh/test-fixtures",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "fixture:e2e": "node --experimental-strip-types --no-warnings scripts/make-e2e-fixture.mjs"
+  },
+  "dependencies": {
+    "@hamesh/core": "workspace:*",
+    "@hamesh/platform": "workspace:*",
+    "@hamesh/storage": "workspace:*",
+    "@hamesh/sync": "workspace:*",
+    "fflate": "^0.8.3"
+  }
+}

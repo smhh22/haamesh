@@ -1,0 +1,22 @@
+:root {
+  --hamesh-font-ui: "Vazirmatn", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --hamesh-font-book: "Vazirmatn", system-ui, serif;
+
+  --hamesh-color-canvas: #f6f3ec;
+  --hamesh-color-surface: #fffdf8;
+  --hamesh-color-ink: #24211c;
+  --hamesh-color-muted: #6b6458;
+  --hamesh-color-accent: #2f6f5e;
+  --hamesh-color-border: #d9d2c4;
+  --hamesh-color-danger: #a33a2f;
+
+  --hamesh-space-1: 0.25rem;
+  --hamesh-space-2: 0.5rem;
+  --hamesh-space-3: 0.75rem;
+  --hamesh-space-4: 1rem;
+  --hamesh-space-6: 1.5rem;
+  --hamesh-space-8: 2rem;
+
+  --hamesh-radius: 0.75rem;
+  --hamesh-line-height-book: 1.9;
+}

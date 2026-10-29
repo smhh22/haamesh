@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@hamesh/core": ["./packages/core/src/index.ts"],
+      "@hamesh/platform": ["./packages/platform/src/index.ts"],
+      "@hamesh/engine": ["./packages/engine/src/index.ts"],
+      "@hamesh/storage": ["./packages/storage/src/index.ts"],
+      "@hamesh/sync": ["./packages/sync/src/index.ts"],
+      "@hamesh/ui": ["./packages/ui/src/index.ts"],
+      "@hamesh/test-fixtures": ["./packages/test-fixtures/src/index.ts"]
+    }
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/src/**/*.tsx",
+    "apps/*/src/**/*.ts",
+    "apps/*/src/**/*.tsx",
+    "apps/*/vite.config.ts",
+    "vitest.config.ts",
+    "vitest.setup.ts"
+  ]
+}

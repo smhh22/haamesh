@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.vite/
+.v2c/
+test-results/
+playwright-report/
+e2e/artifacts/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+target/
+apps/reader/src-tauri/target/

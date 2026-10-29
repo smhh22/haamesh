@@ -8,7 +8,8 @@ const validateRelative = (path: string): string[] => {
   return parts;
 };
 
-const isTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+export const isTauriRuntime = (): boolean =>
+  typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 const createTauriStore = async (): Promise<DataStorePort> => {
   const { invoke } = await import('@tauri-apps/api/core');
@@ -106,7 +107,7 @@ const createOpfsStore = (root: FileSystemDirectoryHandle): DataStorePort => ({
  * which case the library stays in memory.
  */
 export const createDataStore = async (): Promise<DataStorePort | null> => {
-  if (isTauri()) return createTauriStore();
+  if (isTauriRuntime()) return createTauriStore();
 
   const storage = typeof navigator !== 'undefined' ? navigator.storage : undefined;
   if (!storage?.getDirectory) return null;

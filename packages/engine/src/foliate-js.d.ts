@@ -14,11 +14,17 @@ declare module 'foliate-js/view.js' {
     belongsTo?: { series?: unknown; collection?: unknown } | null;
   }
 
+  export interface FoliateTocItem {
+    label: string;
+    href: string;
+    subitems?: FoliateTocItem[] | null;
+  }
+
   export interface FoliateBook {
     metadata?: FoliateMetadata;
     dir?: 'ltr' | 'rtl' | 'default' | null;
     sections?: unknown[];
-    toc?: unknown[];
+    toc?: FoliateTocItem[];
     transformTarget?: EventTarget;
     getCover(): Promise<Blob | null>;
     destroy(): void;

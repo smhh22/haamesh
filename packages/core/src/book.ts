@@ -33,6 +33,13 @@ export interface BookConfig {
   status: ReadingStatus;
 }
 
+/** One entry in a book's table of contents. */
+export interface TocItem {
+  label: string;
+  href: string;
+  subitems?: TocItem[] | null;
+}
+
 export interface BookNote {
   id: string;
   type: 'highlight' | 'bookmark' | 'note';

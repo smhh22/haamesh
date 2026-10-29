@@ -5,6 +5,7 @@ import '@fontsource/vazirmatn/700.css';
 import { App } from './App';
 import './i18n';
 import { initLibraryPersistence } from './services/libraryPersistence';
+import { importInitialFile } from './services/openWith';
 import './styles.css';
 
 const container = document.getElementById('root');
@@ -16,6 +17,7 @@ if (!container) {
 void (async () => {
   try {
     await initLibraryPersistence();
+    await importInitialFile();
   } catch (error) {
     console.error('Failed to load the persisted library', error);
   }

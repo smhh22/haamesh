@@ -46,6 +46,15 @@ Desktop library data lives under the app data directory
 `books/<sha256>.epub`, and `covers/<sha256>`. Web development uses OPFS under the
 same relative layout.
 
+Open a book from the shell:
+
+```bash
+./apps/reader/src-tauri/target/debug/hamesh /path/to/book.epub
+```
+
+Installed bundles register `.epub` through `bundle.fileAssociations`, so "Open
+with Hāmesh" uses the same path.
+
 ## Fresh machine prerequisites
 
 ### Linux (Ubuntu/Debian)

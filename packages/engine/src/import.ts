@@ -1,4 +1,4 @@
-import type { BookMetadata } from '@hamesh/core';
+import type { BookFormat, BookMetadata } from '@hamesh/core';
 import { makeBook } from 'foliate-js/view.js';
 import { resolveBookDirection } from './direction';
 
@@ -84,10 +84,10 @@ export const sha256Hex = async (bytes: Uint8Array<ArrayBuffer>): Promise<string>
 };
 
 /**
- * Read an EPUB's identity and metadata without keeping the parsed book. The
+ * Read a book's identity and metadata without keeping the parsed book. The
  * hash is of the file bytes, so re-importing the same file is a no-op later.
  */
-export const importEpub = async (file: File): Promise<ImportedBook> => {
+const importBookWithFormat = async (file: File, format: BookFormat): Promise<ImportedBook> => {
   if (file.size === 0) {
     throw new ImportError('INVALID_FILE', 'The selected file is empty.');
   }
@@ -99,7 +99,7 @@ export const importEpub = async (file: File): Promise<ImportedBook> => {
   try {
     book = await makeBook(file);
   } catch (cause) {
-    throw new ImportError('PARSE_FAILED', 'Could not parse the EPUB file.', { cause });
+    throw new ImportError('PARSE_FAILED', 'Could not parse the book file.', { cause });
   }
 
   try {
@@ -115,8 +115,9 @@ export const importEpub = async (file: File): Promise<ImportedBook> => {
     return {
       metadata: {
         hash,
-        format: 'epub',
-        title: languageMapToString(metadata.title, language) || file.name.replace(/\.epub$/i, ''),
+        format,
+        title:
+          languageMapToString(metadata.title, language) || file.name.replace(/\.(epub|pdf)$/i, ''),
         authors: contributorNames(metadata.author, language),
         language,
         publisher: contributorNames(metadata.publisher, language)[0] ?? null,
@@ -130,3 +131,14 @@ export const importEpub = async (file: File): Promise<ImportedBook> => {
     book.destroy();
   }
 };
+
+export const isPdfFile = (file: File): boolean =>
+  file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+export const importEpub = (file: File): Promise<ImportedBook> => importBookWithFormat(file, 'epub');
+
+export const importPdf = (file: File): Promise<ImportedBook> => importBookWithFormat(file, 'pdf');
+
+/** Import an EPUB or PDF, detected from the file type or extension. */
+export const importBook = (file: File): Promise<ImportedBook> =>
+  isPdfFile(file) ? importPdf(file) : importEpub(file);

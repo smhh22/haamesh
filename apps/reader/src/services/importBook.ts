@@ -1,4 +1,4 @@
-import { importEpub } from '@hamesh/engine';
+import { importBook } from '@hamesh/engine';
 import type { BookRecord } from '@hamesh/storage';
 import { rememberBookFile } from './bookFiles';
 
@@ -13,7 +13,7 @@ export interface ImportedBookFile {
  * persistence layer can store them; the record only carries a runtime cover URL.
  */
 export const importBookFile = async (file: File): Promise<ImportedBookFile> => {
-  const { metadata, cover } = await importEpub(file);
+  const { metadata, cover } = await importBook(file);
   const now = Date.now();
   const coverPath =
     cover && typeof URL.createObjectURL === 'function' ? URL.createObjectURL(cover) : null;

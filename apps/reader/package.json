@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "prepare:pdfjs": "node scripts/copy-pdfjs.mjs",
+    "dev": "node scripts/copy-pdfjs.mjs && vite",
+    "build": "node scripts/copy-pdfjs.mjs && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",

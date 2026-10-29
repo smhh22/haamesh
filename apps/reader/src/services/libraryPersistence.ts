@@ -12,7 +12,7 @@ let store: DataStorePort | null = null;
 let activeStorage: ActiveStorage | null = null;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-const bookPath = (hash: string): string => `books/${hash}.epub`;
+const bookPath = (hash: string, format: BookRecord['format']): string => `books/${hash}.${format}`;
 const coverPath = (hash: string): string => `covers/${hash}`;
 
 const toArrayBuffer = (bytes: Uint8Array): ArrayBuffer => {
@@ -41,11 +41,11 @@ const hydrateBooks = async (
 
   const hydrated: BookRecord[] = [];
   for (const book of books) {
-    const bytes = await dataStore.read(bookPath(book.hash));
+    const bytes = await dataStore.read(bookPath(book.hash, book.format));
     if (!bytes) continue;
 
     const file = new File([toArrayBuffer(bytes)], book.filePath, {
-      type: 'application/epub+zip',
+      type: book.format === 'pdf' ? 'application/pdf' : 'application/epub+zip',
     });
     rememberBookFile(book.hash, file);
 
@@ -118,7 +118,7 @@ export const persistBook = async (
 ): Promise<void> => {
   if (store) {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    await store.write(bookPath(book.hash), bytes);
+    await store.write(bookPath(book.hash, book.format), bytes);
 
     if (cover) {
       await store.write(coverPath(book.hash), new Uint8Array(await cover.arrayBuffer()));
@@ -132,7 +132,7 @@ export const persistBook = async (
 
 export const deletePersistedBook = async (book: BookRecord): Promise<void> => {
   if (store) {
-    await store.remove(bookPath(book.hash));
+    await store.remove(bookPath(book.hash, book.format));
     await store.remove(coverPath(book.hash));
   }
   await activeStorage?.storage.books.remove(book.id);

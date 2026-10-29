@@ -5,8 +5,25 @@ import { defineConfig } from 'vite';
 
 const fromRoot = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
+/**
+ * Upstream foliate-js builds PDF asset URLs with a dynamic `new URL`, which
+ * Vite 8 turns into a directory glob (including source maps). Point it at the
+ * copied public assets instead; `scripts/copy-pdfjs.mjs` populates them.
+ */
+const foliatePdfPathFix = {
+  name: 'foliate-pdf-path-fix',
+  enforce: 'pre' as const,
+  transform(code: string, id: string) {
+    if (!id.endsWith('/vendor/foliate-js/pdf.js')) return null;
+    return code.replace(
+      /const pdfjsPath = path => new URL\(`(?:\.\/)?vendor\/pdfjs\/\$\{path\}`, import\.meta\.url\)\.toString\(\)/,
+      'const pdfjsPath = path => `/vendor/pdfjs/${path}`',
+    );
+  },
+};
+
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), foliatePdfPathFix],
   server: {
     port: 5173,
     strictPort: true,

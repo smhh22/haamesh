@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createTestEpub } from '../src/epub.ts';
+import { createTestPdf } from '../src/pdf.ts';
 
 const fixturesDir = fileURLToPath(new URL('../../../e2e/fixtures', import.meta.url));
 mkdirSync(fixturesDir, { recursive: true });
@@ -22,3 +23,7 @@ writeFileSync(
   ),
 );
 console.log(`wrote ${english}`);
+
+const pdf = fileURLToPath(new URL('../../../e2e/fixtures/sample.pdf', import.meta.url));
+writeFileSync(pdf, Buffer.from(createTestPdf()));
+console.log(`wrote ${pdf}`);

@@ -126,6 +126,7 @@ export const ReaderView = ({
   const updateNote = useNotesStore((state) => state.update);
   const removeNote = useNotesStore((state) => state.remove);
   const bookNotes = useMemo(() => notesForBook(allNotes, book.id), [allNotes, book.id]);
+  const isPdf = book.format === 'pdf';
 
   const stageRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<FoliateViewElement | null>(null);
@@ -159,6 +160,7 @@ export const ReaderView = ({
   }, [bookNotes]);
 
   useEffect(() => {
+    if (isPdf) return;
     const css = buildReaderCss(settings);
     settingsCssRef.current = css;
     flowRef.current = settings.flow;
@@ -178,7 +180,7 @@ export const ReaderView = ({
         void view.goTo(cfi);
       });
     }
-  }, [settings]);
+  }, [settings, isPdf]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -190,7 +192,7 @@ export const ReaderView = ({
     stage.append(view);
 
     const applyNote = (note: BookNoteRecord) => {
-      if (note.type === 'bookmark' || note.locator.kind !== 'cfi') return;
+      if (isPdf || note.type === 'bookmark' || note.locator.kind !== 'cfi') return;
       void view.addAnnotation({
         value: note.locator.cfi,
         color: note.color ?? DEFAULT_HIGHLIGHT,
@@ -236,6 +238,7 @@ export const ReaderView = ({
 
     const onLoad = (event: Event) => {
       setReady(true);
+      if (isPdf) return;
       const detail = (event as CustomEvent<{ doc?: Document; index?: number }>).detail;
       const doc = detail?.doc;
       if (!doc) return;
@@ -279,6 +282,7 @@ export const ReaderView = ({
     };
 
     const onShowAnnotation = (event: Event) => {
+      if (isPdf) return;
       const detail = (event as CustomEvent<{ value?: string }>).detail;
       if (!detail?.value) return;
       const note = notesRef.current.find(
@@ -324,11 +328,13 @@ export const ReaderView = ({
           showTextStart: true,
         });
 
-        view.renderer?.setAttribute('flow', flowRef.current);
-        for (const { doc } of view.renderer?.getContents() ?? []) {
-          applyReaderStyle(doc, settingsCssRef.current);
+        if (!isPdf) {
+          view.renderer?.setAttribute('flow', flowRef.current);
+          for (const { doc } of view.renderer?.getContents() ?? []) {
+            applyReaderStyle(doc, settingsCssRef.current);
+          }
+          for (const note of notesRef.current) applyNote(note);
         }
-        for (const note of notesRef.current) applyNote(note);
       } catch (error) {
         console.error('Failed to open book', error);
         if (!cancelled) setFailed(true);
@@ -350,7 +356,7 @@ export const ReaderView = ({
       view.remove();
       viewRef.current = null;
     };
-  }, [file, initialLocation]);
+  }, [file, initialLocation, isPdf]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -571,6 +577,7 @@ export const ReaderView = ({
   return (
     <div
       className="reader-shell"
+      data-format={book.format}
       data-ready={ready ? 'true' : 'false'}
       data-failed={failed ? 'true' : 'false'}
       data-theme={settings.theme}
@@ -594,33 +601,37 @@ export const ReaderView = ({
           >
             {t('reader.contents')}
           </button>
-          <button
-            type="button"
-            className="reader-action"
-            aria-expanded={panel === 'notes'}
-            onClick={() => togglePanel('notes')}
-          >
-            {t('reader.notes')}
-          </button>
-          <button
-            type="button"
-            className="reader-action"
-            aria-expanded={panel === 'search'}
-            onClick={() => togglePanel('search')}
-          >
-            {t('reader.search')}
-          </button>
-          <button
-            type="button"
-            className="reader-action"
-            aria-expanded={panel === 'settings'}
-            onClick={() => togglePanel('settings')}
-          >
-            {t('reader.settings')}
-          </button>
-          <button type="button" className="reader-action" onClick={addBookmark}>
-            {t('reader.bookmark')}
-          </button>
+          {!isPdf ? (
+            <>
+              <button
+                type="button"
+                className="reader-action"
+                aria-expanded={panel === 'notes'}
+                onClick={() => togglePanel('notes')}
+              >
+                {t('reader.notes')}
+              </button>
+              <button
+                type="button"
+                className="reader-action"
+                aria-expanded={panel === 'search'}
+                onClick={() => togglePanel('search')}
+              >
+                {t('reader.search')}
+              </button>
+              <button
+                type="button"
+                className="reader-action"
+                aria-expanded={panel === 'settings'}
+                onClick={() => togglePanel('settings')}
+              >
+                {t('reader.settings')}
+              </button>
+              <button type="button" className="reader-action" onClick={addBookmark}>
+                {t('reader.bookmark')}
+              </button>
+            </>
+          ) : null}
           <span className="reader-progress">{t('reader.progress', { percent })}</span>
         </div>
       </header>

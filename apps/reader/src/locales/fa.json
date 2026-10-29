@@ -1,0 +1,36 @@
+{
+  "app": {
+    "eyebrow": "کتابخانهٔ محلی",
+    "title": "هامش",
+    "lede": "کتاب‌هایت را آفلاین بخوان. کتابخانه روی دستگاه خودت می‌ماند.",
+    "switch": "تغییر به انگلیسی"
+  },
+  "library": {
+    "heading": "کتابخانه",
+    "empty": "هنوز کتابی اضافه نشده است.",
+    "drop": "فایل‌های EPUB را اینجا رها کنید یا از «افزودن» استفاده کنید.",
+    "import": "افزودن EPUB",
+    "importing": "در حال افزودن…",
+    "unknownAuthor": "نویسندهٔ نامشخص",
+    "unknownLanguage": "زبان نامشخص",
+    "rtl": "راست‌به‌چپ",
+    "ltr": "چپ‌به‌راست",
+    "remove": "حذف",
+    "read": "خواندن",
+    "bidiSample": "این کتابخانه با چیدمان منطقی ساخته شده است — this layout uses logical properties.",
+    "errors": {
+      "INVALID_FILE": "فایل خالی یا ناخواناست.",
+      "UNSUPPORTED_FORMAT": "در این نسخه فقط EPUB پشتیبانی می‌شود.",
+      "CRYPTO_UNAVAILABLE": "برای محاسبهٔ اثر انگشت کتاب به HTTPS یا localhost نیاز است.",
+      "PARSE_FAILED": "این EPUB خوانده نشد.",
+      "UNKNOWN": "هنگام افزودن کتاب خطایی رخ داد."
+    }
+  },
+  "reader": {
+    "back": "کتابخانه",
+    "previous": "قبلی",
+    "next": "بعدی",
+    "progress": "{{percent}}٪ خوانده‌شده",
+    "error": "این کتاب باز نشد."
+  }
+}

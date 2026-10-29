@@ -1,0 +1,36 @@
+{
+  "app": {
+    "eyebrow": "Local library",
+    "title": "Hāmesh",
+    "lede": "Read your books offline. Your library stays on your device.",
+    "switch": "Switch to Persian"
+  },
+  "library": {
+    "heading": "Library",
+    "empty": "No books yet.",
+    "drop": "Drop EPUB files here, or use Import.",
+    "import": "Import EPUB",
+    "importing": "Importing…",
+    "unknownAuthor": "Unknown author",
+    "unknownLanguage": "Unknown language",
+    "rtl": "RTL",
+    "ltr": "LTR",
+    "remove": "Remove",
+    "read": "Read",
+    "bidiSample": "این کتابخانه با چیدمان منطقی ساخته شده است — this layout uses logical properties.",
+    "errors": {
+      "INVALID_FILE": "That file is empty or unreadable.",
+      "UNSUPPORTED_FORMAT": "Only EPUB files are supported in this build.",
+      "CRYPTO_UNAVAILABLE": "Book hashing needs HTTPS or localhost.",
+      "PARSE_FAILED": "This EPUB could not be read.",
+      "UNKNOWN": "Something went wrong while importing."
+    }
+  },
+  "reader": {
+    "back": "Library",
+    "previous": "Previous",
+    "next": "Next",
+    "progress": "{{percent}}% read",
+    "error": "This book could not be opened."
+  }
+}

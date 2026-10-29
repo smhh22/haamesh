@@ -1,0 +1,35 @@
+{
+  "name": "hamesh",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "packageManager": "pnpm@12.16.1",
+  "scripts": {
+    "dev": "pnpm --filter @hamesh/reader dev",
+    "build": "pnpm --filter @hamesh/reader build",
+    "preview": "pnpm --filter @hamesh/reader preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check . && pnpm typecheck && pnpm check:boundaries && pnpm check:logical",
+    "fmt": "biome format --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "tauri:dev": "pnpm --filter @hamesh/reader tauri:dev",
+    "tauri:build": "pnpm --filter @hamesh/reader tauri:build",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "check:logical": "node scripts/check-logical-properties.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.3",
+    "@playwright/test": "^1.64.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "jsdom": "^30.1.3",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

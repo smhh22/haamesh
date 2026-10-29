@@ -137,6 +137,12 @@ Identity:
 
 ## 6. Local persistence
 
+Phase 1 ships the JSON manifest adapter from ADR-0010: a versioned
+`library.json` plus content-addressed book and cover blobs, stored through a
+`DataStorePort` (OPFS on web, Tauri app-data commands on desktop). The schema
+below is the target once annotations and full-text search justify SQLite; a
+JSON-to-SQLite migration is required before that phase ships.
+
 Schema (SQLite, migrated in order, never edited after release):
 
 ```

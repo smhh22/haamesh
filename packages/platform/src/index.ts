@@ -37,8 +37,17 @@ export interface DeviceInfoPort {
   deviceId: string;
 }
 
+export interface DataStorePort {
+  /** Relative paths only; absolute paths and `..` are rejected by adapters. */
+  read(relativePath: string): Promise<Uint8Array | null>;
+  write(relativePath: string, data: Uint8Array): Promise<void>;
+  remove(relativePath: string): Promise<void>;
+  list(relativeDir: string): Promise<string[]>;
+}
+
 export interface Platform {
   fs: FileSystemPort;
+  data: DataStorePort;
   keychain: KeychainPort;
   dialogs: DialogPort;
   logger: LoggerPort;

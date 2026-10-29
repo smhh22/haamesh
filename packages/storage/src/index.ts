@@ -3,7 +3,10 @@ import type { BookFormat, BookMetadata, BookNote, Locator, ReadingStatus } from 
 export interface BookRecord extends BookMetadata {
   id: string;
   filePath: string;
+  /** Runtime object URL; never persisted. */
   coverPath: string | null;
+  /** Needed to recreate the cover Blob after a restart. */
+  coverMime?: string | null;
   addedAt: number;
   updatedAt: number;
 }
@@ -14,6 +17,13 @@ export interface ReadingState {
   fraction: number;
   status: ReadingStatus;
   updatedAt: number;
+}
+
+/** Phase 1 manifest (ADR-0010). */
+export interface LibrarySnapshot {
+  version: 1;
+  books: BookRecord[];
+  reading: Record<string, ReadingState>;
 }
 
 export interface BookNoteRecord {
@@ -47,9 +57,9 @@ export interface NoteRepository {
 }
 
 /**
- * Storage boundary. Implementations use SQLite on desktop and SQLite-WASM with
- * OPFS on web; book blobs live in a content-addressed store outside the
- * database.
+ * Storage boundary. Phase 1 uses the JSON manifest adapter from ADR-0010;
+ * the target is SQLite on desktop and SQLite-WASM on web, with book blobs in a
+ * content-addressed store outside the database.
  */
 export interface Storage {
   books: BookRepository;

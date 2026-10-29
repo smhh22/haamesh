@@ -41,6 +41,11 @@ Configuration lives in `apps/reader/src-tauri/tauri.conf.json`:
 Keep Tauri commands thin: filesystem, SQLite, keychain, and native parsers. No
 business logic in Rust that belongs in `packages/*`.
 
+Desktop library data lives under the app data directory
+(`~/.local/share/app.hamesh.reader` on Linux): `library.json`,
+`books/<sha256>.epub`, and `covers/<sha256>`. Web development uses OPFS under the
+same relative layout.
+
 ## Fresh machine prerequisites
 
 ### Linux (Ubuntu/Debian)

@@ -61,8 +61,9 @@ Deliverables:
 - Import via file picker, drag-and-drop, and open-with; hash identity; metadata
   and cover extraction; duplicate detection.
 - Library: grid/list, sort/search, virtualization for 1,000+ books.
-- Storage: SQLite repositories + content-addressed blob store on desktop;
-  SQLite-WASM + OPFS on web (may be a second increment).
+- Storage: Phase 1 uses a versioned JSON manifest plus content-addressed blobs
+  through `DataStorePort` (OPFS on web, Tauri app-data commands on desktop;
+  ADR-0010). SQLite migration follows with annotations.
 - Reader: paginated and scrolled modes, TOC, progress bar, chapter navigation,
   font/size/theme controls, keyboard and touch navigation.
 - Direction resolution; navigation semantics correct in RTL; Persian typography;
@@ -88,6 +89,8 @@ engine adapter.
 
 Deliverables:
 
+- Migrate the Phase 1 JSON manifest to SQLite (desktop) and SQLite-WASM on web,
+  with a one-way migration from schema version 1.
 - Highlights (colors), bookmarks, notes; per-book sidebar; direction-aware
   selection handles and popovers.
 - Annotation rendering across reflow, font size, theme, and resize.

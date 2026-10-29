@@ -35,7 +35,7 @@ describe('App', () => {
     const file = new File([createTestEpub()], 'sample.epub', {
       type: 'application/epub+zip',
     });
-    const record = await importBookFile(file);
+    const { record } = await importBookFile(file);
     useLibraryStore.getState().addBook(record);
 
     render(<App />);

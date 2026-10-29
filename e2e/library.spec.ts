@@ -51,6 +51,17 @@ test('switches the interface to Persian RTL', async ({ page }) => {
   await page.screenshot({ path: 'e2e/artifacts/library-rtl.png', fullPage: true });
 });
 
+test('persists the library across a reload', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(fixture);
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+  await expect(page.locator('.library')).toHaveAttribute('aria-busy', 'false');
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+  await expect(page.getByText('RTL')).toBeVisible();
+});
+
 test('resumes at the saved position', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(fixture);
@@ -72,6 +83,15 @@ test('resumes at the saved position', async ({ page }) => {
   const saved = await progress.textContent();
 
   await page.getByRole('button', { name: 'Library' }).click();
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+  await expect(progress).toHaveText(saved ?? '');
+
+  await page.waitForTimeout(700);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
   await page.getByRole('button', { name: 'Read' }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,

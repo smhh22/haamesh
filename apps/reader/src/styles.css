@@ -738,3 +738,46 @@ blockquote.note-text {
   background: transparent;
   color: inherit;
 }
+
+.content-matches {
+  margin-block-start: var(--hamesh-space-3);
+}
+
+.content-matches h3 {
+  margin-block: 0 var(--hamesh-space-2);
+  font-size: 0.95rem;
+}
+
+.content-matches ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--hamesh-space-1);
+}
+
+.content-matches button {
+  inline-size: 100%;
+  text-align: start;
+  padding: var(--hamesh-space-2);
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+}
+
+.content-matches button:hover {
+  border-color: var(--hamesh-color-accent);
+}
+
+.content-match-title {
+  font-weight: 600;
+}
+
+.content-match-snippet {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}

@@ -1,4 +1,5 @@
 import type { Direction, Locator, ReadingStatus } from '@hamesh/core';
+import { normalizeForSearch } from '@hamesh/core';
 import type {
   BookNoteRecord,
   BookRecord,
@@ -58,8 +59,15 @@ CREATE TABLE IF NOT EXISTS notes (
 );
 CREATE INDEX IF NOT EXISTS notes_book ON notes(book_id);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-PRAGMA user_version = 2;
+PRAGMA user_version = 3;
 `;
+
+const BOOK_TEXTS_TABLE = `CREATE TABLE IF NOT EXISTS book_texts (
+  book_id TEXT NOT NULL,
+  section INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  PRIMARY KEY (book_id, section)
+);`;
 
 const SYNC_CLOCKS_TABLE = `CREATE TABLE IF NOT EXISTS sync_clocks (
   key TEXT PRIMARY KEY,
@@ -74,6 +82,11 @@ export const migrate = async (db: SqlDatabase): Promise<void> => {
   if (version < 2) {
     await db.exec(SYNC_CLOCKS_TABLE);
     await db.exec('PRAGMA user_version = 2');
+  }
+  // v3 adds per-section extracted book text for content search.
+  if (version < 3) {
+    await db.exec(BOOK_TEXTS_TABLE);
+    await db.exec('PRAGMA user_version = 3');
   }
 };
 
@@ -268,6 +281,82 @@ export const createSqlStorage = (db: SqlDatabase): Storage => ({
   books: createBookRepository(db),
   reading: createReadingRepository(db),
   notes: createNoteRepository(db),
+  texts: createContentTextRepository(db),
+});
+
+/**
+ * Per-section extracted book text for library content search. Stored in v3
+ * (`book_texts`); search filters in JS so Persian normalization matches the
+ * library filter exactly and no server-side FTS is needed at this scale.
+ */
+export interface ContentTextRepository {
+  replace(bookId: string, sections: string[]): Promise<void>;
+  remove(bookId: string): Promise<void>;
+  search(
+    query: string,
+    limit?: number,
+  ): Promise<Array<{ bookId: string; section: number; snippet: string }>>;
+}
+
+const SNIPPET_RADIUS = 70;
+
+/**
+ * Pure content-search core (unit-tested): normalize both sides with
+ * {@link normalizeForSearch}, keep only rows whose normalized text contains
+ * the needle, and cut a snippet from the original text around the match.
+ */
+export const searchBookTexts = (
+  rows: Array<{ bookId: string; section: number; content: string }>,
+  query: string,
+  limit: number,
+): Array<{ bookId: string; section: number; snippet: string }> => {
+  const needle = normalizeForSearch(query.trim());
+  if (!needle) return [];
+  const out: Array<{ bookId: string; section: number; snippet: string }> = [];
+  for (const row of rows) {
+    if (out.length >= limit) break;
+    const normalized = normalizeForSearch(row.content);
+    const index = normalized.indexOf(needle);
+    if (index < 0) continue;
+    // Normalization is length-preserving for the folded characters, so the
+    // normalized index maps onto the original text for the snippet window.
+    const start = Math.max(0, index - SNIPPET_RADIUS);
+    const end = Math.min(row.content.length, index + needle.length + SNIPPET_RADIUS);
+    const snippet = `${start > 0 ? '…' : ''}${row.content.slice(start, end).replace(/\s+/g, ' ').trim()}${end < row.content.length ? '…' : ''}`;
+    out.push({ bookId: row.bookId, section: row.section, snippet });
+  }
+  return out;
+};
+
+export const createContentTextRepository = (db: SqlDatabase): ContentTextRepository => ({
+  async replace(bookId, sections) {
+    await db.run('DELETE FROM book_texts WHERE book_id = ?', [bookId]);
+    for (const [section, content] of sections.entries()) {
+      if (!content) continue;
+      await db.run('INSERT INTO book_texts (book_id, section, content) VALUES (?, ?, ?)', [
+        bookId,
+        section,
+        content,
+      ]);
+    }
+  },
+
+  async remove(bookId) {
+    await db.run('DELETE FROM book_texts WHERE book_id = ?', [bookId]);
+  },
+
+  async search(query, limit = 20) {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) return [];
+    const rows = await db.all<{ book_id: string; section: number; content: string }>(
+      'SELECT book_id, section, content FROM book_texts',
+    );
+    return searchBookTexts(
+      rows.map((row) => ({ bookId: row.book_id, section: row.section, content: row.content })),
+      trimmed,
+      limit,
+    );
+  },
 });
 
 /**

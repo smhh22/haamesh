@@ -8,6 +8,12 @@ import { ReaderView } from './components/ReaderView';
 import { SyncSettings } from './components/SyncSettings';
 import { type BookSort, type BookView, filterAndSortBooks } from './library/bookList';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
+import {
+  type ContentMatch,
+  removeBookTexts,
+  searchBookContent,
+  storeBookTexts,
+} from './services/bookTexts';
 import { importBookFile } from './services/importBook';
 import {
   deletePersistedBook,
@@ -45,6 +51,7 @@ export const App = () => {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<BookSort>('recent');
   const [viewMode, setViewMode] = useState<BookView>('grid');
+  const [contentMatches, setContentMatches] = useState<ContentMatch[]>([]);
   const [readerSession, setReaderSession] = useState<{
     book: BookRecord;
     start: ReadingState | null;
@@ -93,6 +100,7 @@ export const App = () => {
           const imported = await importBookFile(file);
           addBook(imported.record);
           await persistBook(imported.record, imported.file, imported.cover);
+          void storeBookTexts(imported.record.id, imported.file);
         } catch (error) {
           setErrorCode(error instanceof ImportError ? error.code : 'UNKNOWN');
         }
@@ -125,6 +133,7 @@ export const App = () => {
     forgetBookFile(book.hash);
     removeReadingState(book.id);
     removeBook(book.id);
+    void removeBookTexts(book.id);
     void deletePersistedBook(book);
   };
 
@@ -138,6 +147,20 @@ export const App = () => {
       start: useReadingStore.getState().states[book.id] ?? null,
     });
   };
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setContentMatches([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void searchBookContent(trimmed)
+        .then(setContentMatches)
+        .catch(() => setContentMatches([]));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   const openFile = readerSession ? getBookFile(readerSession.book.hash) : null;
   if (readerSession && openFile) {
@@ -299,6 +322,28 @@ export const App = () => {
               ))}
             </ul>
           )}
+
+          {query.trim().length >= 2 && contentMatches.length > 0 ? (
+            <div className="content-matches">
+              <h3>{t('library.contentMatches')}</h3>
+              <ul>
+                {contentMatches.map((match) => {
+                  const matchBook = books.find((item) => item.id === match.bookId);
+                  if (!matchBook) return null;
+                  return (
+                    <li key={`${match.bookId}:${match.section}`}>
+                      <button type="button" onClick={() => openReader(matchBook)}>
+                        <span className="content-match-title">{matchBook.title}</span>
+                        <span className="content-match-snippet" dir="auto">
+                          {match.snippet}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
         </section>
 
         <SyncSettings />

@@ -23,7 +23,7 @@ declare module 'foliate-js/view.js' {
   export interface FoliateBook {
     metadata?: FoliateMetadata;
     dir?: 'ltr' | 'rtl' | 'default' | null;
-    sections?: unknown[];
+    sections?: Array<unknown | { createDocument?: () => Promise<Document> }>;
     toc?: FoliateTocItem[];
     transformTarget?: EventTarget;
     getCover(): Promise<Blob | null>;

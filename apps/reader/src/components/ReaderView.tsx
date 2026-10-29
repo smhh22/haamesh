@@ -64,14 +64,6 @@ type ReaderPanel = 'toc' | 'notes' | 'search' | 'settings' | null;
 const READER_STYLE_ID = 'hamesh-reader-style';
 const DEFAULT_HIGHLIGHT = '#f2c94c';
 
-const HIGHLIGHT_COLORS = [
-  { value: '#f2c94c', key: 'yellow' },
-  { value: '#6fcf97', key: 'green' },
-  { value: '#56ccf2', key: 'blue' },
-  { value: '#eb5757', key: 'red' },
-  { value: '#bb6bd9', key: 'purple' },
-] as const;
-
 const applyReaderStyle = (doc: Document, css: string): void => {
   let style = doc.getElementById(READER_STYLE_ID) as HTMLStyleElement | null;
   if (!style) {

@@ -68,9 +68,20 @@ export interface Storage {
   books: BookRepository;
   reading: ReadingStateRepository;
   notes: NoteRepository;
+  /** v3: per-section extracted text for library content search. */
+  texts: ContentTextRepository;
 }
 
-export type { SqlDatabase, SqlValue, SyncClockRepository } from './sql';
-export { createSqlStorage, createSyncClockRepository, migrate, migrateJsonSnapshot } from './sql';
+import type { ContentTextRepository } from './sql';
+
+export type { ContentTextRepository, SqlDatabase, SqlValue, SyncClockRepository } from './sql';
+export {
+  createContentTextRepository,
+  createSqlStorage,
+  createSyncClockRepository,
+  migrate,
+  migrateJsonSnapshot,
+  searchBookTexts,
+} from './sql';
 /** Re-exported for storage implementations that do not import core directly. */
 export type { BookFormat, Locator, ReadingStatus };

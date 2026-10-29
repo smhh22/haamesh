@@ -25,5 +25,5 @@ writeFileSync(
 console.log(`wrote ${english}`);
 
 const pdf = fileURLToPath(new URL('../../../e2e/fixtures/sample.pdf', import.meta.url));
-writeFileSync(pdf, Buffer.from(createTestPdf()));
+writeFileSync(pdf, Buffer.from(createTestPdf(4)));
 console.log(`wrote ${pdf}`);

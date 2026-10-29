@@ -201,11 +201,15 @@ export const ReaderView = ({
 
     const applyNote = (note: BookNoteRecord) => {
       if (isPdf || note.type === 'bookmark' || note.locator.kind !== 'cfi') return;
-      void view.addAnnotation({
-        value: note.locator.cfi,
-        color: note.color ?? DEFAULT_HIGHLIGHT,
-        id: note.id,
-      });
+      viewRef.current
+        ?.addAnnotation({
+          value: note.locator.cfi,
+          color: note.color ?? DEFAULT_HIGHLIGHT,
+          id: note.id,
+        })
+        .catch((error: unknown) => {
+          console.error('Failed to redraw annotation', note.id, error);
+        });
     };
 
     const onDrawAnnotation = (event: Event) => {
@@ -218,6 +222,12 @@ export const ReaderView = ({
           annotation: { color?: string | null };
         }>
       ).detail;
+      // The overlayer SVG lives in a closed shadow root, so tests observe this
+      // counter instead of querying the drawn shapes.
+      const stage = stageRef.current;
+      if (stage) {
+        stage.dataset.annotationsDrawn = String(Number(stage.dataset.annotationsDrawn ?? '0') + 1);
+      }
       detail.draw(Overlayer.highlight, { color: detail.annotation.color ?? DEFAULT_HIGHLIGHT });
     };
 

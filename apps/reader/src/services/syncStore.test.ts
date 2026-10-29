@@ -1,4 +1,3 @@
-import { HybridLogicalClock } from '@hamesh/core';
 import type { DataStorePort } from '@hamesh/platform';
 import type {
   BookNoteRecord,
@@ -147,11 +146,7 @@ describe('sql sync store adapter', () => {
         ],
       ]),
     };
-    const store = createSqlSyncStore(
-      createFakeStorage(repos, new Map()),
-      createFakeDataStore(),
-      new HybridLogicalClock('device-x', () => 1),
-    );
+    const store = createSqlSyncStore(createFakeStorage(repos, new Map()), createFakeDataStore());
     const records = await store.list();
     const book = records.find((record) => record.kind === 'book');
     expect(book?.fields.sha256).toBe('sha-b1');
@@ -171,11 +166,7 @@ describe('sql sync store adapter', () => {
       reading: new Map(),
       notes: new Map(),
     };
-    const store = createSqlSyncStore(
-      createFakeStorage(repos, new Map()),
-      createFakeDataStore(),
-      new HybridLogicalClock('device-x', () => 1),
-    );
+    const store = createSqlSyncStore(createFakeStorage(repos, new Map()), createFakeDataStore());
     await store.apply({
       id: 'b1',
       kind: 'book',
@@ -192,11 +183,7 @@ describe('sql sync store adapter', () => {
 
   it('creates a book record from remote fields when it does not exist locally', async () => {
     const repos: FakeRepos = { books: new Map(), reading: new Map(), notes: new Map() };
-    const store = createSqlSyncStore(
-      createFakeStorage(repos, new Map()),
-      createFakeDataStore(),
-      new HybridLogicalClock('device-x', () => 1),
-    );
+    const store = createSqlSyncStore(createFakeStorage(repos, new Map()), createFakeDataStore());
     await store.apply({
       id: 'remote-1',
       kind: 'book',
@@ -230,22 +217,14 @@ describe('sql sync store adapter', () => {
       status: 'reading',
       updatedAt: 1,
     });
-    const store = createSqlSyncStore(
-      createFakeStorage(repos, new Map()),
-      createFakeDataStore(),
-      new HybridLogicalClock('device-x', () => 1),
-    );
+    const store = createSqlSyncStore(createFakeStorage(repos, new Map()), createFakeDataStore());
     await store.apply({ id: 'b1', kind: 'book', fields: {}, deleted: true, updatedAt: 0 });
     expect(repos.books.has('b1')).toBe(false);
   });
 
   it('applies remote reading state and note tombstones', async () => {
     const repos: FakeRepos = { books: new Map(), reading: new Map(), notes: new Map() };
-    const store = createSqlSyncStore(
-      createFakeStorage(repos, new Map()),
-      createFakeDataStore(),
-      new HybridLogicalClock('device-x', () => 1),
-    );
+    const store = createSqlSyncStore(createFakeStorage(repos, new Map()), createFakeDataStore());
     await store.apply({
       id: 'b1',
       kind: 'reading',
@@ -277,7 +256,6 @@ describe('sql sync store adapter', () => {
     const store = createSqlSyncStore(
       createFakeStorage({ books: new Map(), reading: new Map(), notes: new Map() }, new Map()),
       dataStore,
-      new HybridLogicalClock('device-x', () => 1),
     );
     expect(await store.bookFile('sha-x')).toBeNull();
     await store.saveBookFile('sha-x', 'epub', new Uint8Array([9, 8, 7]));
@@ -291,7 +269,6 @@ describe('sql sync store adapter', () => {
     const store = createSqlSyncStore(
       createFakeStorage({ books: new Map(), reading: new Map(), notes: new Map() }, clockMap),
       createFakeDataStore(),
-      new HybridLogicalClock('device-x', () => 1),
     );
     const records = await store.list();
     const tombstone = records.find((record) => record.kind === 'book' && record.id === 'gone');

@@ -97,7 +97,7 @@ export const runSync = async (config: SyncConfig): Promise<SyncReport> => {
   if (!storage || !clock || !dataStore) throw new Error('Storage is not initialized.');
 
   const deviceId = await getOrCreateDeviceId(dataStore);
-  const store = createSqlSyncStore(storage, dataStore, clock);
+  const store = createSqlSyncStore(storage, dataStore);
   const engine = createSyncEngine({ deviceId, clock, store, providers: [provider] });
   const report = await engine.sync();
   localStorage.setItem(

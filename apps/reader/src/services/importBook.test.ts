@@ -9,7 +9,7 @@ describe('importBookFile', () => {
       type: 'application/epub+zip',
     });
 
-    const record = await importBookFile(file);
+    const { record } = await importBookFile(file);
 
     expect(record.id).toBe(record.hash);
     expect(record.title).toBe('نمونه کتاب');

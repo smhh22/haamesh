@@ -2,11 +2,17 @@ import { importEpub } from '@hamesh/engine';
 import type { BookRecord } from '@hamesh/storage';
 import { rememberBookFile } from './bookFiles';
 
+export interface ImportedBookFile {
+  record: BookRecord;
+  file: File;
+  cover: Blob | null;
+}
+
 /**
- * Import an EPUB into the library. The file itself is kept in memory for this
- * slice; persistent content-addressed storage arrives with the storage layer.
+ * Import an EPUB into the library. The file and cover are returned so the
+ * persistence layer can store them; the record only carries a runtime cover URL.
  */
-export const importBookFile = async (file: File): Promise<BookRecord> => {
+export const importBookFile = async (file: File): Promise<ImportedBookFile> => {
   const { metadata, cover } = await importEpub(file);
   const now = Date.now();
   const coverPath =
@@ -15,11 +21,16 @@ export const importBookFile = async (file: File): Promise<BookRecord> => {
   rememberBookFile(metadata.hash, file);
 
   return {
-    ...metadata,
-    id: metadata.hash,
-    filePath: file.name,
-    coverPath,
-    addedAt: now,
-    updatedAt: now,
+    record: {
+      ...metadata,
+      id: metadata.hash,
+      filePath: file.name,
+      coverPath,
+      coverMime: cover?.type || null,
+      addedAt: now,
+      updatedAt: now,
+    },
+    file,
+    cover,
   };
 };

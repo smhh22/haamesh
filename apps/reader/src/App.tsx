@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { ReaderView } from './components/ReaderView';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
 import { importBookFile } from './services/importBook';
+import { deletePersistedBook, persistBook, schedulePersist } from './services/libraryPersistence';
 import { useLibraryStore } from './stores/libraryStore';
 import { useReadingStore } from './stores/readingStore';
 
@@ -68,8 +69,9 @@ export const App = () => {
           continue;
         }
         try {
-          const record = await importBookFile(file);
-          addBook(record);
+          const imported = await importBookFile(file);
+          addBook(imported.record);
+          await persistBook(imported.record, imported.file, imported.cover);
         } catch (error) {
           setErrorCode(error instanceof ImportError ? error.code : 'UNKNOWN');
         }
@@ -102,6 +104,7 @@ export const App = () => {
     forgetBookFile(book.hash);
     removeReadingState(book.id);
     removeBook(book.id);
+    void deletePersistedBook(book);
   };
 
   const openReader = (book: BookRecord) => {
@@ -126,15 +129,16 @@ export const App = () => {
           file={openFile}
           initialLocation={start?.locator?.kind === 'cfi' ? start.locator.cfi : null}
           initialFraction={start?.fraction ?? 0}
-          onProgress={({ locator, fraction }) =>
+          onProgress={({ locator, fraction }) => {
             saveReadingState({
               bookId: readerSession.book.id,
               locator,
               fraction,
               status: 'reading',
               updatedAt: Date.now(),
-            })
-          }
+            });
+            schedulePersist();
+          }}
           onClose={() => setReaderSession(null)}
         />
       </DirectionProvider>

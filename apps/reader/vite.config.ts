@@ -22,8 +22,34 @@ const foliatePdfPathFix = {
   },
 };
 
+/**
+ * Upstream foliate-js ResizeObserver callbacks fire once after a reader is
+ * torn down, when the section iframe is already detached and its
+ * contentDocument is null. Guard the two render entry points instead of
+ * patching the pinned submodule.
+ */
+const foliateUpstreamGuards = {
+  name: 'foliate-upstream-null-doc-guards',
+  enforce: 'pre' as const,
+  transform(code: string, id: string) {
+    if (id.endsWith('/vendor/foliate-js/paginator.js')) {
+      return code.replace(
+        'render(layout) {\n        if (!layout) return',
+        'render(layout) {\n        if (!layout || !this.document) return',
+      );
+    }
+    if (id.endsWith('/vendor/foliate-js/fixed-layout.js')) {
+      return code.replace(
+        '#render(side = this.#side) {\n        if (!side) return',
+        '#render(side = this.#side) {\n        if (!side || !this.isConnected) return',
+      );
+    }
+    return null;
+  },
+};
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), foliatePdfPathFix],
+  plugins: [react(), tailwindcss(), foliatePdfPathFix, foliateUpstreamGuards],
   server: {
     port: 5173,
     strictPort: true,

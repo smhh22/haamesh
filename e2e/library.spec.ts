@@ -232,7 +232,7 @@ test('imports and reads a PDF', async ({ page }) => {
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-format', 'pdf');
   await expect(page.getByRole('button', { name: 'Search' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Notes' })).toHaveCount(0);
-  await expect(page.locator('.reader-progress')).toHaveText('Page 1 of 1');
+  await expect(page.locator('.reader-progress')).toHaveText('Page 1 of 4');
 
   await page.getByRole('button', { name: 'Settings' }).click();
   const shell = page.locator('.reader-shell');
@@ -242,4 +242,129 @@ test('imports and reads a PDF', async ({ page }) => {
   await page.getByRole('button', { name: 'Zoom in' }).click();
   await expect(shell).toHaveAttribute('data-zoom', '1.25');
   await page.getByRole('button', { name: 'Next' }).click();
+  await expect.poll(async () => page.locator('.reader-progress').textContent()).toBe('Page 2 of 4');
+});
+
+test('resumes a multi-page PDF at the saved page', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(pdfFixture);
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
+  const progress = page.locator('.reader-progress');
+  await expect(progress).toHaveText('Page 1 of 4');
+
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect.poll(async () => progress.textContent()).toBe('Page 2 of 4');
+  await page.waitForTimeout(1000);
+
+  await page.getByRole('button', { name: 'Library' }).click();
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
+  await expect(progress).toHaveText('Page 2 of 4');
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
+  await expect(progress).toHaveText('Page 2 of 4');
+  expect(pageErrors).toEqual([]);
+});
+
+const createHighlightAndBookmark = async (page: import('@playwright/test').Page) => {
+  const frame = page.frames().find((item) => item.url().startsWith('blob:'));
+  expect(frame).toBeTruthy();
+  if (!frame) return;
+  await frame.waitForSelector('p');
+  await frame.evaluate(() => {
+    const paragraph = document.querySelector('p');
+    if (!paragraph) throw new Error('no paragraph');
+    const range = document.createRange();
+    range.selectNodeContents(paragraph);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.dispatchEvent(new Event('selectionchange'));
+  });
+  const popover = page.locator('.selection-popover');
+  await expect(popover).toBeVisible();
+  await popover.getByRole('button', { name: 'Yellow' }).click();
+  await page.getByRole('button', { name: 'Bookmark' }).click();
+  await expect(page.locator('.note-item')).toHaveCount(2);
+};
+
+test('exports notes as JSON and Markdown round-trip', async ({ page }) => {
+  const { readFileSync } = await import('node:fs');
+  await openReader(page);
+  await createHighlightAndBookmark(page);
+  // The highlight/bookmark flows open the notes panel themselves.
+  const panel = page.locator('.notes-panel');
+  await expect(panel).toBeVisible();
+
+  const jsonDownload = page.waitForEvent('download');
+  await panel.getByRole('button', { name: 'JSON', exact: true }).click();
+  const jsonFile = await jsonDownload;
+  expect(jsonFile.suggestedFilename()).toMatch(/\.json$/);
+  const exported = JSON.parse(readFileSync(await jsonFile.path(), 'utf8')) as {
+    book: string;
+    notes: Array<{ type: string; text: string | null }>;
+  };
+  expect(exported.book).toBe('نمونه کتاب');
+  expect(exported.notes).toHaveLength(2);
+  const types = exported.notes.map((note) => note.type).sort();
+  expect(types).toEqual(['bookmark', 'highlight']);
+  const highlight = exported.notes.find((note) => note.type === 'highlight');
+  expect(highlight?.text).toBeTruthy();
+
+  const mdDownload = page.waitForEvent('download');
+  await panel.getByRole('button', { name: 'Markdown', exact: true }).click();
+  const mdFile = await mdDownload;
+  expect(mdFile.suggestedFilename()).toMatch(/\.md$/);
+  const markdown = readFileSync(await mdFile.path(), 'utf8');
+  expect(markdown).toContain('# نمونه کتاب');
+  expect(markdown).toContain('>');
+});
+
+test('keeps highlights intact after changing font size', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+
+  // The overlayer SVG is rendered inside a closed shadow root, so the suite
+  // observes the draw counter on the stage instead of the drawn shapes.
+  const drawnCount = async () => {
+    const raw = await page.locator('.reader-stage').getAttribute('data-annotations-drawn');
+    return Number(raw ?? '0');
+  };
+
+  await openReader(page);
+  await createHighlightAndBookmark(page);
+  await expect.poll(drawnCount).toBeGreaterThanOrEqual(1);
+
+  // Reopening remounts the reader (fresh stage, fresh counter): the highlight
+  // must be re-applied to the new document.
+  await page.getByRole('button', { name: 'Library' }).click();
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+  await expect.poll(drawnCount).toBeGreaterThanOrEqual(1);
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const shell = page.locator('.reader-shell');
+  await expect(shell).toHaveAttribute('data-font-size', '100');
+  await page.getByRole('button', { name: 'Increase font size' }).click();
+  await expect(shell).toHaveAttribute('data-font-size', '110');
+  await page.waitForTimeout(800);
+  await page.getByRole('button', { name: 'Close' }).click();
+
+  await page.getByRole('button', { name: 'Notes' }).click();
+  await expect(page.locator('.note-item')).toHaveCount(2);
+  expect(pageErrors).toEqual([]);
 });

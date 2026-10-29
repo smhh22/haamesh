@@ -17,6 +17,7 @@ const foliatePdfPathFix = {
     if (!id.endsWith('/vendor/foliate-js/pdf.js')) return null;
     return code.replace(
       /const pdfjsPath = path => new URL\(`(?:\.\/)?vendor\/pdfjs\/\$\{path\}`, import\.meta\.url\)\.toString\(\)/,
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: the replacement writes upstream source code
       'const pdfjsPath = path => `/vendor/pdfjs/${path}`',
     );
   },

@@ -1,3 +1,4 @@
+import { HybridLogicalClock } from '@hamesh/core';
 import type { DataStorePort } from '@hamesh/platform';
 import type { BookNoteRecord, BookRecord, LibrarySnapshot, ReadingState } from '@hamesh/storage';
 import { useLibraryStore } from '../stores/libraryStore';
@@ -6,11 +7,13 @@ import { useReadingStore } from '../stores/readingStore';
 import { rememberBookFile } from './bookFiles';
 import { createDataStore } from './dataStore';
 import { type ActiveStorage, createActiveStorage } from './sqlStorage';
+import { getOrCreateDeviceId, stampRecordClock } from './syncStore';
 
 const MANIFEST = 'library.json';
 let store: DataStorePort | null = null;
 let activeStorage: ActiveStorage | null = null;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let syncClock: HybridLogicalClock | null = null;
 
 const bookPath = (hash: string, format: BookRecord['format']): string => `books/${hash}.${format}`;
 const coverPath = (hash: string): string => `covers/${hash}`;
@@ -68,6 +71,9 @@ const hydrateBooks = async (
 export const initLibraryPersistence = async (): Promise<void> => {
   store = await createDataStore();
   const snapshot = store ? await readSnapshot(store) : null;
+  if (store) {
+    syncClock = new HybridLogicalClock(await getOrCreateDeviceId(store));
+  }
 
   const sql = await createActiveStorage(snapshot);
   if (sql) {
@@ -126,6 +132,9 @@ export const persistBook = async (
   }
 
   await activeStorage?.storage.books.upsert(book);
+  if (activeStorage && syncClock) {
+    await stampRecordClock(activeStorage.clocks, syncClock, `book:${book.id}`);
+  }
   await activeStorage?.flush();
   await persistNow();
 };
@@ -136,20 +145,34 @@ export const deletePersistedBook = async (book: BookRecord): Promise<void> => {
     await store.remove(coverPath(book.hash));
   }
   await activeStorage?.storage.books.remove(book.id);
+  if (activeStorage && syncClock) {
+    // The row is gone; the tombstone lives in the clock table (ADR-0006).
+    await stampRecordClock(activeStorage.clocks, syncClock, `book:${book.id}:deleted`);
+  }
   await activeStorage?.flush();
   await persistNow();
 };
 
 export const persistReadingState = async (state: ReadingState): Promise<void> => {
   await activeStorage?.storage.reading.save(state);
+  if (activeStorage && syncClock) {
+    await stampRecordClock(activeStorage.clocks, syncClock, `reading:${state.bookId}`);
+  }
   schedulePersist();
 };
 
 export const persistNoteRecord = async (note: BookNoteRecord): Promise<void> => {
   await activeStorage?.storage.notes.upsert(note);
+  if (activeStorage && syncClock) {
+    await stampRecordClock(activeStorage.clocks, syncClock, `note:${note.id}`);
+  }
   await activeStorage?.flush();
   schedulePersist();
 };
+
+/** Runtime accessors for the sync service (null before init or on JSON fallback). */
+export const getActiveStorage = (): ActiveStorage | null => activeStorage;
+export const getSyncClock = (): HybridLogicalClock | null => syncClock;
 
 /** Debounced JSON backup for reading-state and note changes. */
 export const schedulePersist = (): void => {

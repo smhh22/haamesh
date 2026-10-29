@@ -60,6 +60,7 @@ export default defineConfig({
       '@hamesh/core': fromRoot('../../packages/core/src'),
       '@hamesh/engine': fromRoot('../../packages/engine/src'),
       '@hamesh/ui': fromRoot('../../packages/ui/src'),
+      '@hamesh/sync': fromRoot('../../packages/sync/src'),
       'foliate-js/view.js': fromRoot('../../vendor/foliate-js/view.js'),
       'foliate-js/overlayer.js': fromRoot('../../vendor/foliate-js/overlayer.js'),
     },

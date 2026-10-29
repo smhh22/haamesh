@@ -1,12 +1,14 @@
 import type { DataStorePort } from '@hamesh/platform';
 import {
   createSqlStorage,
+  createSyncClockRepository,
   type LibrarySnapshot,
   migrate,
   migrateJsonSnapshot,
   type SqlDatabase,
   type SqlValue,
   type Storage,
+  type SyncClockRepository,
 } from '@hamesh/storage';
 import initSqlJs from 'sql.js';
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
@@ -14,6 +16,7 @@ import { createDataStore, isTauriRuntime } from './dataStore';
 
 export interface ActiveStorage {
   storage: Storage;
+  clocks: SyncClockRepository;
   migrate: () => Promise<void>;
   migrateJson: (snapshot: LibrarySnapshot) => Promise<void>;
   flush: () => Promise<void>;
@@ -112,6 +115,7 @@ const buildActiveStorage = async (
 
   return {
     storage: createSqlStorage(db),
+    clocks: createSyncClockRepository(db),
     migrate: () => migrate(db),
     migrateJson: (value) => migrateJsonSnapshot(db, value),
     flush,

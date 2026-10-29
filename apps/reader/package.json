@@ -17,6 +17,7 @@
     "@hamesh/core": "workspace:*",
     "@hamesh/engine": "workspace:*",
     "@hamesh/storage": "workspace:*",
+    "@hamesh/sync": "workspace:*",
     "@hamesh/ui": "workspace:*",
     "@tauri-apps/api": "^2.12.4",
     "i18next": "^26.5.11",

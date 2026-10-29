@@ -70,7 +70,7 @@ export interface Storage {
   notes: NoteRepository;
 }
 
-export type { SqlDatabase, SqlValue } from './sql';
-export { createSqlStorage, migrate, migrateJsonSnapshot } from './sql';
+export type { SqlDatabase, SqlValue, SyncClockRepository } from './sql';
+export { createSqlStorage, createSyncClockRepository, migrate, migrateJsonSnapshot } from './sql';
 /** Re-exported for storage implementations that do not import core directly. */
 export type { BookFormat, Locator, ReadingStatus };

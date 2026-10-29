@@ -18,7 +18,7 @@ describe('App', () => {
     expect(document.documentElement.dir).toBe('ltr');
     expect(document.documentElement.lang).toBe('en');
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Hāmesh');
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Library');
+    expect(screen.getByRole('heading', { level: 2, name: 'Library' })).toHaveTextContent('Library');
     expect(screen.getByText(/no books yet/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /switch to persian/i }));
@@ -28,7 +28,9 @@ describe('App', () => {
       expect(document.documentElement.lang).toBe('fa');
     });
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('هامش');
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('کتابخانه');
+    expect(screen.getByRole('heading', { level: 2, name: 'کتابخانه' })).toHaveTextContent(
+      'کتابخانه',
+    );
   });
 
   it('opens the reader for an imported book', async () => {

@@ -2,6 +2,7 @@ import type { ProviderEntry, StorageProvider } from '@hamesh/sync';
 
 export type { TestEpubOptions } from './epub';
 export { createTestEpub } from './epub';
+export { createTestPdf } from './pdf';
 
 export interface FixedClock {
   now(): number;

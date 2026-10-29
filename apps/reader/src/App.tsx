@@ -21,8 +21,10 @@ type Locale = (typeof LOCALES)[number];
 
 const directionFor = (locale: Locale): Direction => (locale === 'fa' ? 'rtl' : 'ltr');
 
-const isEpub = (file: File): boolean =>
-  file.type === 'application/epub+zip' || file.name.toLowerCase().endsWith('.epub');
+const isSupportedBook = (file: File): boolean =>
+  file.type === 'application/epub+zip' ||
+  file.type === 'application/pdf' ||
+  /\.(epub|pdf)$/i.test(file.name);
 
 const formatAuthors = (authors: string[], locale: Locale): string => {
   if (authors.length === 0) return '';
@@ -82,7 +84,7 @@ export const App = () => {
     setErrorCode(null);
     try {
       for (const file of files) {
-        if (!isEpub(file)) {
+        if (!isSupportedBook(file)) {
           setErrorCode('UNSUPPORTED_FORMAT');
           continue;
         }
@@ -193,7 +195,7 @@ export const App = () => {
               <input
                 className="visually-hidden"
                 type="file"
-                accept=".epub,application/epub+zip"
+                accept=".epub,.pdf,application/epub+zip,application/pdf"
                 multiple
                 disabled={isImporting}
                 onChange={handleInputChange}

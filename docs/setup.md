@@ -48,14 +48,15 @@ Desktop library data lives under the app data directory
 layout. On first launch, `library.json` is imported into SQLite once and marked
 with `json_migrated`; later launches read SQLite.
 
-Open a book from the shell:
+Open an EPUB or PDF from the shell:
 
 ```bash
 ./apps/reader/src-tauri/target/debug/hamesh /path/to/book.epub
+./apps/reader/src-tauri/target/debug/hamesh /path/to/book.pdf
 ```
 
-Installed bundles register `.epub` through `bundle.fileAssociations`, so "Open
-with Hāmesh" uses the same path.
+Installed bundles register `.epub` and `.pdf` through
+`bundle.fileAssociations`, so "Open with Hāmesh" uses the same path.
 
 ## Fresh machine prerequisites
 
@@ -92,6 +93,10 @@ References: Tauri v2 prerequisites,
 
 Budget roughly 10 GB free for Rust targets plus `node_modules`. Check with
 `df -h`.
+
+PDF rendering needs pdf.js worker, CSS, cmaps, and standard fonts. `pnpm dev`
+and `pnpm build` copy them from the foliate-js submodule into
+`apps/reader/public/vendor/pdfjs`; that directory is generated and gitignored.
 
 ## Checks
 

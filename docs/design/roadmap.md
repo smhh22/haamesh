@@ -101,8 +101,10 @@ engine adapter.
 Status (2026-10-29): highlights, bookmarks, notes, Markdown/JSON export, and
 in-book search are implemented and covered by Playwright. Persistence migrated
 to SQLite: rusqlite on desktop, sql.js with OPFS on web, with a one-time JSON
-import and the manifest retained as a backup. The PDF track, a layout-drift
-visual test for annotations, and library FTS remain.
+import and the manifest retained as a backup. PDFs import and page in the
+fixed-layout renderer. Page-based PDF locators, zoom, PDF annotations, an
+annotation-drift regression test, export round-trip coverage, and library FTS
+remain.
 
 Deliverables:
 
@@ -113,17 +115,20 @@ Deliverables:
 - [ ] Annotation rendering across reflow, font size, theme, and resize; overlap
   is implemented, but add a drift regression test.
 - [x] In-book search. Library FTS remains open.
-- [x] Note editing, deletion, export to Markdown/JSON.
-- [ ] PDF adapter behind `packages/engine`: open, page, zoom, page locator, and
-  the same annotation model where practical (parallel track).
+- [x] Note editing, deletion, export to Markdown/JSON; add an export
+  round-trip test.
+- [x] PDF adapter: import, open, and page navigation through the fixed-layout
+  renderer.
+- [ ] PDF page-based locators, zoom controls, and annotations where practical.
 
 Exit criteria:
 
-- Highlights survive font-size and window-size changes without drift.
-- RTL selection and notes are correct in a Persian book.
-- Export round-trips into a fresh library.
-- PDF opens, pages, and restores a page-based locator.
-- Locator union tests cover EPUB and PDF.
+- [ ] Highlights survive font-size and window-size changes without drift.
+- [x] RTL selection and notes are correct in a Persian book.
+- [ ] Export round-trips into a fresh library.
+- [ ] PDF opens, pages, and restores a page-based locator (open/page done;
+  page locator uses a fake CFI plus fraction today).
+- [ ] Locator union tests cover EPUB and PDF.
 
 ## Phase 3 — Sync core and first providers (4–6 weeks)
 

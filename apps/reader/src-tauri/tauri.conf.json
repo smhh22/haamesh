@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Hāmesh",
+        "title": "H\u0101mesh",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
@@ -37,11 +37,11 @@
     ],
     "fileAssociations": [
       {
-        "ext": ["epub"],
-        "name": "EPUB book",
-        "description": "EPUB ebook",
+        "ext": ["epub", "pdf"],
+        "name": "Book",
+        "description": "EPUB or PDF book",
         "role": "Viewer",
-        "mimeType": "application/epub+zip"
+        "mimeType": "application/octet-stream"
       }
     ],
     "android": {

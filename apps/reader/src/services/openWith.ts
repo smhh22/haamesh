@@ -18,13 +18,14 @@ export const importInitialFile = async (): Promise<BookRecord | null> => {
   if (!isTauriRuntime()) return null;
 
   const { invoke } = await import('@tauri-apps/api/core');
-  const path = await invoke<string | null>('initial_epub_path');
+  const path = await invoke<string | null>('initial_book_path');
   if (!path) return null;
 
   const bytes = await invoke<number[]>('read_external_file', { path });
   const name = path.split(/[\\/]/).pop() ?? 'book.epub';
+  const isPdf = name.toLowerCase().endsWith('.pdf');
   const file = new File([toArrayBuffer(Uint8Array.from(bytes))], name, {
-    type: 'application/epub+zip',
+    type: isPdf ? 'application/pdf' : 'application/epub+zip',
   });
 
   const imported = await importBookFile(file);

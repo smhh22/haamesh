@@ -4,6 +4,7 @@ import { expect, test } from '@playwright/test';
 
 const fixture = fileURLToPath(new URL('./fixtures/sample.epub', import.meta.url));
 const englishFixture = fileURLToPath(new URL('./fixtures/english.epub', import.meta.url));
+const pdfFixture = fileURLToPath(new URL('./fixtures/sample.pdf', import.meta.url));
 
 test('imports a Persian EPUB and opens the reader', async ({ page }) => {
   const pageErrors: string[] = [];
@@ -216,4 +217,20 @@ test('creates a highlight and bookmark, then persists them', async ({ page }) =>
   });
   await page.getByRole('button', { name: 'Notes' }).click();
   await expect(page.locator('.note-item')).toHaveCount(2);
+});
+
+test('imports and reads a PDF', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(pdfFixture);
+  await expect(page.getByRole('heading', { name: 'Hamesh PDF Test' })).toBeVisible();
+  await expect(page.getByText('LTR')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-format', 'pdf');
+  await expect(page.getByRole('button', { name: 'Search' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Notes' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Next' }).click();
 });

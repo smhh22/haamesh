@@ -15,6 +15,7 @@ pnpm --filter @hamesh/test-fixtures fixture:e2e
 
 - `fixtures/sample.epub` — Persian, RTL, multi-page, with a TOC and cover.
 - `fixtures/english.epub` — English, LTR metadata.
+- `fixtures/sample.pdf` — one-page PDF with title/author metadata.
 
 The tests cover:
 
@@ -26,6 +27,7 @@ The tests cover:
 - library search, sort, and grid/list views;
 - TOC navigation, font size, theme, and scrolled mode;
 - in-book search with result navigation;
+- PDF import, fixed-layout reading, and page navigation;
 - creating a highlight and a bookmark, then reloading and finding them in the
   Notes panel.
 

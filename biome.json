@@ -31,6 +31,7 @@
       "!e2e/artifacts",
       "!apps/reader/src-tauri/gen",
       "!apps/reader/src-tauri/target",
+      "!apps/reader/public/vendor",
       "!pnpm-lock.yaml"
     ]
   }

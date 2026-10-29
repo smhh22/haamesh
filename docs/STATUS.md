@@ -1,11 +1,11 @@
 # Project status
 
-Last updated: 2026-10-30, 02:50 (overnight autonomous session — read with `AGENTS.md`).
+Last updated: 2026-10-30, 03:35 (overnight autonomous session — read with `AGENTS.md`).
 
 ## Where the project is
 
 - **Phases 0–2 complete. Phase 3 (sync) functionally complete end-to-end.**
-- 17 commits on `main`, newest first: auto-sync (`94c5cf1`), ReaderView refactor
+- 19 commits on `main`, newest first: content search (`3db793d`), auto-sync (`94c5cf1`), ReaderView refactor
   (`f1f9ba6`), STATUS update (`e811b2f`), sanitizer hardening (`72e47cd`), app sync
   integration (`f395623`), WebDAV provider (`84ea213`), sync engine core
   (`6c6d072`), CI e2e + release workflow (`66a13d1`), Phase 2 close (`e634d8e`),
@@ -117,7 +117,9 @@ Last updated: 2026-10-30, 02:50 (overnight autonomous session — read with `AGE
 3. ReaderView.tsx refactor — DONE for the three clean extractions
    (TocTree/SettingsPanel/SelectionPopover in `components/reader/`, e2e-guarded);
    notes/search panels still inline if further splitting is wanted.
-4. Library content FTS; PDF annotation support (deliberately deferred);
+4. PDF annotation support (deliberately deferred); NOTE: books synced DOWN to a
+   device do not get text extraction until they are re-imported — wire
+   storeBookTexts into the SyncStore.saveBookFile path;
    RTL page-progression detection for Persian PDFs.
 5. Windows smoke test on real hardware (friend with Windows).
 6. Phase 5: Android, stats events, messaging backup channel.

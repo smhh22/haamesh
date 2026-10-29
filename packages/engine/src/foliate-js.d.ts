@@ -32,3 +32,13 @@ declare module 'foliate-js/view.js' {
 
   export function makeBook(file: File | Blob): Promise<FoliateBook>;
 }
+
+declare module 'foliate-js/overlayer.js' {
+  export class Overlayer {
+    static highlight(rects: DOMRect[], options?: { color?: string }): Element;
+    static outline(
+      rects: DOMRect[],
+      options?: { color?: string; width?: number; radius?: number },
+    ): Element;
+  }
+}

@@ -547,3 +547,166 @@ h1 {
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
+
+.selection-popover {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: 30;
+  display: grid;
+  gap: var(--hamesh-space-2);
+  inline-size: min(16rem, calc(100vw - 2rem));
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: var(--hamesh-radius);
+  background: var(--hamesh-color-surface);
+  color: var(--hamesh-color-ink);
+  padding: var(--hamesh-space-2);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 18%);
+}
+
+.highlight-colors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hamesh-space-1);
+}
+
+.color-swatch {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: 999px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.note-draft {
+  display: grid;
+  gap: var(--hamesh-space-2);
+}
+
+.note-draft textarea,
+.note-edit textarea {
+  inline-size: 100%;
+  min-block-size: 4rem;
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: calc(var(--hamesh-radius) * 0.6);
+  background: var(--hamesh-color-canvas);
+  color: var(--hamesh-color-ink);
+  font: inherit;
+  padding: var(--hamesh-space-2);
+  resize: vertical;
+}
+
+.notes-panel,
+.search-panel,
+.settings-panel {
+  inset-inline-start: auto;
+  inset-inline-end: var(--hamesh-space-4);
+}
+
+.notes-list,
+.search-results {
+  display: grid;
+  gap: var(--hamesh-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.note-item {
+  display: grid;
+  gap: var(--hamesh-space-1);
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: calc(var(--hamesh-radius) * 0.7);
+  padding: var(--hamesh-space-2);
+}
+
+.note-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--hamesh-space-1);
+  color: var(--hamesh-color-muted);
+  font-size: 0.8rem;
+}
+
+.note-color {
+  inline-size: 0.8rem;
+  block-size: 0.8rem;
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: 999px;
+}
+
+.note-progress {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.note-text {
+  margin: 0;
+  color: var(--hamesh-color-ink);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+blockquote.note-text {
+  border-inline-start: 2px solid var(--hamesh-color-border);
+  padding-inline-start: var(--hamesh-space-2);
+  color: var(--hamesh-color-muted);
+}
+
+.note-actions,
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hamesh-space-1);
+}
+
+.note-actions {
+  margin-block-start: var(--hamesh-space-1);
+}
+
+.search-form {
+  display: flex;
+  gap: var(--hamesh-space-1);
+  margin-block-end: var(--hamesh-space-2);
+}
+
+.search-form input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: var(--hamesh-radius);
+  background: var(--hamesh-color-canvas);
+  color: var(--hamesh-color-ink);
+  font: inherit;
+  padding-block: var(--hamesh-space-1);
+  padding-inline: var(--hamesh-space-2);
+}
+
+.search-result {
+  inline-size: 100%;
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: calc(var(--hamesh-radius) * 0.6);
+  background: var(--hamesh-color-canvas);
+  color: var(--hamesh-color-ink);
+  cursor: pointer;
+  display: grid;
+  gap: 0.15rem;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: var(--hamesh-space-2);
+  text-align: start;
+}
+
+.search-label {
+  color: var(--hamesh-color-muted);
+  font-size: 0.75rem;
+}
+
+.search-result mark {
+  background: transparent;
+  color: var(--hamesh-color-accent);
+  font-weight: 600;
+}

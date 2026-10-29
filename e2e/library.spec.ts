@@ -156,3 +156,64 @@ test('navigates the TOC and changes reader settings', async ({ page }) => {
   await page.getByRole('button', { name: 'Scrolled' }).click();
   await expect(shell).toHaveAttribute('data-flow', 'scrolled');
 });
+
+const openReader = async (page: import('@playwright/test').Page) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(fixture);
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+};
+
+test('searches inside the book', async ({ page }) => {
+  await openReader(page);
+  await page.getByRole('button', { name: 'Search' }).click();
+
+  const panel = page.locator('.search-panel');
+  const input = panel.getByPlaceholder('Search in this book');
+  await input.fill('پاراگراف');
+  await input.press('Enter');
+
+  await expect(panel.locator('.search-result').first()).toBeVisible({ timeout: 15_000 });
+  expect(await panel.locator('.search-result').count()).toBeGreaterThan(0);
+
+  await panel.locator('.search-result').first().click();
+  await page.getByRole('button', { name: 'Close' }).click();
+});
+
+test('creates a highlight and bookmark, then persists them', async ({ page }) => {
+  await openReader(page);
+
+  const frame = page.frames().find((item) => item.url().startsWith('blob:'));
+  expect(frame).toBeTruthy();
+  if (!frame) return;
+
+  await frame.waitForSelector('p');
+  await frame.evaluate(() => {
+    const paragraph = document.querySelector('p');
+    if (!paragraph) throw new Error('no paragraph');
+    const range = document.createRange();
+    range.selectNodeContents(paragraph);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.dispatchEvent(new Event('selectionchange'));
+  });
+
+  const popover = page.locator('.selection-popover');
+  await expect(popover).toBeVisible();
+  await popover.getByRole('button', { name: 'Yellow' }).click();
+
+  await page.getByRole('button', { name: 'Bookmark' }).click();
+  await expect(page.locator('.note-item')).toHaveCount(2);
+
+  await page.waitForTimeout(700);
+  await page.reload();
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+  await page.getByRole('button', { name: 'Notes' }).click();
+  await expect(page.locator('.note-item')).toHaveCount(2);
+});

@@ -19,11 +19,12 @@ export interface ReadingState {
   updatedAt: number;
 }
 
-/** Phase 1 manifest (ADR-0010). */
+/** Phase 1 manifest (ADR-0010). `notes` is additive. */
 export interface LibrarySnapshot {
   version: 1;
   books: BookRecord[];
   reading: Record<string, ReadingState>;
+  notes?: BookNoteRecord[];
 }
 
 export interface BookNoteRecord {

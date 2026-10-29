@@ -17,6 +17,7 @@ export default defineConfig({
       '@hamesh/engine': fromRoot('../../packages/engine/src'),
       '@hamesh/ui': fromRoot('../../packages/ui/src'),
       'foliate-js/view.js': fromRoot('../../vendor/foliate-js/view.js'),
+      'foliate-js/overlayer.js': fromRoot('../../vendor/foliate-js/overlayer.js'),
     },
   },
 });

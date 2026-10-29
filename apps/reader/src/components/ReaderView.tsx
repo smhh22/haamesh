@@ -1,15 +1,18 @@
 import type { Locator, TocItem } from '@hamesh/core';
 import { pageTurnForKey, sanitizeEpubHtml } from '@hamesh/engine';
-import type { BookRecord } from '@hamesh/storage';
+import type { BookNoteRecord, BookRecord } from '@hamesh/storage';
 import { useDirection } from '@hamesh/ui';
+import { Overlayer } from 'foliate-js/overlayer.js';
 import { type FoliateBook, makeBook } from 'foliate-js/view.js';
-import { useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buildReaderCss } from '../readerStyles';
+import { schedulePersist } from '../services/libraryPersistence';
+import { notesForBook, useNotesStore } from '../stores/notesStore';
 import { useReaderSettings } from '../stores/readerSettingsStore';
 
 interface FoliateRenderer {
-  getContents(): Array<{ doc: Document }>;
+  getContents(): Array<{ doc: Document; index: number }>;
   setAttribute(name: string, value: string): void;
   render?(): void;
 }
@@ -18,10 +21,18 @@ interface FoliateViewElement extends HTMLElement {
   renderer?: FoliateRenderer;
   open(book: FoliateBook): Promise<void>;
   init(options?: { lastLocation?: unknown; showTextStart?: boolean }): Promise<void>;
-  goTo(target: string | number): Promise<void>;
+  goTo(target: string | number): Promise<{ index: number; anchor: unknown } | undefined>;
   next(): Promise<void>;
   prev(): Promise<void>;
   destroy(): void;
+  getCFI(index: number, range: Range): string;
+  addAnnotation(annotation: {
+    value: string;
+    [key: string]: unknown;
+  }): Promise<{ index: number; label: string } | undefined>;
+  deleteAnnotation(annotation: { value: string }): Promise<unknown>;
+  search(options: { query: string; index?: number }): AsyncIterable<unknown>;
+  clearSearch(): void;
 }
 
 export interface ReaderViewProps {
@@ -33,7 +44,34 @@ export interface ReaderViewProps {
   onClose: () => void;
 }
 
+interface SelectionInfo {
+  x: number;
+  y: number;
+  cfi: string;
+  text: string;
+  fraction: number;
+}
+
+interface SearchResult {
+  cfi: string;
+  label: string;
+  pre: string;
+  match: string;
+  post: string;
+}
+
+type ReaderPanel = 'toc' | 'notes' | 'search' | 'settings' | null;
+
 const READER_STYLE_ID = 'hamesh-reader-style';
+const DEFAULT_HIGHLIGHT = '#f2c94c';
+
+const HIGHLIGHT_COLORS = [
+  { value: '#f2c94c', key: 'yellow' },
+  { value: '#6fcf97', key: 'green' },
+  { value: '#56ccf2', key: 'blue' },
+  { value: '#eb5757', key: 'red' },
+  { value: '#bb6bd9', key: 'purple' },
+] as const;
 
 const applyReaderStyle = (doc: Document, css: string): void => {
   let style = doc.getElementById(READER_STYLE_ID) as HTMLStyleElement | null;
@@ -83,23 +121,42 @@ export const ReaderView = ({
   const { t, i18n } = useTranslation();
   const direction = useDirection();
   const settings = useReaderSettings();
+  const allNotes = useNotesStore((state) => state.notes);
+  const addNote = useNotesStore((state) => state.add);
+  const updateNote = useNotesStore((state) => state.update);
+  const removeNote = useNotesStore((state) => state.remove);
+  const bookNotes = useMemo(() => notesForBook(allNotes, book.id), [allNotes, book.id]);
+
   const stageRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<FoliateViewElement | null>(null);
   const onProgressRef = useRef(onProgress);
+  const notesRef = useRef<BookNoteRecord[]>(bookNotes);
   const settingsCssRef = useRef(buildReaderCss(settings));
   const flowRef = useRef(settings.flow);
   const lastCfiRef = useRef<string | null>(null);
+  const lastFractionRef = useRef(initialFraction);
   const [progress, setProgress] = useState(initialFraction);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
   const [toc, setToc] = useState<TocItem[]>([]);
   const [activeHref, setActiveHref] = useState<string | null>(null);
-  const [showToc, setShowToc] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [panel, setPanel] = useState<ReaderPanel>(null);
+  const [selection, setSelection] = useState<SelectionInfo | null>(null);
+  const [noteMode, setNoteMode] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
 
   useEffect(() => {
     onProgressRef.current = onProgress;
   }, [onProgress]);
+
+  useEffect(() => {
+    notesRef.current = bookNotes;
+  }, [bookNotes]);
 
   useEffect(() => {
     const css = buildReaderCss(settings);
@@ -132,6 +189,28 @@ export const ReaderView = ({
     viewRef.current = view;
     stage.append(view);
 
+    const applyNote = (note: BookNoteRecord) => {
+      if (note.type === 'bookmark' || note.locator.kind !== 'cfi') return;
+      void view.addAnnotation({
+        value: note.locator.cfi,
+        color: note.color ?? DEFAULT_HIGHLIGHT,
+        id: note.id,
+      });
+    };
+
+    const onDrawAnnotation = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          draw: (
+            draw: (rects: DOMRect[], options?: { color?: string }) => Element,
+            options: { color?: string },
+          ) => void;
+          annotation: { color?: string | null };
+        }>
+      ).detail;
+      detail.draw(Overlayer.highlight, { color: detail.annotation.color ?? DEFAULT_HIGHLIGHT });
+    };
+
     const onRelocate = (event: Event) => {
       const detail = (
         event as CustomEvent<{
@@ -143,6 +222,7 @@ export const ReaderView = ({
 
       if (typeof detail?.fraction === 'number' && Number.isFinite(detail.fraction)) {
         const fraction = Math.min(1, Math.max(0, detail.fraction));
+        lastFractionRef.current = fraction;
         setProgress(fraction);
         onProgressRef.current?.({
           locator: detail.cfi ? { kind: 'cfi', cfi: detail.cfi, fraction } : null,
@@ -151,12 +231,63 @@ export const ReaderView = ({
       }
       if (detail?.cfi) lastCfiRef.current = detail.cfi;
       if (detail?.tocItem?.href) setActiveHref(detail.tocItem.href);
+      setSelection(null);
     };
 
     const onLoad = (event: Event) => {
       setReady(true);
-      const detail = (event as CustomEvent<{ doc?: Document }>).detail;
-      if (detail?.doc) applyReaderStyle(detail.doc, settingsCssRef.current);
+      const detail = (event as CustomEvent<{ doc?: Document; index?: number }>).detail;
+      const doc = detail?.doc;
+      if (!doc) return;
+
+      applyReaderStyle(doc, settingsCssRef.current);
+      for (const note of notesRef.current) applyNote(note);
+
+      let timer: number | undefined;
+      const captureSelection = () => {
+        const selected = doc.getSelection();
+        if (!selected || selected.isCollapsed || selected.rangeCount === 0) return;
+        const text = selected.toString().trim();
+        if (!text) return;
+
+        const range = selected.getRangeAt(0);
+        const content = view.renderer?.getContents().find((item) => item.doc === doc);
+        if (!content) return;
+
+        const cfi = view.getCFI(content.index, range);
+        const rect = range.getBoundingClientRect();
+        const frameRect = doc.defaultView?.frameElement?.getBoundingClientRect();
+
+        setSelection({
+          x: Math.min(window.innerWidth - 260, Math.max(8, (frameRect?.left ?? 0) + rect.left)),
+          y: Math.min(
+            window.innerHeight - 180,
+            Math.max(8, (frameRect?.top ?? 0) + rect.bottom + 8),
+          ),
+          cfi,
+          text,
+          fraction: lastFractionRef.current,
+        });
+      };
+      const onChange = () => {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(captureSelection, 120);
+      };
+
+      doc.addEventListener('selectionchange', onChange);
+      doc.addEventListener('pointerup', onChange);
+    };
+
+    const onShowAnnotation = (event: Event) => {
+      const detail = (event as CustomEvent<{ value?: string }>).detail;
+      if (!detail?.value) return;
+      const note = notesRef.current.find(
+        (item) => item.locator.kind === 'cfi' && item.locator.cfi === detail.value,
+      );
+      if (!note) return;
+      setPanel('notes');
+      setEditingNoteId(note.id);
+      setEditDraft(note.note ?? '');
     };
 
     const onData = (event: Event) => {
@@ -171,8 +302,10 @@ export const ReaderView = ({
       event.preventDefault();
     };
 
+    view.addEventListener('draw-annotation', onDrawAnnotation);
     view.addEventListener('relocate', onRelocate);
     view.addEventListener('load', onLoad);
+    view.addEventListener('show-annotation', onShowAnnotation);
     view.addEventListener('external-link', blockExternalLink);
 
     void (async () => {
@@ -195,6 +328,7 @@ export const ReaderView = ({
         for (const { doc } of view.renderer?.getContents() ?? []) {
           applyReaderStyle(doc, settingsCssRef.current);
         }
+        for (const note of notesRef.current) applyNote(note);
       } catch (error) {
         console.error('Failed to open book', error);
         if (!cancelled) setFailed(true);
@@ -203,8 +337,10 @@ export const ReaderView = ({
 
     return () => {
       cancelled = true;
+      view.removeEventListener('draw-annotation', onDrawAnnotation);
       view.removeEventListener('relocate', onRelocate);
       view.removeEventListener('load', onLoad);
+      view.removeEventListener('show-annotation', onShowAnnotation);
       view.removeEventListener('external-link', blockExternalLink);
       try {
         view.destroy();
@@ -245,6 +381,187 @@ export const ReaderView = ({
     void view.goTo(href);
   };
 
+  const togglePanel = (next: Exclude<ReaderPanel, null>) => {
+    if (panel === 'search' && next !== 'search') viewRef.current?.clearSearch();
+    if (panel === next && next === 'search') viewRef.current?.clearSearch();
+    setPanel((current) => (current === next ? null : next));
+  };
+
+  const closePanel = () => {
+    if (panel === 'search') viewRef.current?.clearSearch();
+    setPanel(null);
+  };
+
+  const createNoteRecord = (input: {
+    type: BookNoteRecord['type'];
+    color: string | null;
+    text: string | null;
+    note: string | null;
+    cfi: string;
+    fraction: number;
+  }): BookNoteRecord => ({
+    id: crypto.randomUUID(),
+    bookId: book.id,
+    type: input.type,
+    locator: { kind: 'cfi', cfi: input.cfi, fraction: input.fraction },
+    color: input.color,
+    text: input.text,
+    note: input.note,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    deletedAt: null,
+  });
+
+  const applyAnnotation = (note: BookNoteRecord) => {
+    if (note.type === 'bookmark' || note.locator.kind !== 'cfi') return;
+    void viewRef.current?.addAnnotation({
+      value: note.locator.cfi,
+      color: note.color ?? DEFAULT_HIGHLIGHT,
+      id: note.id,
+    });
+  };
+
+  const saveSelectionHighlight = (color: string) => {
+    if (!selection) return;
+    const note = createNoteRecord({
+      type: 'highlight',
+      color,
+      text: selection.text,
+      note: null,
+      cfi: selection.cfi,
+      fraction: selection.fraction,
+    });
+    addNote(note);
+    applyAnnotation(note);
+    schedulePersist();
+    setSelection(null);
+    setNoteMode(false);
+    setNoteDraft('');
+  };
+
+  const saveSelectionNote = () => {
+    if (!selection || !noteDraft.trim()) return;
+    const note = createNoteRecord({
+      type: 'note',
+      color: DEFAULT_HIGHLIGHT,
+      text: selection.text,
+      note: noteDraft.trim(),
+      cfi: selection.cfi,
+      fraction: selection.fraction,
+    });
+    addNote(note);
+    applyAnnotation(note);
+    schedulePersist();
+    setSelection(null);
+    setNoteMode(false);
+    setNoteDraft('');
+  };
+
+  const addBookmark = () => {
+    const cfi = lastCfiRef.current;
+    if (!cfi) return;
+    const note = createNoteRecord({
+      type: 'bookmark',
+      color: null,
+      text: null,
+      note: null,
+      cfi,
+      fraction: lastFractionRef.current,
+    });
+    addNote(note);
+    schedulePersist();
+    setPanel('notes');
+  };
+
+  const deleteBookNote = (note: BookNoteRecord) => {
+    removeNote(note.id);
+    if (note.type !== 'bookmark' && note.locator.kind === 'cfi') {
+      void viewRef.current?.deleteAnnotation({ value: note.locator.cfi });
+    }
+    if (editingNoteId === note.id) setEditingNoteId(null);
+    schedulePersist();
+  };
+
+  const saveNoteEdit = (note: BookNoteRecord) => {
+    updateNote(note.id, { color: note.color, note: editDraft.trim() || null });
+    setEditingNoteId(null);
+    schedulePersist();
+  };
+
+  const exportNotes = (format: 'markdown' | 'json') => {
+    const content =
+      format === 'json'
+        ? JSON.stringify({ book: book.title, notes: bookNotes }, null, 2)
+        : [
+            `# ${book.title}`,
+            '',
+            ...bookNotes.map((note) => {
+              if (note.type === 'bookmark') {
+                return `- ${t('reader.noteTypes.bookmark')} (${Math.round(
+                  note.locator.fraction * 100,
+                )}%)`;
+              }
+              const lines = [`## ${t(`reader.noteTypes.${note.type}`)}`];
+              if (note.text) lines.push('', `> ${note.text.replaceAll('\n', '\n> ')}`);
+              if (note.note) lines.push('', note.note);
+              return lines.join('\n');
+            }),
+          ].join('\n\n');
+
+    const blob = new Blob([content], {
+      type: format === 'json' ? 'application/json' : 'text/markdown',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const safeTitle = book.title.replace(/[^\p{L}\p{N}._-]+/gu, '-') || 'notes';
+    link.href = url;
+    link.download = `${safeTitle}.${format === 'json' ? 'json' : 'md'}`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const runSearch = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    const query = searchQuery.trim();
+    const view = viewRef.current;
+    if (!view || !query) return;
+
+    setSearching(true);
+    setSearchResults([]);
+    try {
+      for await (const item of view.search({ query })) {
+        if (item === 'done') break;
+        if (item && typeof item === 'object' && 'subitems' in item) {
+          const section = item as {
+            label?: string;
+            subitems: Array<{
+              cfi: string;
+              excerpt: string | { pre?: string; match?: string; post?: string };
+            }>;
+          };
+          setSearchResults((current) => [
+            ...current,
+            ...section.subitems.map((sub) => {
+              const parts =
+                typeof sub.excerpt === 'string'
+                  ? { pre: sub.excerpt, match: '', post: '' }
+                  : {
+                      pre: sub.excerpt.pre ?? '',
+                      match: sub.excerpt.match ?? '',
+                      post: sub.excerpt.post ?? '',
+                    };
+              return { cfi: sub.cfi, label: section.label ?? '', ...parts };
+            }),
+          ]);
+        }
+      }
+    } catch (error) {
+      console.error('Search failed', error);
+    } finally {
+      setSearching(false);
+    }
+  };
+
   const numberFormat = new Intl.NumberFormat(i18n.language === 'fa' ? 'fa-IR' : 'en-US');
   const percent = numberFormat.format(Math.round(progress * 100));
   const fontSize = numberFormat.format(settings.fontSize);
@@ -270,34 +587,47 @@ export const ReaderView = ({
           <button
             type="button"
             className="reader-action"
-            aria-expanded={showToc}
-            onClick={() => {
-              setShowToc((visible) => !visible);
-              setShowSettings(false);
-            }}
+            aria-expanded={panel === 'toc'}
+            onClick={() => togglePanel('toc')}
           >
             {t('reader.contents')}
           </button>
           <button
             type="button"
             className="reader-action"
-            aria-expanded={showSettings}
-            onClick={() => {
-              setShowSettings((visible) => !visible);
-              setShowToc(false);
-            }}
+            aria-expanded={panel === 'notes'}
+            onClick={() => togglePanel('notes')}
+          >
+            {t('reader.notes')}
+          </button>
+          <button
+            type="button"
+            className="reader-action"
+            aria-expanded={panel === 'search'}
+            onClick={() => togglePanel('search')}
+          >
+            {t('reader.search')}
+          </button>
+          <button
+            type="button"
+            className="reader-action"
+            aria-expanded={panel === 'settings'}
+            onClick={() => togglePanel('settings')}
           >
             {t('reader.settings')}
+          </button>
+          <button type="button" className="reader-action" onClick={addBookmark}>
+            {t('reader.bookmark')}
           </button>
           <span className="reader-progress">{t('reader.progress', { percent })}</span>
         </div>
       </header>
 
-      {showToc ? (
+      {panel === 'toc' ? (
         <aside className="reader-panel toc-panel" aria-label={t('reader.contents')}>
           <div className="panel-header">
             <h2>{t('reader.contents')}</h2>
-            <button type="button" className="text-button" onClick={() => setShowToc(false)}>
+            <button type="button" className="text-button" onClick={closePanel}>
               {t('reader.close')}
             </button>
           </div>
@@ -309,11 +639,168 @@ export const ReaderView = ({
         </aside>
       ) : null}
 
-      {showSettings ? (
+      {panel === 'notes' ? (
+        <aside className="reader-panel notes-panel" aria-label={t('reader.notes')}>
+          <div className="panel-header">
+            <h2>{t('reader.notes')}</h2>
+            <div className="panel-actions">
+              <button
+                type="button"
+                className="reader-action"
+                onClick={() => exportNotes('markdown')}
+              >
+                {t('reader.exportMarkdown')}
+              </button>
+              <button type="button" className="reader-action" onClick={() => exportNotes('json')}>
+                {t('reader.exportJson')}
+              </button>
+              <button type="button" className="text-button" onClick={closePanel}>
+                {t('reader.close')}
+              </button>
+            </div>
+          </div>
+          {bookNotes.length === 0 ? (
+            <p className="hint">{t('reader.notesEmpty')}</p>
+          ) : (
+            <ul className="notes-list">
+              {bookNotes.map((note) => (
+                <li key={note.id} className="note-item">
+                  <div className="note-meta">
+                    {note.color ? (
+                      <span className="note-color" style={{ background: note.color }} />
+                    ) : null}
+                    <span>{t(`reader.noteTypes.${note.type}`)}</span>
+                    <span className="note-progress">
+                      {numberFormat.format(Math.round(note.locator.fraction * 100))}%
+                    </span>
+                  </div>
+                  {note.text ? (
+                    <blockquote className="note-text" dir="auto">
+                      {note.text}
+                    </blockquote>
+                  ) : null}
+                  {editingNoteId === note.id ? (
+                    <div className="note-edit">
+                      <textarea
+                        value={editDraft}
+                        onChange={(event) => setEditDraft(event.currentTarget.value)}
+                        aria-label={t('reader.notePlaceholder')}
+                      />
+                      <div className="note-actions">
+                        <button
+                          type="button"
+                          className="reader-action"
+                          onClick={() => saveNoteEdit(note)}
+                        >
+                          {t('reader.save')}
+                        </button>
+                        <button
+                          type="button"
+                          className="reader-action"
+                          onClick={() => setEditingNoteId(null)}
+                        >
+                          {t('reader.cancel')}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {note.note ? (
+                        <p className="note-text" dir="auto">
+                          {note.note}
+                        </p>
+                      ) : null}
+                      <div className="note-actions">
+                        <button
+                          type="button"
+                          className="reader-action"
+                          onClick={() => {
+                            if (note.locator.kind === 'cfi') {
+                              void viewRef.current?.goTo(note.locator.cfi);
+                            }
+                          }}
+                        >
+                          {t('reader.jump')}
+                        </button>
+                        <button
+                          type="button"
+                          className="reader-action"
+                          onClick={() => {
+                            setEditingNoteId(note.id);
+                            setEditDraft(note.note ?? '');
+                          }}
+                        >
+                          {t('reader.edit')}
+                        </button>
+                        <button
+                          type="button"
+                          className="reader-action"
+                          onClick={() => deleteBookNote(note)}
+                        >
+                          {t('reader.delete')}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </aside>
+      ) : null}
+
+      {panel === 'search' ? (
+        <aside className="reader-panel search-panel" aria-label={t('reader.search')}>
+          <div className="panel-header">
+            <h2>{t('reader.search')}</h2>
+            <button type="button" className="text-button" onClick={closePanel}>
+              {t('reader.close')}
+            </button>
+          </div>
+          <form className="search-form" onSubmit={runSearch}>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.currentTarget.value)}
+              placeholder={t('reader.searchPlaceholder')}
+              aria-label={t('reader.searchPlaceholder')}
+            />
+            <button type="submit" className="reader-action">
+              {t('reader.searchButton')}
+            </button>
+          </form>
+          {searching ? <p className="hint">{t('reader.searching')}</p> : null}
+          {!searching && searchQuery && searchResults.length === 0 ? (
+            <p className="hint">{t('reader.noSearchResults')}</p>
+          ) : null}
+          <ul className="search-results">
+            {searchResults.map((result) => (
+              <li key={result.cfi}>
+                <button
+                  type="button"
+                  className="search-result"
+                  onClick={() => {
+                    void viewRef.current?.goTo(result.cfi);
+                  }}
+                >
+                  {result.label ? <span className="search-label">{result.label}</span> : null}
+                  <span>
+                    {result.pre}
+                    <mark>{result.match}</mark>
+                    {result.post}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      ) : null}
+
+      {panel === 'settings' ? (
         <aside className="reader-panel settings-panel" aria-label={t('reader.settings')}>
           <div className="panel-header">
             <h2>{t('reader.settings')}</h2>
-            <button type="button" className="text-button" onClick={() => setShowSettings(false)}>
+            <button type="button" className="text-button" onClick={closePanel}>
               {t('reader.close')}
             </button>
           </div>
@@ -395,6 +882,65 @@ export const ReaderView = ({
             </div>
           </div>
         </aside>
+      ) : null}
+
+      {selection ? (
+        <div
+          className="selection-popover"
+          role="dialog"
+          aria-label={t('reader.selection')}
+          style={{ transform: `translate(${selection.x}px, ${selection.y}px)` }}
+        >
+          <div className="highlight-colors">
+            {HIGHLIGHT_COLORS.map((color) => (
+              <button
+                key={color.key}
+                type="button"
+                className="color-swatch"
+                style={{ background: color.value }}
+                aria-label={t(`reader.colors.${color.key}`)}
+                onClick={() => saveSelectionHighlight(color.value)}
+              />
+            ))}
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => setSelection(null)}
+              aria-label={t('reader.dismiss')}
+            >
+              ×
+            </button>
+          </div>
+          {noteMode ? (
+            <div className="note-draft">
+              <textarea
+                value={noteDraft}
+                onChange={(event) => setNoteDraft(event.currentTarget.value)}
+                placeholder={t('reader.notePlaceholder')}
+                aria-label={t('reader.notePlaceholder')}
+              />
+              <div className="note-actions">
+                <button type="button" className="reader-action" onClick={saveSelectionNote}>
+                  {t('reader.saveNote')}
+                </button>
+                <button
+                  type="button"
+                  className="reader-action"
+                  onClick={() => {
+                    setNoteMode(false);
+                    setNoteDraft('');
+                  }}
+                >
+                  {t('reader.cancel')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className="reader-action" onClick={() => setNoteMode(true)}>
+              {t('reader.addNote')}
+            </button>
+          )}
+        </div>
       ) : null}
 
       <div className="reader-stage" ref={stageRef}>

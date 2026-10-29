@@ -1,6 +1,7 @@
 import type { DataStorePort } from '@hamesh/platform';
 import type { BookRecord, LibrarySnapshot } from '@hamesh/storage';
 import { useLibraryStore } from '../stores/libraryStore';
+import { useNotesStore } from '../stores/notesStore';
 import { useReadingStore } from '../stores/readingStore';
 import { rememberBookFile } from './bookFiles';
 import { createDataStore } from './dataStore';
@@ -56,6 +57,7 @@ export const initLibraryPersistence = async (): Promise<void> => {
 
   useLibraryStore.setState({ books });
   useReadingStore.setState({ states: snapshot.reading ?? {} });
+  useNotesStore.setState({ notes: snapshot.notes ?? [] });
 };
 
 const persistNow = async (): Promise<void> => {
@@ -64,6 +66,7 @@ const persistNow = async (): Promise<void> => {
     version: 1,
     books: useLibraryStore.getState().books.map((book) => ({ ...book, coverPath: null })),
     reading: useReadingStore.getState().states,
+    notes: useNotesStore.getState().notes,
   };
   await store.write(MANIFEST, new TextEncoder().encode(JSON.stringify(snapshot)));
 };

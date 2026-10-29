@@ -93,10 +93,15 @@ Exit criteria:
   installers move to Phase 4).
 - [ ] 2 MB EPUB opens in under 1.5s (budget defined; needs a large fixture).
 
-## Phase 2 — Annotations, notes, search, and PDF track (3–4 weeks)
+## Phase 2 — Annotations, notes, search, and PDF track (in progress)
 
 Goal: the reading state worth syncing exists, and the second format proves the
 engine adapter.
+
+Status (2026-10-29): highlights, bookmarks, notes, Markdown/JSON export,
+in-book search, and note persistence are implemented on the Phase 1 JSON
+adapter, with browser coverage. The JSON-to-SQLite migration and the PDF track
+remain. The migration must land before annotations ship in a release (ADR-0010).
 
 Deliverables:
 

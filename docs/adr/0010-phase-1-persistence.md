@@ -36,3 +36,10 @@ features that actually need SQL; they are Phase 2 work.
 - Desktop binary IPC currently sends byte arrays; replace it with streaming or
   the filesystem plugin when book files or libraries grow.
 - A migration path to SQLite is required in Phase 2.
+
+## Status note (2026-10-29)
+
+Highlights, bookmarks, notes, and in-book search were implemented on this JSON
+adapter during development, and the manifest now carries a `notes` array.
+The Phase 2 SQLite migration is still required before annotations ship in a
+release; the JSON path is not the final annotation store.

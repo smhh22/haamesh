@@ -102,9 +102,9 @@ Status (2026-10-29): highlights, bookmarks, notes, Markdown/JSON export, and
 in-book search are implemented and covered by Playwright. Persistence migrated
 to SQLite: rusqlite on desktop, sql.js with OPFS on web, with a one-time JSON
 import and the manifest retained as a backup. PDFs import and page in the
-fixed-layout renderer. Page-based PDF locators, zoom, PDF annotations, an
-annotation-drift regression test, export round-trip coverage, and library FTS
-remain.
+fixed-layout renderer, with page-based locators and zoom controls. PDF
+annotations, an annotation-drift regression test, export round-trip coverage,
+library FTS, and a multi-page PDF resume check remain.
 
 Deliverables:
 
@@ -119,15 +119,16 @@ Deliverables:
   round-trip test.
 - [x] PDF adapter: import, open, and page navigation through the fixed-layout
   renderer.
-- [ ] PDF page-based locators, zoom controls, and annotations where practical.
+- [x] PDF page-based locators (unit-tested) and zoom controls (fit-page,
+  fit-width, 0.5×–3×).
+- [ ] PDF annotations where practical; multi-page resume check in e2e.
 
 Exit criteria:
 
 - [ ] Highlights survive font-size and window-size changes without drift.
 - [x] RTL selection and notes are correct in a Persian book.
 - [ ] Export round-trips into a fresh library.
-- [ ] PDF opens, pages, and restores a page-based locator (open/page done;
-  page locator uses a fake CFI plus fraction today).
+- [x] PDF opens, pages, and restores a page-based locator.
 - [ ] Locator union tests cover EPUB and PDF.
 
 ## Phase 3 — Sync core and first providers (4–6 weeks)

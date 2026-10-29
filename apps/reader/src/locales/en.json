@@ -89,6 +89,12 @@
     "on": "On",
     "off": "Off",
     "flow": "Layout",
+    "zoom": "Zoom",
+    "fitPage": "Fit page",
+    "fitWidth": "Fit width",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "pageOf": "Page {{current}} of {{total}}",
     "paginated": "Paginated",
     "scrolled": "Scrolled"
   }

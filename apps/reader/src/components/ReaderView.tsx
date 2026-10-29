@@ -6,6 +6,7 @@ import { Overlayer } from 'foliate-js/overlayer.js';
 import { type FoliateBook, makeBook } from 'foliate-js/view.js';
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { locatorFromRelocate, type RelocateDetail } from '../readerLocator';
 import { buildReaderCss } from '../readerStyles';
 import { persistNoteRecord } from '../services/libraryPersistence';
 import { notesForBook, useNotesStore } from '../stores/notesStore';
@@ -39,6 +40,7 @@ export interface ReaderViewProps {
   book: BookRecord;
   file: File;
   initialLocation?: string | null;
+  initialPage?: number | null;
   initialFraction?: number;
   onProgress?: (state: { locator: Locator | null; fraction: number }) => void;
   onClose: () => void;
@@ -114,6 +116,7 @@ export const ReaderView = ({
   book,
   file,
   initialLocation,
+  initialPage,
   initialFraction = 0,
   onProgress,
   onClose,
@@ -136,7 +139,9 @@ export const ReaderView = ({
   const flowRef = useRef(settings.flow);
   const lastCfiRef = useRef<string | null>(null);
   const lastFractionRef = useRef(initialFraction);
+  const pdfZoomRef = useRef(settings.pdfZoom);
   const [progress, setProgress] = useState(initialFraction);
+  const [pageInfo, setPageInfo] = useState<{ current: number; total: number } | null>(null);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
   const [toc, setToc] = useState<TocItem[]>([]);
@@ -160,12 +165,15 @@ export const ReaderView = ({
   }, [bookNotes]);
 
   useEffect(() => {
-    if (isPdf) return;
+    const view = viewRef.current;
+    if (isPdf) {
+      view?.renderer?.setAttribute('zoom', String(settings.pdfZoom));
+      return;
+    }
     const css = buildReaderCss(settings);
     settingsCssRef.current = css;
     flowRef.current = settings.flow;
 
-    const view = viewRef.current;
     if (!view?.renderer) return;
 
     for (const { doc } of view.renderer.getContents()) {
@@ -214,24 +222,24 @@ export const ReaderView = ({
     };
 
     const onRelocate = (event: Event) => {
-      const detail = (
-        event as CustomEvent<{
-          fraction?: number;
-          cfi?: string;
-          tocItem?: { href?: string } | null;
-        }>
-      ).detail;
+      const detail = (event as CustomEvent<RelocateDetail & { tocItem?: { href?: string } | null }>)
+        .detail;
 
+      if (typeof detail?.section?.current === 'number') {
+        setPageInfo({
+          current: detail.section.current + 1,
+          total: detail.section.total ?? 0,
+        });
+      }
+
+      const locator = detail ? locatorFromRelocate(detail, isPdf) : null;
       if (typeof detail?.fraction === 'number' && Number.isFinite(detail.fraction)) {
         const fraction = Math.min(1, Math.max(0, detail.fraction));
         lastFractionRef.current = fraction;
         setProgress(fraction);
-        onProgressRef.current?.({
-          locator: detail.cfi ? { kind: 'cfi', cfi: detail.cfi, fraction } : null,
-          fraction,
-        });
+        if (locator) onProgressRef.current?.({ locator, fraction });
       }
-      if (detail?.cfi) lastCfiRef.current = detail.cfi;
+      if (locator?.kind === 'cfi') lastCfiRef.current = locator.cfi;
       if (detail?.tocItem?.href) setActiveHref(detail.tocItem.href);
       setSelection(null);
     };
@@ -324,7 +332,8 @@ export const ReaderView = ({
 
         await view.open(parsed);
         await view.init({
-          lastLocation: initialLocation || undefined,
+          lastLocation:
+            isPdf && initialPage != null ? initialPage - 1 : initialLocation || undefined,
           showTextStart: true,
         });
 
@@ -356,7 +365,7 @@ export const ReaderView = ({
       view.remove();
       viewRef.current = null;
     };
-  }, [file, initialLocation, isPdf]);
+  }, [file, initialLocation, initialPage, isPdf]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -583,6 +592,7 @@ export const ReaderView = ({
       data-theme={settings.theme}
       data-flow={settings.flow}
       data-font-size={settings.fontSize}
+      data-zoom={String(settings.pdfZoom)}
     >
       <header className="reader-header">
         <button type="button" className="text-button" onClick={onClose}>
@@ -619,20 +629,27 @@ export const ReaderView = ({
               >
                 {t('reader.search')}
               </button>
-              <button
-                type="button"
-                className="reader-action"
-                aria-expanded={panel === 'settings'}
-                onClick={() => togglePanel('settings')}
-              >
-                {t('reader.settings')}
-              </button>
               <button type="button" className="reader-action" onClick={addBookmark}>
                 {t('reader.bookmark')}
               </button>
             </>
           ) : null}
-          <span className="reader-progress">{t('reader.progress', { percent })}</span>
+          <button
+            type="button"
+            className="reader-action"
+            aria-expanded={panel === 'settings'}
+            onClick={() => togglePanel('settings')}
+          >
+            {t('reader.settings')}
+          </button>
+          <span className="reader-progress">
+            {isPdf && pageInfo
+              ? t('reader.pageOf', {
+                  current: numberFormat.format(pageInfo.current),
+                  total: numberFormat.format(pageInfo.total),
+                })
+              : t('reader.progress', { percent })}
+          </span>
         </div>
       </header>
 
@@ -819,81 +836,121 @@ export const ReaderView = ({
           </div>
 
           <div className="setting-row">
-            <span>{t('reader.fontSize')}</span>
+            <span>{t('reader.zoom')}</span>
             <div className="setting-controls">
               <button
                 type="button"
                 className="reader-action"
-                aria-label={t('reader.decreaseFont')}
-                onClick={settings.decreaseFont}
+                aria-label={t('reader.zoomOut')}
+                onClick={settings.zoomOut}
               >
-                A−
+                −
               </button>
-              <span className="setting-value">{fontSize}%</span>
+              <button
+                type="button"
+                className={
+                  settings.pdfZoom === 'fit-page' ? 'reader-action is-selected' : 'reader-action'
+                }
+                onClick={() => settings.setPdfZoom('fit-page')}
+              >
+                {t('reader.fitPage')}
+              </button>
+              <button
+                type="button"
+                className={
+                  settings.pdfZoom === 'fit-width' ? 'reader-action is-selected' : 'reader-action'
+                }
+                onClick={() => settings.setPdfZoom('fit-width')}
+              >
+                {t('reader.fitWidth')}
+              </button>
               <button
                 type="button"
                 className="reader-action"
-                aria-label={t('reader.increaseFont')}
-                onClick={settings.increaseFont}
+                aria-label={t('reader.zoomIn')}
+                onClick={settings.zoomIn}
               >
-                A+
+                +
               </button>
             </div>
           </div>
-
-          <div className="setting-row">
-            <span>{t('reader.theme')}</span>
-            <div className="setting-controls">
-              {(['light', 'sepia', 'dark'] as const).map((theme) => (
+          {!isPdf ? (
+            <>
+              <div className="setting-row">
+                <span>{t('reader.fontSize')}</span>
+                <div className="setting-controls">
+                  <button
+                    type="button"
+                    className="reader-action"
+                    aria-label={t('reader.decreaseFont')}
+                    onClick={settings.decreaseFont}
+                  >
+                    A−
+                  </button>
+                  <span className="setting-value">{fontSize}%</span>
+                  <button
+                    type="button"
+                    className="reader-action"
+                    aria-label={t('reader.increaseFont')}
+                    onClick={settings.increaseFont}
+                  >
+                    A+
+                  </button>
+                </div>
+              </div>
+              <div className="setting-row">
+                <span>{t('reader.theme')}</span>
+                <div className="setting-controls">
+                  {(['light', 'sepia', 'dark'] as const).map((theme) => (
+                    <button
+                      key={theme}
+                      type="button"
+                      className={
+                        settings.theme === theme ? 'reader-action is-selected' : 'reader-action'
+                      }
+                      onClick={() => settings.setTheme(theme)}
+                    >
+                      {t(`reader.themes.${theme}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="setting-row">
+                <span>{t('reader.justify')}</span>
                 <button
-                  key={theme}
                   type="button"
-                  className={
-                    settings.theme === theme ? 'reader-action is-selected' : 'reader-action'
-                  }
-                  onClick={() => settings.setTheme(theme)}
+                  className={settings.justify ? 'reader-action is-selected' : 'reader-action'}
+                  aria-pressed={settings.justify}
+                  onClick={settings.toggleJustify}
                 >
-                  {t(`reader.themes.${theme}`)}
+                  {settings.justify ? t('reader.on') : t('reader.off')}
                 </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="setting-row">
-            <span>{t('reader.justify')}</span>
-            <button
-              type="button"
-              className={settings.justify ? 'reader-action is-selected' : 'reader-action'}
-              aria-pressed={settings.justify}
-              onClick={settings.toggleJustify}
-            >
-              {settings.justify ? t('reader.on') : t('reader.off')}
-            </button>
-          </div>
-
-          <div className="setting-row">
-            <span>{t('reader.flow')}</span>
-            <div className="setting-controls">
-              <button
-                type="button"
-                className={
-                  settings.flow === 'paginated' ? 'reader-action is-selected' : 'reader-action'
-                }
-                onClick={() => settings.setFlow('paginated')}
-              >
-                {t('reader.paginated')}
-              </button>
-              <button
-                type="button"
-                className={
-                  settings.flow === 'scrolled' ? 'reader-action is-selected' : 'reader-action'
-                }
-                onClick={() => settings.setFlow('scrolled')}
-              >
-                {t('reader.scrolled')}
-              </button>
-            </div>
-          </div>
+              </div>{' '}
+              <div className="setting-row">
+                <span>{t('reader.flow')}</span>
+                <div className="setting-controls">
+                  <button
+                    type="button"
+                    className={
+                      settings.flow === 'paginated' ? 'reader-action is-selected' : 'reader-action'
+                    }
+                    onClick={() => settings.setFlow('paginated')}
+                  >
+                    {t('reader.paginated')}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      settings.flow === 'scrolled' ? 'reader-action is-selected' : 'reader-action'
+                    }
+                    onClick={() => settings.setFlow('scrolled')}
+                  >
+                    {t('reader.scrolled')}
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : null}
         </aside>
       ) : null}
 

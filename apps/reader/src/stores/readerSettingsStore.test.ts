@@ -7,6 +7,7 @@ beforeEach(() => {
     theme: 'light',
     justify: true,
     flow: 'paginated',
+    pdfZoom: 'fit-page',
   });
 });
 

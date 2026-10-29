@@ -1,5 +1,4 @@
 import type { TocItem } from '@hamesh/core';
-import { useTranslation } from 'react-i18next';
 
 export const TocTree = ({
   items,

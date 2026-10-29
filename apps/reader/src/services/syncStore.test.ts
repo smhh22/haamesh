@@ -48,6 +48,11 @@ const createFakeStorage = (repos: FakeRepos, clockMap: Map<string, string>): Act
   };
   return {
     storage: {
+      texts: {
+        replace: async () => undefined,
+        remove: async () => undefined,
+        search: async () => [],
+      },
       books: {
         async list() {
           return [...repos.books.values()];

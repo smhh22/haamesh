@@ -32,7 +32,8 @@
       "CRYPTO_UNAVAILABLE": "Book hashing needs HTTPS or localhost.",
       "PARSE_FAILED": "This EPUB could not be read.",
       "UNKNOWN": "Something went wrong while importing."
-    }
+    },
+    "contentMatches": "In book contents"
   },
   "reader": {
     "back": "Library",

@@ -368,3 +368,23 @@ test('keeps highlights intact after changing font size', async ({ page }) => {
   await expect(page.locator('.note-item')).toHaveCount(2);
   expect(pageErrors).toEqual([]);
 });
+
+test('finds text inside book contents and opens the book', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(fixture);
+  await expect(page.locator('.library')).toHaveAttribute('aria-busy', 'false');
+  // Extraction runs after the import commits.
+  await page.waitForTimeout(1500);
+
+  const search = page.getByPlaceholder('Search title, author, or series');
+  await search.fill('پاراگراف شمارهٔ 3');
+
+  const match = page.locator('.content-matches button').first();
+  await expect(match).toBeVisible({ timeout: 10_000 });
+  await expect(match.locator('.content-match-snippet')).toContainText('پاراگراف شمارهٔ 3');
+
+  await match.click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+});

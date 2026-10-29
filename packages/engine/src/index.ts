@@ -11,3 +11,5 @@ export interface ReaderEngine {
   open(path: string): Promise<void>;
   close(): Promise<void>;
 }
+export type { ExtractedBookText } from './bookText';
+export { extractEpubText } from './bookText';

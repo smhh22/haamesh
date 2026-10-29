@@ -87,6 +87,37 @@ export const testSyncConnection = async (
   }
 };
 
+/** Fire-and-forget sync when a provider is configured; errors are swallowed. */
+const autoSync = async (): Promise<void> => {
+  const config = loadSyncConfig();
+  if (config.provider === 'none' || !config.baseUrl) return;
+  try {
+    await runSync(config);
+  } catch {
+    // Auto-sync is best-effort; the manual button surfaces real errors.
+  }
+};
+
+/**
+ * ADR-0006: convergence happens on open, close, and manual sync. Close-time
+ * sync is a best-effort pagehide hook because beforeunload cannot await.
+ */
+export const initAutoSync = (): (() => void) => {
+  void autoSync();
+  let hideTimer: ReturnType<typeof setTimeout> | null = null;
+  const onHide = () => {
+    if (document.visibilityState !== 'hidden') return;
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => void autoSync(), 2000);
+  };
+  document.addEventListener('visibilitychange', onHide);
+  window.addEventListener('pagehide', () => void autoSync());
+  return () => {
+    document.removeEventListener('visibilitychange', onHide);
+    if (hideTimer) clearTimeout(hideTimer);
+  };
+};
+
 /** Run one sync round against the configured provider. */
 export const runSync = async (config: SyncConfig): Promise<SyncReport> => {
   const provider = providerFromConfig(config);

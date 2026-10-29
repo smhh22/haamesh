@@ -44,6 +44,7 @@ export type {
   StorageProvider,
 } from './provider';
 export { ProviderError } from './provider';
+export { createLocalFolderProvider } from './providers/localFolder';
 export { createMemoryProvider } from './providers/memory';
 export type { FetchLike, WebDavConfig } from './providers/webdav';
 export { createWebDavProvider } from './providers/webdav';

@@ -1,18 +1,19 @@
 # Project status
 
-Last updated: 2026-10-30, 03:35 (overnight autonomous session — read with `AGENTS.md`).
+Last updated: 2026-10-30, 03:30 (overnight autonomous session — read with `AGENTS.md`).
 
 ## Where the project is
 
 - **Phases 0–2 complete. Phase 3 (sync) functionally complete end-to-end.**
-- 19 commits on `main`, newest first: content search (`3db793d`), auto-sync (`94c5cf1`), ReaderView refactor
+- 21 commits on `main`, newest first: local-folder provider (`c639830`),
+  status docs (`4bcd2c6`), content search (`3db793d`), auto-sync (`94c5cf1`), ReaderView refactor
   (`f1f9ba6`), STATUS update (`e811b2f`), sanitizer hardening (`72e47cd`), app sync
   integration (`f395623`), WebDAV provider (`84ea213`), sync engine core
   (`6c6d072`), CI e2e + release workflow (`66a13d1`), Phase 2 close (`e634d8e`),
   app icons (`f3c9fcb`), then the 7 earlier commits (PDF zoom, PDF reading,
   SQLite, annotations, Phase 1, bootstrap…). Working tree clean.
 - Gates at every commit: `pnpm lint` (Biome + tsc + boundary + logical-CSS),
-  109 unit tests (Vitest incl. fast-check property tests), 12 Playwright e2e
+  120 unit tests (Vitest incl. fast-check property tests), 13 Playwright e2e
   tests, `pnpm build`, `cargo fmt --check`, `cargo check`.
 
 ## Night session summary (for review with the user)
@@ -64,7 +65,17 @@ Last updated: 2026-10-30, 03:35 (overnight autonomous session — read with `AGE
   - Per-RECORD LWW v1 (record-level clock stamps) instead of per-field:
     simpler migration; per-field can come later without wire-format change
     (envelopes are already per-field, stamps are just equal per record).
-  - WebDAV as first real provider (universal, self-hostable, sanction-safe).
+  - WebDAV as first real provider (universal, self-hostable, sanction-safe);
+    local-folder provider ALSO implemented over a minimal FolderFs surface
+    (`providers/localFolder.ts`, conformance-tested) — needs the DialogPort
+    desktop adapter + directory picker UI before it is user-visible.
+  - Library content search shipped: storage v3 `book_texts` (per-section
+    EPUB text extracted at import via `createDocument`, no blob URLs), shared
+    `normalizeForSearch` in core, debounced content-match section in the
+    library search (opens the book on click), e2e covered. JS-side filtering
+    instead of FTS5: portable across rusqlite/sql.js and normalization-exact.
+    Gap: books downloaded by SYNC lack texts until re-imported — wire
+    storeBookTexts into the sync download path later.
   - Sync credentials in **localStorage** for now — MUST move to the OS
     keychain (KeychainPort) before shipping; flagged in the UI comment.
   - Tombstoned books keep blobs remotely (no remote deletion in v1).
@@ -99,7 +110,9 @@ Last updated: 2026-10-30, 03:35 (overnight autonomous session — read with `AGE
 - Everything from the previous handoff (EPUB+PDF import/reading, SQLite on
   both platforms, annotations, search, export, resume, zoom, open-with) plus:
   multi-page PDF resume, notes export round-trip, WebDAV sync with manual
-  trigger, installer builds, brand icons, real-book stress verified.
+  trigger + auto-sync on open/pagehide, library CONTENT search across EPUB
+  sections, local-folder sync provider (awaiting picker UI), installer
+  builds, brand icons, real-book stress verified.
 - Reader internals worth knowing: overlay SVGs live in foliate's **closed
   shadow root** (unqueryable) — `data-annotations-drawn` counter on
   `.reader-stage` is the test hook. Upstream foliate ResizeObserver fires
@@ -117,9 +130,8 @@ Last updated: 2026-10-30, 03:35 (overnight autonomous session — read with `AGE
 3. ReaderView.tsx refactor — DONE for the three clean extractions
    (TocTree/SettingsPanel/SelectionPopover in `components/reader/`, e2e-guarded);
    notes/search panels still inline if further splitting is wanted.
-4. PDF annotation support (deliberately deferred); NOTE: books synced DOWN to a
-   device do not get text extraction until they are re-imported — wire
-   storeBookTexts into the SyncStore.saveBookFile path;
+4. PDF annotation support (deliberately deferred); extraction for sync-
+   downloaded books (wire storeBookTexts into the sync path);
    RTL page-progression detection for Persian PDFs.
 5. Windows smoke test on real hardware (friend with Windows).
 6. Phase 5: Android, stats events, messaging backup channel.

@@ -11,6 +11,9 @@ import { buildReaderCss } from '../readerStyles';
 import { persistNoteRecord } from '../services/libraryPersistence';
 import { notesForBook, useNotesStore } from '../stores/notesStore';
 import { useReaderSettings } from '../stores/readerSettingsStore';
+import { SelectionPopover } from './reader/SelectionPopover';
+import { SettingsPanel } from './reader/SettingsPanel';
+import { TocTree } from './reader/TocTree';
 
 interface FoliateRenderer {
   getContents(): Array<{ doc: Document; index: number }>;
@@ -46,13 +49,7 @@ export interface ReaderViewProps {
   onClose: () => void;
 }
 
-interface SelectionInfo {
-  x: number;
-  y: number;
-  cfi: string;
-  text: string;
-  fraction: number;
-}
+import type { SelectionInfo } from './reader/types';
 
 interface SearchResult {
   cfi: string;
@@ -84,33 +81,6 @@ const applyReaderStyle = (doc: Document, css: string): void => {
   }
   style.textContent = css;
 };
-
-const TocTree = ({
-  items,
-  activeHref,
-  onSelect,
-}: {
-  items: TocItem[];
-  activeHref: string | null;
-  onSelect: (href: string) => void;
-}) => (
-  <ol className="toc-list">
-    {items.map((item) => (
-      <li key={`${item.href}-${item.label}`}>
-        <button
-          type="button"
-          className={item.href === activeHref ? 'toc-item is-active' : 'toc-item'}
-          onClick={() => onSelect(item.href)}
-        >
-          {item.label}
-        </button>
-        {item.subitems?.length ? (
-          <TocTree items={item.subitems} activeHref={activeHref} onSelect={onSelect} />
-        ) : null}
-      </li>
-    ))}
-  </ol>
-);
 
 export const ReaderView = ({
   book,
@@ -836,190 +806,24 @@ export const ReaderView = ({
       ) : null}
 
       {panel === 'settings' ? (
-        <aside className="reader-panel settings-panel" aria-label={t('reader.settings')}>
-          <div className="panel-header">
-            <h2>{t('reader.settings')}</h2>
-            <button type="button" className="text-button" onClick={closePanel}>
-              {t('reader.close')}
-            </button>
-          </div>
-
-          <div className="setting-row">
-            <span>{t('reader.zoom')}</span>
-            <div className="setting-controls">
-              <button
-                type="button"
-                className="reader-action"
-                aria-label={t('reader.zoomOut')}
-                onClick={settings.zoomOut}
-              >
-                −
-              </button>
-              <button
-                type="button"
-                className={
-                  settings.pdfZoom === 'fit-page' ? 'reader-action is-selected' : 'reader-action'
-                }
-                onClick={() => settings.setPdfZoom('fit-page')}
-              >
-                {t('reader.fitPage')}
-              </button>
-              <button
-                type="button"
-                className={
-                  settings.pdfZoom === 'fit-width' ? 'reader-action is-selected' : 'reader-action'
-                }
-                onClick={() => settings.setPdfZoom('fit-width')}
-              >
-                {t('reader.fitWidth')}
-              </button>
-              <button
-                type="button"
-                className="reader-action"
-                aria-label={t('reader.zoomIn')}
-                onClick={settings.zoomIn}
-              >
-                +
-              </button>
-            </div>
-          </div>
-          {!isPdf ? (
-            <>
-              <div className="setting-row">
-                <span>{t('reader.fontSize')}</span>
-                <div className="setting-controls">
-                  <button
-                    type="button"
-                    className="reader-action"
-                    aria-label={t('reader.decreaseFont')}
-                    onClick={settings.decreaseFont}
-                  >
-                    A−
-                  </button>
-                  <span className="setting-value">{fontSize}%</span>
-                  <button
-                    type="button"
-                    className="reader-action"
-                    aria-label={t('reader.increaseFont')}
-                    onClick={settings.increaseFont}
-                  >
-                    A+
-                  </button>
-                </div>
-              </div>
-              <div className="setting-row">
-                <span>{t('reader.theme')}</span>
-                <div className="setting-controls">
-                  {(['light', 'sepia', 'dark'] as const).map((theme) => (
-                    <button
-                      key={theme}
-                      type="button"
-                      className={
-                        settings.theme === theme ? 'reader-action is-selected' : 'reader-action'
-                      }
-                      onClick={() => settings.setTheme(theme)}
-                    >
-                      {t(`reader.themes.${theme}`)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="setting-row">
-                <span>{t('reader.justify')}</span>
-                <button
-                  type="button"
-                  className={settings.justify ? 'reader-action is-selected' : 'reader-action'}
-                  aria-pressed={settings.justify}
-                  onClick={settings.toggleJustify}
-                >
-                  {settings.justify ? t('reader.on') : t('reader.off')}
-                </button>
-              </div>{' '}
-              <div className="setting-row">
-                <span>{t('reader.flow')}</span>
-                <div className="setting-controls">
-                  <button
-                    type="button"
-                    className={
-                      settings.flow === 'paginated' ? 'reader-action is-selected' : 'reader-action'
-                    }
-                    onClick={() => settings.setFlow('paginated')}
-                  >
-                    {t('reader.paginated')}
-                  </button>
-                  <button
-                    type="button"
-                    className={
-                      settings.flow === 'scrolled' ? 'reader-action is-selected' : 'reader-action'
-                    }
-                    onClick={() => settings.setFlow('scrolled')}
-                  >
-                    {t('reader.scrolled')}
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : null}
-        </aside>
+        <SettingsPanel settings={settings} isPdf={isPdf} onClose={closePanel} />
       ) : null}
 
       {selection ? (
-        <div
-          className="selection-popover"
-          role="dialog"
-          aria-label={t('reader.selection')}
-          style={{ transform: `translate(${selection.x}px, ${selection.y}px)` }}
-        >
-          <div className="highlight-colors">
-            {HIGHLIGHT_COLORS.map((color) => (
-              <button
-                key={color.key}
-                type="button"
-                className="color-swatch"
-                style={{ background: color.value }}
-                aria-label={t(`reader.colors.${color.key}`)}
-                onClick={() => saveSelectionHighlight(color.value)}
-              />
-            ))}
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => setSelection(null)}
-              aria-label={t('reader.dismiss')}
-            >
-              ×
-            </button>
-          </div>
-          {noteMode ? (
-            <div className="note-draft">
-              <textarea
-                value={noteDraft}
-                onChange={(event) => setNoteDraft(event.currentTarget.value)}
-                placeholder={t('reader.notePlaceholder')}
-                aria-label={t('reader.notePlaceholder')}
-              />
-              <div className="note-actions">
-                <button type="button" className="reader-action" onClick={saveSelectionNote}>
-                  {t('reader.saveNote')}
-                </button>
-                <button
-                  type="button"
-                  className="reader-action"
-                  onClick={() => {
-                    setNoteMode(false);
-                    setNoteDraft('');
-                  }}
-                >
-                  {t('reader.cancel')}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button type="button" className="reader-action" onClick={() => setNoteMode(true)}>
-              {t('reader.addNote')}
-            </button>
-          )}
-        </div>
+        <SelectionPopover
+          selection={selection}
+          noteMode={noteMode}
+          noteDraft={noteDraft}
+          onHighlight={saveSelectionHighlight}
+          onStartNote={() => setNoteMode(true)}
+          onSaveNote={saveSelectionNote}
+          onCancelNote={() => {
+            setNoteMode(false);
+            setNoteDraft('');
+          }}
+          onDraftChange={setNoteDraft}
+          onDismiss={() => setSelection(null)}
+        />
       ) : null}
 
       <div className="reader-stage" ref={stageRef}>

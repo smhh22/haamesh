@@ -17,6 +17,14 @@
     "ltr": "چپ‌به‌راست",
     "remove": "حذف",
     "read": "خواندن",
+    "search": "جست‌وجوی عنوان، نویسنده یا مجموعه",
+    "sort": "مرتب‌سازی کتاب‌ها",
+    "sortRecent": "تازه‌ترین",
+    "sortTitle": "عنوان (الف–ی)",
+    "sortAuthor": "نویسنده (الف–ی)",
+    "listView": "نمایش فهرستی",
+    "gridView": "نمایش شبکه‌ای",
+    "noResults": "کتابی با این جست‌وجو پیدا نشد.",
     "bidiSample": "این کتابخانه با چیدمان منطقی ساخته شده است — this layout uses logical properties.",
     "errors": {
       "INVALID_FILE": "فایل خالی یا ناخواناست.",
@@ -31,6 +39,25 @@
     "previous": "قبلی",
     "next": "بعدی",
     "progress": "{{percent}}٪ خوانده‌شده",
-    "error": "این کتاب باز نشد."
+    "error": "این کتاب باز نشد.",
+    "contents": "فهرست",
+    "settings": "تنظیمات",
+    "close": "بستن",
+    "noToc": "این کتاب فهرست مطالب ندارد.",
+    "fontSize": "اندازهٔ قلم",
+    "decreaseFont": "کوچک‌تر کردن قلم",
+    "increaseFont": "بزرگ‌تر کردن قلم",
+    "theme": "پوسته",
+    "themes": {
+      "light": "روشن",
+      "sepia": "کاغذی",
+      "dark": "تیره"
+    },
+    "justify": "هم‌ترازی متن",
+    "on": "روشن",
+    "off": "خاموش",
+    "flow": "چیدمان",
+    "paginated": "صفحه‌ای",
+    "scrolled": "اسکرولی"
   }
 }

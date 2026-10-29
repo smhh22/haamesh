@@ -17,6 +17,14 @@
     "ltr": "LTR",
     "remove": "Remove",
     "read": "Read",
+    "search": "Search title, author, or series",
+    "sort": "Sort books",
+    "sortRecent": "Recently added",
+    "sortTitle": "Title A–Z",
+    "sortAuthor": "Author A–Z",
+    "listView": "List view",
+    "gridView": "Grid view",
+    "noResults": "No books match this search.",
     "bidiSample": "این کتابخانه با چیدمان منطقی ساخته شده است — this layout uses logical properties.",
     "errors": {
       "INVALID_FILE": "That file is empty or unreadable.",
@@ -31,6 +39,25 @@
     "previous": "Previous",
     "next": "Next",
     "progress": "{{percent}}% read",
-    "error": "This book could not be opened."
+    "error": "This book could not be opened.",
+    "contents": "Contents",
+    "settings": "Settings",
+    "close": "Close",
+    "noToc": "This book has no table of contents.",
+    "fontSize": "Font size",
+    "decreaseFont": "Decrease font size",
+    "increaseFont": "Increase font size",
+    "theme": "Theme",
+    "themes": {
+      "light": "Light",
+      "sepia": "Sepia",
+      "dark": "Dark"
+    },
+    "justify": "Justify text",
+    "on": "On",
+    "off": "Off",
+    "flow": "Layout",
+    "paginated": "Paginated",
+    "scrolled": "Scrolled"
   }
 }

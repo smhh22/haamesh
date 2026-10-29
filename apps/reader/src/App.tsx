@@ -2,9 +2,10 @@ import type { Direction } from '@hamesh/core';
 import { ImportError, type ImportErrorCode } from '@hamesh/engine';
 import type { BookRecord, ReadingState } from '@hamesh/storage';
 import { DirectionProvider } from '@hamesh/ui';
-import { type ChangeEvent, type DragEvent, useEffect, useState } from 'react';
+import { type ChangeEvent, type DragEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ReaderView } from './components/ReaderView';
+import { type BookSort, type BookView, filterAndSortBooks } from './library/bookList';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
 import { importBookFile } from './services/importBook';
 import { deletePersistedBook, persistBook, schedulePersist } from './services/libraryPersistence';
@@ -34,6 +35,9 @@ export const App = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [errorCode, setErrorCode] = useState<ImportErrorCode | 'UNKNOWN' | null>(null);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<BookSort>('recent');
+  const [viewMode, setViewMode] = useState<BookView>('grid');
   const [readerSession, setReaderSession] = useState<{
     book: BookRecord;
     start: ReadingState | null;
@@ -43,6 +47,16 @@ export const App = () => {
   const removeBook = useLibraryStore((state) => state.removeBook);
   const saveReadingState = useReadingStore((state) => state.save);
   const removeReadingState = useReadingStore((state) => state.remove);
+  const visibleBooks = useMemo(
+    () =>
+      filterAndSortBooks(
+        books,
+        query,
+        sort,
+        new Intl.Collator(locale, { sensitivity: 'base', numeric: true }),
+      ),
+    [books, query, sort, locale],
+  );
   const direction = directionFor(locale);
 
   useEffect(() => {
@@ -182,6 +196,35 @@ export const App = () => {
             </label>
           </div>
 
+          <div className="library-tools">
+            <input
+              type="search"
+              className="search-input"
+              placeholder={t('library.search')}
+              aria-label={t('library.search')}
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+            />
+            <select
+              className="sort-select"
+              aria-label={t('library.sort')}
+              value={sort}
+              onChange={(event) => setSort(event.currentTarget.value as BookSort)}
+            >
+              <option value="recent">{t('library.sortRecent')}</option>
+              <option value="title">{t('library.sortTitle')}</option>
+              <option value="author">{t('library.sortAuthor')}</option>
+            </select>
+            <button
+              type="button"
+              className="view-toggle"
+              aria-pressed={viewMode === 'list'}
+              onClick={() => setViewMode((mode) => (mode === 'grid' ? 'list' : 'grid'))}
+            >
+              {viewMode === 'grid' ? t('library.listView') : t('library.gridView')}
+            </button>
+          </div>
+
           {isImporting ? (
             <p className="hint" role="status">
               {t('library.importing')}
@@ -198,9 +241,13 @@ export const App = () => {
               <p className="empty-title">{t('library.empty')}</p>
               <p className="hint">{t('library.drop')}</p>
             </div>
+          ) : visibleBooks.length === 0 ? (
+            <div className="empty">
+              <p className="empty-title">{t('library.noResults')}</p>
+            </div>
           ) : (
-            <ul className="book-grid">
-              {books.map((book) => (
+            <ul className={viewMode === 'list' ? 'book-grid is-list' : 'book-grid'}>
+              {visibleBooks.map((book) => (
                 <li key={book.id} className="book-card">
                   <div className="cover">
                     {book.coverPath ? (

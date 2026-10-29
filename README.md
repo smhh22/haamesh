@@ -3,8 +3,18 @@
 Hāmesh (هامش) is a local-first, cross-platform ebook reader with first-class
 RTL support and sync to storage you own. No accounts, no vendor backend.
 
-Status: Phase 0 (foundations). The web shell runs; the Tauri desktop shell
-requires Rust and WebKitGTK/WebView2. See `docs/design/roadmap.md`.
+Status: Phase 1 is complete on Linux and web. Phase 2 (annotations, notes,
+in-book search, PDF, SQLite migration) is next.
+
+## What works
+
+- EPUB import with SHA-256 identity, metadata, covers, and duplicate detection.
+- Library search, sort, grid/list views, and persisted reading progress.
+- Paginated and scrolled reading, TOC, font size, themes, justification, and
+  direction-aware navigation for Persian/Arabic and English books.
+- EPUB sanitization and a restrictive content CSP.
+- Persistence via OPFS on web and app data on desktop.
+- Desktop shell with open-with and `.epub` file association.
 
 ## Requirements
 

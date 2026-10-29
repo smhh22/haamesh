@@ -6,19 +6,26 @@ Browser tests run against the Vite dev server on Chromium:
 pnpm test:e2e
 ```
 
-`fixtures/sample.epub` is generated from the shared test fixture builder. After
-changing `packages/test-fixtures/src/epub.ts`, regenerate it:
+Fixtures are generated from the shared test fixture builder. After changing
+`packages/test-fixtures/src/epub.ts`, regenerate them:
 
 ```bash
 pnpm --filter @hamesh/test-fixtures fixture:e2e
 ```
 
+- `fixtures/sample.epub` — Persian, RTL, multi-page, with a TOC and cover.
+- `fixtures/english.epub` — English, LTR metadata.
+
 The tests cover:
 
-- importing a Persian EPUB and reading it end to end;
-- opening the reader and rendering the first page;
+- importing Persian and English EPUBs;
+- opening the reader, rendering pages, and English LTR reading;
 - switching the interface to Persian RTL;
-- advancing pages and resuming at the saved position after closing and
-  reopening the book.
+- library persistence across a full reload;
+- resuming the reading position after closing, reopening, and reloading;
+- library search, sort, and grid/list views;
+- TOC navigation, font size, theme, and scrolled mode.
 
 Screenshots are written to `e2e/artifacts/` and are intentionally untracked.
+Desktop open-with is not covered here; it is verified by launching the Tauri
+binary with an EPUB path (see `docs/setup.md`).

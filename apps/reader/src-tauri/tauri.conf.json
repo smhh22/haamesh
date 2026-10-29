@@ -35,6 +35,15 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "fileAssociations": [
+      {
+        "ext": ["epub"],
+        "name": "EPUB book",
+        "description": "EPUB ebook",
+        "role": "Viewer",
+        "mimeType": "application/epub+zip"
+      }
+    ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
     }

@@ -68,6 +68,21 @@ fn data_list(app: tauri::AppHandle, relative: String) -> Result<Vec<String>, Str
     Ok(names)
 }
 
+#[tauri::command]
+fn initial_epub_path() -> Option<String> {
+    std::env::args()
+        .skip(1)
+        .find(|arg| arg.to_lowercase().ends_with(".epub"))
+}
+
+#[tauri::command]
+fn read_external_file(path: String) -> Result<Vec<u8>, String> {
+    if !path.to_lowercase().ends_with(".epub") {
+        return Err("only epub files are supported".into());
+    }
+    fs::read(path).map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -75,7 +90,9 @@ pub fn run() {
             data_read,
             data_write,
             data_remove,
-            data_list
+            data_list,
+            initial_epub_path,
+            read_external_file
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

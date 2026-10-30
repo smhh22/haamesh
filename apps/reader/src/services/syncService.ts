@@ -7,7 +7,12 @@
  */
 
 import type { StorageProvider, SyncReport } from '@hamesh/sync';
-import { createLocalFolderProvider, createSyncEngine, createWebDavProvider } from '@hamesh/sync';
+import {
+  createLocalFolderProvider,
+  createS3Provider,
+  createSyncEngine,
+  createWebDavProvider,
+} from '@hamesh/sync';
 import { extractMissingBookTexts } from './bookTexts';
 import { createDataStore, isTauriRuntime } from './dataStore';
 import { providerFetch } from './httpFetch';
@@ -16,7 +21,7 @@ import { getActiveStorage, getSyncClock, reloadLibraryFromStorage } from './libr
 import { createLocalFolderFs, isLocalFolderAvailable, restoreSyncRoot } from './localFolderFs';
 import { createSqlSyncStore, getOrCreateDeviceId } from './syncStore';
 
-export type ProviderKind = 'webdav' | 'local-folder';
+export type ProviderKind = 'webdav' | 'local-folder' | 's3';
 
 export interface SyncProviderConfig {
   id: string;
@@ -31,7 +36,15 @@ export interface SyncProviderConfig {
   hasPassword: boolean;
   /** Desktop local folder */
   localFolder: string;
-  /** Optional HTTP/SOCKS5 proxy for WebDAV (empty = direct). */
+  /** S3-compatible */
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  /** Runtime only; persisted to the OS keychain like WebDAV passwords. */
+  secretAccessKey: string;
+  hasSecretKey: boolean;
+  /** Optional HTTP/SOCKS5 proxy for remote providers (empty = direct). */
   proxy: string;
 }
 
@@ -47,20 +60,30 @@ export interface SyncStatus {
 const CONFIG_KEY = 'hamesh.sync.config';
 const STATUS_KEY = 'hamesh.sync.status';
 
+const providerLabel = (kind: ProviderKind): string =>
+  kind === 'webdav' ? 'WebDAV' : kind === 's3' ? 'S3' : 'Local folder';
+
 export const newProvider = (kind: ProviderKind): SyncProviderConfig => ({
   id: crypto.randomUUID(),
   kind,
-  label: kind === 'webdav' ? 'WebDAV' : 'Local folder',
+  label: providerLabel(kind),
   enabled: true,
   baseUrl: '',
   username: '',
   password: '',
   hasPassword: false,
   localFolder: '',
+  endpoint: '',
+  region: kind === 's3' ? 'us-east-1' : '',
+  bucket: '',
+  accessKeyId: '',
+  secretAccessKey: '',
+  hasSecretKey: false,
   proxy: '',
 });
 
 const passwordKey = (providerId: string): string => `sync.webdav.password.${providerId}`;
+const secretKey = (providerId: string): string => `sync.s3.secret.${providerId}`;
 
 /** Legacy single-provider shape (pre-mirroring) — migrated on load. */
 interface LegacyConfig {
@@ -86,6 +109,12 @@ const migrateLegacy = (legacy: LegacyConfig): SyncConfig => {
         password: legacy.password ?? '',
         hasPassword: legacy.hasPassword ?? false,
         localFolder: legacy.localFolder ?? '',
+        endpoint: '',
+        region: '',
+        bucket: '',
+        accessKeyId: '',
+        secretAccessKey: '',
+        hasSecretKey: false,
         proxy: '',
       },
     ],
@@ -107,10 +136,11 @@ export const loadSyncConfig = (): SyncConfig => {
 };
 
 /**
- * Persist config. WebDAV passwords never go to localStorage on desktop: each
- * is written to the OS keychain under the provider id and only a `hasPassword`
- * marker remains. On web there is no OS keychain, so the fallback keeps them
- * in localStorage (documented caveat in the sync settings).
+ * Persist config. Remote secrets never go to localStorage on desktop: WebDAV
+ * passwords and S3 secret keys are written to the OS keychain under the
+ * provider id, leaving only a `hasPassword`/`hasSecretKey` marker. On web
+ * there is no OS keychain, so the fallback keeps them in localStorage
+ * (documented caveat in the sync settings).
  */
 export const saveSyncConfig = (config: SyncConfig): void => {
   if (!isTauriRuntime()) {
@@ -119,6 +149,18 @@ export const saveSyncConfig = (config: SyncConfig): void => {
   }
   const stored: SyncConfig = {
     providers: config.providers.map((provider) => {
+      if (provider.kind === 's3') {
+        if (provider.secretAccessKey) {
+          void keychainSet(secretKey(provider.id), provider.secretAccessKey);
+        } else if (!provider.hasSecretKey) {
+          void keychainDelete(secretKey(provider.id));
+        }
+        return {
+          ...provider,
+          secretAccessKey: '',
+          hasSecretKey: provider.hasSecretKey || Boolean(provider.secretAccessKey),
+        };
+      }
       if (provider.password) {
         void keychainSet(passwordKey(provider.id), provider.password);
       } else if (!provider.hasPassword) {
@@ -134,7 +176,12 @@ export const saveSyncConfig = (config: SyncConfig): void => {
   localStorage.setItem(CONFIG_KEY, JSON.stringify(stored));
 };
 
-const resolvePassword = async (provider: SyncProviderConfig): Promise<SyncProviderConfig> => {
+const resolveSecrets = async (provider: SyncProviderConfig): Promise<SyncProviderConfig> => {
+  if (provider.kind === 's3') {
+    if (provider.secretAccessKey || !provider.hasSecretKey) return provider;
+    const secret = (await keychainGet(secretKey(provider.id))) ?? '';
+    return { ...provider, secretAccessKey: secret };
+  }
   if (provider.password || !provider.hasPassword) return provider;
   const password = (await keychainGet(passwordKey(provider.id))) ?? '';
   return { ...provider, password };
@@ -171,6 +218,25 @@ const loadStatus = (): SyncStatus => {
 
 export const syncStatus = (): SyncStatus => loadStatus();
 
+/** A provider can sync once it has the minimum details its kind needs. */
+export const isProviderConfigured = (provider: SyncProviderConfig): boolean => {
+  switch (provider.kind) {
+    case 'webdav':
+      return Boolean(provider.baseUrl);
+    case 'local-folder':
+      return Boolean(provider.localFolder);
+    case 's3':
+      return Boolean(
+        provider.endpoint &&
+          provider.bucket &&
+          provider.accessKeyId &&
+          (provider.hasSecretKey || provider.secretAccessKey),
+      );
+    default:
+      return false;
+  }
+};
+
 export const providerFromConfig = (provider: SyncProviderConfig): StorageProvider | null => {
   switch (provider.kind) {
     case 'local-folder':
@@ -186,6 +252,22 @@ export const providerFromConfig = (provider: SyncProviderConfig): StorageProvide
             providerFetch(provider.proxy),
           )
         : null;
+    case 's3':
+      return provider.endpoint &&
+        provider.bucket &&
+        provider.accessKeyId &&
+        provider.secretAccessKey
+        ? createS3Provider(
+            {
+              endpoint: provider.endpoint,
+              region: provider.region || 'us-east-1',
+              bucket: provider.bucket,
+              accessKeyId: provider.accessKeyId,
+              secretAccessKey: provider.secretAccessKey,
+            },
+            providerFetch(provider.proxy),
+          )
+        : null;
     default:
       return null;
   }
@@ -195,13 +277,11 @@ export const providerFromConfig = (provider: SyncProviderConfig): StorageProvide
 const providersFromConfig = async (config: SyncConfig): Promise<StorageProvider[]> => {
   const providers: StorageProvider[] = [];
   for (const entry of config.providers) {
-    if (!entry.enabled) continue;
-    if (entry.kind === 'webdav' && !entry.baseUrl) continue;
+    if (!entry.enabled || !isProviderConfigured(entry)) continue;
     if (entry.kind === 'local-folder') {
-      if (!entry.localFolder) continue;
       await restoreSyncRoot(entry.localFolder);
     }
-    const provider = providerFromConfig(await resolvePassword(entry));
+    const provider = providerFromConfig(await resolveSecrets(entry));
     if (provider) providers.push(provider);
   }
   return providers;
@@ -217,7 +297,7 @@ export const testSyncConnection = async (provider: SyncProviderConfig): Promise<
   if (provider.kind === 'local-folder' && provider.localFolder) {
     await restoreSyncRoot(provider.localFolder);
   }
-  const built = providerFromConfig(await resolvePassword(provider));
+  const built = providerFromConfig(await resolveSecrets(provider));
   if (!built) return { ok: false, code: 'not-configured' };
   try {
     await built.ensureDir(['Hamesh']);

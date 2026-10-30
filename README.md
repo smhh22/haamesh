@@ -23,9 +23,8 @@ and the desktop updater is wired to GitHub Releases.
 - Highlights, bookmarks, notes, Markdown/JSON export, and in-book search.
 - Settings dialog with system/light/dark appearance, language (English/Persian),
   updates, and keyboard shortcuts; preferences stay local.
-- Sync between devices through storage you own: WebDAV or a local folder, with
-  per-field last-writer-wins and tombstones. An S3-compatible provider exists
-  in the engine; its setup UI is not wired yet.
+- Sync between devices through storage you own: WebDAV, a local folder, or
+  S3-compatible storage, with per-field last-writer-wins and tombstones.
 - EPUB sanitization and a restrictive content CSP.
 - SQLite persistence on desktop and web, with a one-time JSON import.
 - Desktop shell with open-with and `.epub`/`.pdf` file associations; Linux

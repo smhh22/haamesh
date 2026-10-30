@@ -5,7 +5,7 @@ import { DirectionProvider } from '@hamesh/ui';
 import { type ChangeEvent, type DragEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ReaderView } from './components/ReaderView';
-import { SyncSettings } from './components/SyncSettings';
+import { SettingsDialog } from './components/SettingsDialog';
 import { UpdateBanner } from './components/UpdateBanner';
 import { type BookSort, type BookView, filterAndSortBooks } from './library/bookList';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
@@ -23,9 +23,7 @@ import {
 } from './services/libraryPersistence';
 import { useLibraryStore } from './stores/libraryStore';
 import { useReadingStore } from './stores/readingStore';
-
-const LOCALES = ['en', 'fa'] as const;
-type Locale = (typeof LOCALES)[number];
+import { type UiLocale as Locale, useUiStore } from './stores/uiStore';
 
 const directionFor = (locale: Locale): Direction => (locale === 'fa' ? 'rtl' : 'ltr');
 
@@ -45,7 +43,8 @@ const formatAuthors = (authors: string[], locale: Locale): string => {
 
 export const App = () => {
   const { t, i18n } = useTranslation();
-  const [locale, setLocale] = useState<Locale>('en');
+  const locale = useUiStore((state) => state.locale);
+  const setLocale = useUiStore((state) => state.setLocale);
   const [isImporting, setIsImporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [errorCode, setErrorCode] = useState<ImportErrorCode | 'UNKNOWN' | null>(null);
@@ -53,6 +52,7 @@ export const App = () => {
   const [sort, setSort] = useState<BookSort>('recent');
   const [viewMode, setViewMode] = useState<BookView>('grid');
   const [contentMatches, setContentMatches] = useState<ContentMatch[]>([]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [readerSession, setReaderSession] = useState<{
     book: BookRecord;
     start: ReadingState | null;
@@ -81,7 +81,7 @@ export const App = () => {
   }, [direction, i18n, locale]);
 
   const toggleLocale = () => {
-    setLocale((current) => (current === 'en' ? 'fa' : 'en'));
+    setLocale(locale === 'en' ? 'fa' : 'en');
   };
 
   const handleFiles = async (fileList: FileList | File[] | null): Promise<void> => {
@@ -202,9 +202,19 @@ export const App = () => {
             <h1>{t('app.title')}</h1>
             <p className="lede">{t('app.lede')}</p>
           </div>
-          <button type="button" className="locale-toggle" onClick={toggleLocale}>
-            {t('app.switch')}
-          </button>
+          <div className="masthead-actions">
+            <button type="button" className="locale-toggle" onClick={toggleLocale}>
+              {t('app.switch')}
+            </button>
+            <button
+              type="button"
+              className="locale-toggle"
+              aria-label={t('settings.title')}
+              onClick={() => setSettingsOpen(true)}
+            >
+              {t('settings.open')}
+            </button>
+          </div>
         </header>
 
         <section
@@ -348,7 +358,7 @@ export const App = () => {
           ) : null}
         </section>
 
-        <SyncSettings />
+        <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       </main>
     </DirectionProvider>
   );

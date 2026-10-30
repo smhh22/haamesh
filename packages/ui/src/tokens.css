@@ -26,7 +26,7 @@
 /* Dark surface palette for the app shell (the reading themes live separately
    in the reader settings). data-theme is resolved from the user preference by
    the UI store: 'light' | 'dark'. */
-:root[data-theme='dark'] {
+:root[data-theme="dark"] {
   --hamesh-color-canvas: #14161a;
   --hamesh-color-surface: #1b1e24;
   --hamesh-color-ink: #e9e4d9;

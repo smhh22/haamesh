@@ -7,6 +7,7 @@ import './i18n';
 import { initLibraryPersistence } from './services/libraryPersistence';
 import { importInitialFile } from './services/openWith';
 import { initAutoSync, initSyncSecurity } from './services/syncService';
+import { initUiTheme } from './stores/uiStore';
 import './styles.css';
 
 const container = document.getElementById('root');
@@ -19,6 +20,7 @@ void (async () => {
   try {
     await initLibraryPersistence();
     await importInitialFile();
+    initUiTheme();
     void initSyncSecurity();
     initAutoSync();
   } catch (error) {

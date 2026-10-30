@@ -128,5 +128,24 @@
     "install": "Install & restart",
     "installing": "Installing…",
     "later": "Later"
+  },
+  "settings": {
+    "title": "Settings",
+    "open": "Settings",
+    "appearance": "Appearance",
+    "theme": "Theme",
+    "themes": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "language": "Language",
+    "updates": "Updates",
+    "version": "Version",
+    "checkUpdates": "Check for updates",
+    "upToDate": "You are up to date.",
+    "updateAvailable": "Version {{version}} is available.",
+    "about": "About",
+    "aboutText": "Hāmesh (هامش) — a local-first ebook reader. Your library stays on your device; sync only uses storage you own. MIT licensed."
   }
 }

@@ -54,6 +54,31 @@ test('switches the interface to Persian RTL', async ({ page }) => {
   await page.screenshot({ path: 'e2e/artifacts/library-rtl.png', fullPage: true });
 });
 
+test('opens settings from the library, applies dark mode, and survives RTL', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Dark' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  const canvas = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--hamesh-color-canvas').trim(),
+  );
+  expect(canvas).toBe('#14161a');
+
+  // The dialog is direction-agnostic: switching language flips the document
+  // while the dialog stays open and closeable.
+  await page.getByRole('button', { name: 'فارسی' }).click();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(page.getByRole('dialog', { name: 'تنظیمات' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  // The preference is local and persists across reloads.
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+});
+
 test('persists the library across a reload', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(fixture);

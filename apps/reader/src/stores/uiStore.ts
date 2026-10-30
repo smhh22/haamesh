@@ -1,13 +1,17 @@
 import { create } from 'zustand';
 
 export type UiTheme = 'system' | 'light' | 'dark';
+export type UiLocale = 'en' | 'fa';
 
 interface UiStore {
   theme: UiTheme;
+  locale: UiLocale;
   setTheme: (theme: UiTheme) => void;
+  setLocale: (locale: UiLocale) => void;
 }
 
 const STORAGE_KEY = 'hamesh.ui.theme';
+const LOCALE_KEY = 'hamesh.ui.locale';
 
 const readTheme = (): UiTheme => {
   try {
@@ -17,6 +21,15 @@ const readTheme = (): UiTheme => {
     // ignore
   }
   return 'system';
+};
+
+const readLocale = (): UiLocale => {
+  try {
+    if (localStorage.getItem(LOCALE_KEY) === 'fa') return 'fa';
+  } catch {
+    // ignore
+  }
+  return 'en';
 };
 
 const resolveTheme = (theme: UiTheme): 'light' | 'dark' => {
@@ -33,6 +46,7 @@ export const applyTheme = (theme: UiTheme): void => {
 
 export const useUiStore = create<UiStore>((set) => ({
   theme: readTheme(),
+  locale: readLocale(),
   setTheme: (theme) => {
     try {
       localStorage.setItem(STORAGE_KEY, theme);
@@ -41,6 +55,14 @@ export const useUiStore = create<UiStore>((set) => ({
     }
     applyTheme(theme);
     set({ theme });
+  },
+  setLocale: (locale) => {
+    try {
+      localStorage.setItem(LOCALE_KEY, locale);
+    } catch {
+      // storage may be unavailable; the in-memory value still applies
+    }
+    set({ locale });
   },
 }));
 

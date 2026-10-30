@@ -812,3 +812,47 @@ blockquote.note-text {
   justify-content: flex-start;
   gap: var(--hamesh-space-2);
 }
+
+.masthead-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--hamesh-space-2);
+}
+
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 45%);
+  display: grid;
+  place-items: center;
+  padding: var(--hamesh-space-4);
+  z-index: 40;
+}
+
+.settings-dialog {
+  inline-size: min(46rem, 100%);
+  max-block-size: 86vh;
+  overflow-y: auto;
+  background: var(--hamesh-color-surface);
+  color: var(--hamesh-color-ink);
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: var(--hamesh-radius);
+  padding: var(--hamesh-space-4);
+}
+
+.settings-section {
+  border-block-start: 1px solid var(--hamesh-color-border);
+  padding-block-start: var(--hamesh-space-2);
+  margin-block-start: var(--hamesh-space-2);
+}
+
+.settings-section h3 {
+  margin-block: var(--hamesh-space-2) 0;
+  font-size: 0.95rem;
+}
+
+.settings-dialog .settings-section .sync-settings {
+  margin-block-start: var(--hamesh-space-1);
+  border: 0;
+  padding: 0;
+}

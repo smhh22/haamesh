@@ -218,6 +218,31 @@ export const createWebDavProvider = (
       await putWithParents(path, init);
     },
 
+    async writeTextConditional(path, body, etag) {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json; charset=utf-8' };
+      if (etag) headers['If-Match'] = etag;
+      else headers['If-None-Match'] = '*';
+      const response = await request('PUT', path, { headers, body });
+      if (response.status === 412) return 'conflict';
+      if (response.status === 409) {
+        // Missing parent collection: create it and retry once with the same precondition.
+        const segments = path.split('/').filter(Boolean);
+        const parents: string[] = [];
+        let current = '';
+        for (const segment of segments.slice(0, -1)) {
+          current = `${current}/${segment}`;
+          parents.push(current);
+        }
+        await mkcolAll(parents);
+        const retry = await request('PUT', path, { headers, body });
+        if (retry.status === 412) return 'conflict';
+        await requireOk('PUT', path, retry);
+        return 'ok';
+      }
+      await requireOk('PUT', path, response);
+      return 'ok';
+    },
+
     async writeBinary(path, body) {
       const init: RequestInit = {
         headers: { 'Content-Type': 'application/octet-stream' },

@@ -49,6 +49,17 @@ export interface StorageProvider {
   list(path: string): Promise<ProviderEntry[]>;
 
   writeText(path: string, body: string): Promise<void>;
+  /**
+   * Conditional write (ADR-0006): when an etag is given it must match the
+   * current object (`If-Match`); a null etag means create-only
+   * (`If-None-Match: *`). Returns 'conflict' on a precondition failure so the
+   * caller can re-read, re-merge, and retry.
+   */
+  writeTextConditional?(
+    path: string,
+    body: string,
+    etag: string | null,
+  ): Promise<'ok' | 'conflict'>;
   writeBinary(path: string, body: ArrayBuffer): Promise<void>;
   ensureDir(paths: string[]): Promise<void>;
   deleteDir(path: string): Promise<void>;

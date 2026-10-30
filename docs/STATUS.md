@@ -88,8 +88,13 @@ Last updated: 2026-10-30, 12:00 (morning review complete — read with `AGENTS.m
     `keychain_set/get/delete`; a one-way startup migration moves any
     plaintext password out of localStorage. Web keeps a localStorage
     fallback with a visible "saved in your system keychain" caveat in the UI.
-  - Periodic auto-sync every 5 minutes while visible (overlap-guarded) added
-    on top of open/page-hide/manual, per user decision.
+  - Periodic auto-sync every 5 minutes while visible added on top of
+    open/page-hide/manual, per user decision; all callers share one in-flight
+    round (`runSync` dedupe).
+  - Concurrency: index commits are conditional (`If-Match`/`If-None-Match: *`)
+    with a 3-attempt read-merge-retry; a unit test simulates a concurrent
+    writer and proves the retry merges instead of clobbering. The two-device
+    harness runs 5 simultaneous rounds on both devices — PASSED.
   - Tombstoned books keep blobs remotely (no remote deletion in v1).
   - No automatic/periodic sync yet: manual "Sync now" only (ADR-0006 says
     convergence on open/close/manual — wire open/close triggers next).

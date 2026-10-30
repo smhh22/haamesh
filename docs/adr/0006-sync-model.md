@@ -66,7 +66,10 @@ may be added, never renamed. Unknown top-level keys are preserved on rewrite.
 
 Crash safety: content-addressed blobs make partial uploads unusable rather than
 corrupting a book; `meta.json` writes use temp+rename where supported, otherwise
-read-merge-write with ETag/If-Match.
+read-merge-write with ETag/If-Match. **Implemented:** the index commit uses a
+conditional write (`If-Match`/`If-None-Match: *`) with a bounded
+read-merge-retry loop (3 attempts); the etag is read before the body so a
+concurrent writer forces a retry instead of being clobbered.
 
 **Deletion**
 

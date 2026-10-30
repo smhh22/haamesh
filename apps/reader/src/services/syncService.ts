@@ -148,15 +148,12 @@ export const testSyncConnection = async (
 
 /** Interval for background sync rounds while the app stays open. */
 const AUTO_SYNC_INTERVAL_MS = 5 * 60_000;
-let autoSyncInFlight = false;
 
 /** Fire-and-forget sync when a provider is configured; errors are swallowed. */
 const autoSync = async (): Promise<void> => {
-  if (autoSyncInFlight) return;
   const config = loadSyncConfig();
   if (config.provider === 'none') return;
   if (config.provider === 'webdav' && !config.baseUrl) return;
-  autoSyncInFlight = true;
   try {
     if (config.provider === 'local-folder' && config.localFolder) {
       await restoreSyncRoot(config.localFolder);
@@ -164,8 +161,6 @@ const autoSync = async (): Promise<void> => {
     await runSync(config);
   } catch {
     // Auto-sync is best-effort; the manual button surfaces real errors.
-  } finally {
-    autoSyncInFlight = false;
   }
 };
 
@@ -195,8 +190,19 @@ export const initAutoSync = (): (() => void) => {
   };
 };
 
-/** Run one sync round against the configured provider. */
-export const runSync = async (config: SyncConfig): Promise<SyncReport> => {
+// One round at a time per install: manual clicks, the timer, and page-hide
+// all share the in-flight promise instead of racing the engine.
+let syncInFlight: Promise<SyncReport> | null = null;
+
+/** Run one sync round against the configured provider (deduped while running). */
+export const runSync = (config: SyncConfig): Promise<SyncReport> => {
+  syncInFlight ??= runSyncRound(config).finally(() => {
+    syncInFlight = null;
+  });
+  return syncInFlight;
+};
+
+const runSyncRound = async (config: SyncConfig): Promise<SyncReport> => {
   const provider = providerFromConfig(await withResolvedPassword(config));
   if (!provider) throw new Error('Provider not configured.');
   const storage = getActiveStorage();

@@ -2,6 +2,7 @@ import { HybridLogicalClock } from '@hamesh/core';
 import { describe, expect, it } from 'vitest';
 import type { SyncRecord, SyncStore } from './engine';
 import { createSyncEngine } from './engine';
+import type { StorageProvider } from './provider';
 import { createMemoryProvider } from './providers/memory';
 
 interface MemoryStore extends SyncStore {
@@ -402,6 +403,56 @@ describe('sync engine', () => {
       providers: [provider],
     }).sync();
     expect(storeA.records.get('book:1')?.deleted).toBe(true);
+  });
+
+  it('retries the index write when a concurrent writer wins the race', async () => {
+    const provider = createMemoryProvider();
+    const wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    const storeB = createMemoryStore('device-b', now);
+    await storeA.localEdit(bookRecord('1', 'Mine', 1000));
+    await storeB.localEdit(bookRecord('2', 'Theirs', 1000));
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+
+    // Inject a concurrent writer into A's first read: A must notice the
+    // etag stomp on commit, re-read, and merge instead of clobbering book 2.
+    let injected = false;
+    const racing: StorageProvider = {
+      ...provider,
+      async readText(path: string) {
+        const result = await provider.readText(path);
+        if (!injected && path.endsWith('index.json')) {
+          injected = true;
+          await storeB.localEdit(bookRecord('3', 'Late', 1500));
+          await createSyncEngine({
+            deviceId: 'device-b',
+            clock: storeB.clock,
+            store: storeB,
+            providers: [provider],
+          }).sync();
+        }
+        return result;
+      },
+    };
+
+    const report = await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [racing],
+    }).sync();
+
+    expect(report.ok).toBe(true);
+    expect(injected).toBe(true);
+    const raw = await provider.readText('Hamesh/index.json');
+    const doc = JSON.parse(raw ?? '{}') as { books: Record<string, unknown> };
+    expect(Object.keys(doc.books).sort()).toEqual(['1', '2', '3']);
   });
 
   it('reports a failed provider without failing the others', async () => {

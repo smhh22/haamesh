@@ -118,7 +118,8 @@
     "zoomOut": "کوچک‌نمایی",
     "pageOf": "صفحهٔ {{current}} از {{total}}",
     "paginated": "صفحه‌ای",
-    "scrolled": "اسکرولی"
+    "scrolled": "اسکرولی",
+    "pageNumber": "صفحهٔ {{page}}"
   },
   "sync": {
     "title": "همگام‌سازی",
@@ -175,7 +176,11 @@
     "remove": "حذف",
     "addWebdav": "افزودن وب‌داو",
     "addLocalFolder": "افزودن پوشهٔ محلی",
-    "proxy": "پروکسی (اختیاری)"
+    "proxy": "پروکسی (اختیاری)",
+    "webdavGeneric": "وب‌داو عمومی",
+    "addSyncthing": "پوشهٔ سینک‌تینگ",
+    "providerSyncthing": "سینک‌تینگ",
+    "syncthingHint": "پوشه‌ای را انتخاب کنید که سینک‌تینگ همگام می‌کند؛ هامش نسخهٔ خودش را در زیرپوشهٔ Hamesh آنجا نگه می‌دارد."
   },
   "update": {
     "available": "نسخهٔ {{version}} هامش آماده است.",

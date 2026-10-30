@@ -9,11 +9,13 @@ import {
   newProvider,
   removeProviderSecrets,
   runSync,
+  SYNCTHING_PRESET,
   type SyncConfig,
   type SyncProviderConfig,
   saveSyncConfig,
   syncStatus,
   testSyncConnection,
+  WEBDAV_PRESETS,
 } from '../services/syncService';
 
 interface SyncSettingsProps {
@@ -54,8 +56,11 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
     commit({ providers: config.providers.filter((provider) => provider.id !== id) });
   };
 
-  const addProvider = (kind: SyncProviderConfig['kind']) => {
-    commit({ providers: [...config.providers, newProvider(kind)] });
+  const addProvider = (
+    kind: SyncProviderConfig['kind'],
+    overrides: Partial<SyncProviderConfig> = {},
+  ) => {
+    commit({ providers: [...config.providers, newProvider(kind, overrides)] });
   };
 
   const onTest = async (provider: SyncProviderConfig) => {
@@ -143,13 +148,29 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
           <p className="sync-empty-title">{t('sync.emptyTitle')}</p>
           <p className="hint">{t('sync.emptyBody')}</p>
           <div className="sync-add">
-            <button
-              type="button"
-              className="reader-action is-primary"
-              onClick={() => addProvider('webdav')}
+            <select
+              className="text-input"
+              aria-label={t('sync.addWebdav')}
+              defaultValue=""
+              onChange={(event) => {
+                const preset = WEBDAV_PRESETS.find((item) => item.id === event.target.value);
+                addProvider(
+                  'webdav',
+                  preset ? { baseUrl: preset.baseUrl, label: preset.label } : {},
+                );
+                event.target.value = '';
+              }}
             >
-              {t('sync.addWebdav')}
-            </button>
+              <option value="" disabled>
+                {t('sync.addWebdav')}
+              </option>
+              <option value="generic">{t('sync.webdavGeneric')}</option>
+              {WEBDAV_PRESETS.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
             <button type="button" className="reader-action" onClick={() => addProvider('s3')}>
               {t('sync.addS3')}
             </button>
@@ -157,13 +178,22 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
               {t('sync.addDropbox')}
             </button>
             {isLocalFolderAvailable() ? (
-              <button
-                type="button"
-                className="reader-action"
-                onClick={() => addProvider('local-folder')}
-              >
-                {t('sync.addLocalFolder')}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="reader-action"
+                  onClick={() => addProvider('local-folder')}
+                >
+                  {t('sync.addLocalFolder')}
+                </button>
+                <button
+                  type="button"
+                  className="reader-action"
+                  onClick={() => addProvider('local-folder', { preset: SYNCTHING_PRESET })}
+                >
+                  {t('sync.addSyncthing')}
+                </button>
+              </>
             ) : null}
           </div>
         </div>
@@ -189,7 +219,11 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                     patchProvider(provider.id, { enabled: event.target.checked })
                   }
                 />
-                {provider.kind === 'local-folder' ? t('sync.providerLocalFolder') : provider.label}
+                {provider.preset === SYNCTHING_PRESET
+                  ? t('sync.providerSyncthing')
+                  : provider.kind === 'local-folder'
+                    ? t('sync.providerLocalFolder')
+                    : provider.label}
               </label>
               <span className={`sync-status is-${status.key}`}>{status.label}</span>
               <button
@@ -451,7 +485,11 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                     </button>
                   </div>
                 </div>
-                <p className="hint sync-field-hint">{t('sync.folderHint')}</p>
+                <p className="hint sync-field-hint">
+                  {provider.preset === SYNCTHING_PRESET
+                    ? t('sync.syncthingHint')
+                    : t('sync.folderHint')}
+                </p>
               </>
             ) : null}
 
@@ -480,9 +518,26 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
 
       {config.providers.length > 0 ? (
         <div className="setting-row sync-add">
-          <button type="button" className="reader-action" onClick={() => addProvider('webdav')}>
-            {t('sync.addWebdav')}
-          </button>
+          <select
+            className="text-input"
+            aria-label={t('sync.addWebdav')}
+            defaultValue=""
+            onChange={(event) => {
+              const preset = WEBDAV_PRESETS.find((item) => item.id === event.target.value);
+              addProvider('webdav', preset ? { baseUrl: preset.baseUrl, label: preset.label } : {});
+              event.target.value = '';
+            }}
+          >
+            <option value="" disabled>
+              {t('sync.addWebdav')}
+            </option>
+            <option value="generic">{t('sync.webdavGeneric')}</option>
+            {WEBDAV_PRESETS.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {preset.label}
+              </option>
+            ))}
+          </select>
           <button type="button" className="reader-action" onClick={() => addProvider('s3')}>
             {t('sync.addS3')}
           </button>
@@ -490,13 +545,22 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
             {t('sync.addDropbox')}
           </button>
           {isLocalFolderAvailable() ? (
-            <button
-              type="button"
-              className="reader-action"
-              onClick={() => addProvider('local-folder')}
-            >
-              {t('sync.addLocalFolder')}
-            </button>
+            <>
+              <button
+                type="button"
+                className="reader-action"
+                onClick={() => addProvider('local-folder')}
+              >
+                {t('sync.addLocalFolder')}
+              </button>
+              <button
+                type="button"
+                className="reader-action"
+                onClick={() => addProvider('local-folder', { preset: SYNCTHING_PRESET })}
+              >
+                {t('sync.addSyncthing')}
+              </button>
+            </>
           ) : null}
         </div>
       ) : null}

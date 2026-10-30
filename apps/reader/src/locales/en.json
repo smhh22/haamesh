@@ -118,7 +118,8 @@
     "zoomOut": "Zoom out",
     "pageOf": "Page {{current}} of {{total}}",
     "paginated": "Paginated",
-    "scrolled": "Scrolled"
+    "scrolled": "Scrolled",
+    "pageNumber": "Page {{page}}"
   },
   "sync": {
     "title": "Sync",
@@ -175,7 +176,11 @@
     "remove": "Remove",
     "addWebdav": "Add WebDAV",
     "addLocalFolder": "Add local folder",
-    "proxy": "Proxy (optional)"
+    "proxy": "Proxy (optional)",
+    "webdavGeneric": "Generic WebDAV",
+    "addSyncthing": "Syncthing folder",
+    "providerSyncthing": "Syncthing",
+    "syncthingHint": "Point this at the folder Syncthing syncs; Hāmesh keeps its copy in a Hamesh subfolder there."
   },
   "update": {
     "available": "Hāmesh {{version}} is available.",

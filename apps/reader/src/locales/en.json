@@ -119,5 +119,12 @@
     "chooseFolder": "Choose folder…",
     "noFolder": "No folder chosen",
     "passwordSaved": "Saved in your system keychain"
+  },
+  "update": {
+    "available": "Hāmesh {{version}} is available.",
+    "install": "Install & restart",
+    "installing": "Installing…",
+    "later": "Later",
+    "downloadManually": "download it from the releases page"
   }
 }

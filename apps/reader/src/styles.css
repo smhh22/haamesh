@@ -781,3 +781,15 @@ blockquote.note-text {
   font-size: 0.85rem;
   opacity: 0.85;
 }
+
+.update-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hamesh-space-2);
+  padding: var(--hamesh-space-2) var(--hamesh-space-3);
+  margin-block-end: var(--hamesh-space-2);
+  border: 1px solid var(--hamesh-color-accent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hamesh-color-accent) 8%, transparent);
+}

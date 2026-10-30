@@ -6,6 +6,7 @@ import { type ChangeEvent, type DragEvent, useEffect, useMemo, useState } from '
 import { useTranslation } from 'react-i18next';
 import { ReaderView } from './components/ReaderView';
 import { SyncSettings } from './components/SyncSettings';
+import { UpdateBanner } from './components/UpdateBanner';
 import { type BookSort, type BookView, filterAndSortBooks } from './library/bookList';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
 import {
@@ -194,6 +195,7 @@ export const App = () => {
   return (
     <DirectionProvider dir={direction}>
       <main className="shell">
+        <UpdateBanner />
         <header className="masthead">
           <div>
             <p className="eyebrow">{t('app.eyebrow')}</p>

@@ -345,14 +345,22 @@ fn keychain_delete(key: String) -> Result<(), String> {
     }
 }
 
-/// Which package kind is running: AppImage, deb/rpm, or unknown.
+/// Which package kind is running: AppImage, deb, rpm-family, Windows, or unknown.
 #[tauri::command]
 fn install_kind() -> String {
     if std::env::var_os("APPIMAGE").is_some() {
         return "appimage".into();
     }
+    if cfg!(target_os = "windows") {
+        return "windows".into();
+    }
     if Path::new("/usr/bin/hamesh").exists() {
-        return "deb".into();
+        // deb and rpm both install this binary; only Debian-family systems can
+        // use the apt one-click path.
+        if Path::new("/usr/bin/apt-get").exists() {
+            return "deb".into();
+        }
+        return "package".into();
     }
     "unknown".into()
 }

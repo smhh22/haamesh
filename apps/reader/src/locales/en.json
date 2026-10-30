@@ -25,7 +25,6 @@
     "listView": "List view",
     "gridView": "Grid view",
     "noResults": "No books match this search.",
-    "bidiSample": "این کتابخانه با چیدمان منطقی ساخته شده است — this layout uses logical properties.",
     "errors": {
       "INVALID_FILE": "That file is empty or unreadable.",
       "UNSUPPORTED_FORMAT": "Only EPUB or PDF files are supported in this build.",

@@ -349,10 +349,6 @@ export const App = () => {
         </section>
 
         <SyncSettings />
-
-        <p className="hint" dir="auto">
-          {t('library.bidiSample')}
-        </p>
       </main>
     </DirectionProvider>
   );

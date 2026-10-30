@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test';
 const fixture = fileURLToPath(new URL('./fixtures/sample.epub', import.meta.url));
 const englishFixture = fileURLToPath(new URL('./fixtures/english.epub', import.meta.url));
 const pdfFixture = fileURLToPath(new URL('./fixtures/sample.pdf', import.meta.url));
+const nodirFixture = fileURLToPath(new URL('./fixtures/nodir.epub', import.meta.url));
 
 test('imports a Persian EPUB and opens the reader', async ({ page }) => {
   const pageErrors: string[] = [];
@@ -387,4 +388,52 @@ test('finds text inside book contents and opens the book', async ({ page }) => {
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
+});
+
+test('applies the book direction when documents omit dir', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(nodirFixture);
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+
+  const frame = page
+    .frames()
+    .filter((item) => item.url().startsWith('blob:'))
+    .pop();
+  expect(frame).toBeTruthy();
+  if (!frame) return;
+  await expect.poll(async () => frame.evaluate(() => document.documentElement.dir)).toBe('rtl');
+
+  // RTL reading: ArrowLeft advances (the Next side), ArrowRight goes back.
+  const progress = page.locator('.reader-progress');
+  const initial = await progress.textContent();
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(async () => progress.textContent()).not.toBe(initial);
+  const advanced = await progress.textContent();
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(async () => progress.textContent()).toBe(initial ?? '');
+  void advanced;
+});
+
+test('escape closes panels, then returns to the library', async ({ page }) => {
+  await openReader(page);
+  await page.getByRole('button', { name: 'Contents' }).click();
+  await expect(page.locator('.toc-panel')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.toc-panel')).toHaveCount(0);
+  await expect(page.locator('.reader-shell')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('heading', { name: 'Hāmesh' })).toBeVisible();
+  await expect(page.locator('.reader-shell')).toHaveCount(0);
+});
+
+test('hides zoom controls for EPUB but keeps them for PDF', async ({ page }) => {
+  await openReader(page);
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.locator('.settings-panel')).toBeVisible();
+  await expect(page.locator('.settings-panel').getByText('Zoom')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Increase font size' })).toBeVisible();
 });

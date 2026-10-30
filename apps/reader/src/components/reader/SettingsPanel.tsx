@@ -19,45 +19,47 @@ export const SettingsPanel = ({ settings, isPdf, onClose }: SettingsPanelProps) 
         </button>
       </div>
 
-      <div className="setting-row">
-        <span>{t('reader.zoom')}</span>
-        <div className="setting-controls">
-          <button
-            type="button"
-            className="reader-action"
-            aria-label={t('reader.zoomOut')}
-            onClick={settings.zoomOut}
-          >
-            −
-          </button>
-          <button
-            type="button"
-            className={
-              settings.pdfZoom === 'fit-page' ? 'reader-action is-selected' : 'reader-action'
-            }
-            onClick={() => settings.setPdfZoom('fit-page')}
-          >
-            {t('reader.fitPage')}
-          </button>
-          <button
-            type="button"
-            className={
-              settings.pdfZoom === 'fit-width' ? 'reader-action is-selected' : 'reader-action'
-            }
-            onClick={() => settings.setPdfZoom('fit-width')}
-          >
-            {t('reader.fitWidth')}
-          </button>
-          <button
-            type="button"
-            className="reader-action"
-            aria-label={t('reader.zoomIn')}
-            onClick={settings.zoomIn}
-          >
-            +
-          </button>
+      {isPdf ? (
+        <div className="setting-row">
+          <span>{t('reader.zoom')}</span>
+          <div className="setting-controls">
+            <button
+              type="button"
+              className="reader-action"
+              aria-label={t('reader.zoomOut')}
+              onClick={settings.zoomOut}
+            >
+              −
+            </button>
+            <button
+              type="button"
+              className={
+                settings.pdfZoom === 'fit-page' ? 'reader-action is-selected' : 'reader-action'
+              }
+              onClick={() => settings.setPdfZoom('fit-page')}
+            >
+              {t('reader.fitPage')}
+            </button>
+            <button
+              type="button"
+              className={
+                settings.pdfZoom === 'fit-width' ? 'reader-action is-selected' : 'reader-action'
+              }
+              onClick={() => settings.setPdfZoom('fit-width')}
+            >
+              {t('reader.fitWidth')}
+            </button>
+            <button
+              type="button"
+              className="reader-action"
+              aria-label={t('reader.zoomIn')}
+              onClick={settings.zoomIn}
+            >
+              +
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
       {!isPdf ? (
         <>
           <div className="setting-row">

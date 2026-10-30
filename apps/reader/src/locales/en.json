@@ -29,7 +29,7 @@
       "INVALID_FILE": "That file is empty or unreadable.",
       "UNSUPPORTED_FORMAT": "Only EPUB, PDF, or Markdown files are supported in this build.",
       "CRYPTO_UNAVAILABLE": "Book hashing needs HTTPS or localhost.",
-      "PARSE_FAILED": "This EPUB could not be read.",
+      "PARSE_FAILED": "This file could not be read.",
       "UNKNOWN": "Something went wrong while importing."
     },
     "contentMatches": "In book contents"

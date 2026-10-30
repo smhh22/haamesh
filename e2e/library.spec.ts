@@ -152,6 +152,19 @@ test('configures a Dropbox provider with a user-owned app', async ({ page }) => 
   await expect(dialog.getByText('Needs setup')).toBeVisible();
 });
 
+test('shows grouped shortcuts in the settings dialog', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+  await dialog.getByRole('button', { name: 'Keyboard shortcuts' }).click();
+
+  await expect(dialog.getByRole('heading', { name: 'Library' })).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'Reader' })).toBeVisible();
+  await expect(dialog.locator('.shortcut-group')).toHaveCount(2);
+  await expect(dialog.locator('kbd').first()).toBeVisible();
+
+});
+
 test('persists the library across a reload', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(fixture);
@@ -259,6 +272,24 @@ test('navigates the TOC and changes reader settings', async ({ page }) => {
   // Typography controls update the reader styles live.
   await page.getByLabel('Font', { exact: true }).selectOption('literata');
   await expect(shell).toHaveAttribute('data-font-family', 'literata');
+  // The book iframe must actually load the chosen face (absolute /fonts URL
+  // allowed by the document CSP), not silently fall back.
+  const faceLoaded = async (): Promise<boolean> => {
+    for (const frame of page.frames()) {
+      if (frame === page.mainFrame()) continue;
+      try {
+        const loaded = await frame.evaluate(async () => {
+          await document.fonts.ready;
+          return document.fonts.check('16px "Literata"');
+        });
+        if (loaded) return true;
+      } catch {
+        // detached or cross-origin frame
+      }
+    }
+    return false;
+  };
+  await expect.poll(faceLoaded).toBe(true);
   await page.getByLabel('Line height').fill('2.1');
   await expect(shell).toHaveAttribute('data-line-height', '2.1');
   await page.getByLabel('Page margin').fill('32');

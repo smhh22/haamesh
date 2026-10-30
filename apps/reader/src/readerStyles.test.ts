@@ -45,6 +45,17 @@ describe('buildReaderCss', () => {
     );
   });
 
+  it('declares the bundled font faces for book documents', () => {
+    const css = buildReaderCss(base);
+    expect(css).toContain('@font-face');
+    expect(css).toContain('font-family: "Vazirmatn"');
+    expect(css).toContain('font-family: "Noto Naskh Arabic"');
+    expect(css).toContain('font-family: "Literata"');
+    // Absolute URLs: blob-backed book documents cannot resolve path-relative ones.
+    expect(css).toContain('/fonts/Literata-Regular.woff2');
+    expect(css).toMatch(/url\("https?:\/\/[^"]+\/fonts\/Literata-Regular\.woff2"\)/);
+  });
+
   it('disables letter spacing', () => {
     expect(buildReaderCss(base)).toContain('letter-spacing: normal');
   });

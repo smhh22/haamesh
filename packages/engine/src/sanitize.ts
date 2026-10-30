@@ -30,7 +30,7 @@ const CSP_HEADER = /http-equiv=["']Content-Security-Policy/i;
 const NUL = String.fromCharCode(0);
 
 const CSP_META =
-  "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src blob: data:; style-src 'unsafe-inline' blob:; font-src blob: data:; media-src blob: data:; connect-src 'none'; frame-src 'none';\"/>";
+  "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src blob: data:; style-src 'unsafe-inline' blob:; font-src 'self' blob: data:; media-src blob: data:; connect-src 'none'; frame-src 'none';\"/>";
 
 /**
  * Remove active content from an EPUB document before it enters the reader

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isLocalFolderAvailable, pickSyncFolder } from '../services/localFolderFs';
 import {
+  isProviderConfigured,
   loadSyncConfig,
   newProvider,
   runSync,
@@ -11,10 +12,6 @@ import {
   syncStatus,
   testSyncConnection,
 } from '../services/syncService';
-
-/** A provider can sync once it has the minimum details its kind needs. */
-const isReady = (provider: SyncProviderConfig): boolean =>
-  provider.kind === 'webdav' ? Boolean(provider.baseUrl) : Boolean(provider.localFolder);
 
 /**
  * Sync settings with mirroring (ADR-0006): every enabled provider holds a full
@@ -87,7 +84,7 @@ export const SyncSettings = () => {
   };
 
   const readyProviders = config.providers.filter(
-    (provider) => provider.enabled && isReady(provider),
+    (provider) => provider.enabled && isProviderConfigured(provider),
   );
   const lastSyncText = lastSyncAt
     ? new Intl.DateTimeFormat(i18n.language, {
@@ -115,6 +112,9 @@ export const SyncSettings = () => {
             >
               {t('sync.addWebdav')}
             </button>
+            <button type="button" className="reader-action" onClick={() => addProvider('s3')}>
+              {t('sync.addS3')}
+            </button>
             {isLocalFolderAvailable() ? (
               <button
                 type="button"
@@ -129,7 +129,7 @@ export const SyncSettings = () => {
       ) : null}
 
       {config.providers.map((provider) => {
-        const ready = isReady(provider);
+        const ready = isProviderConfigured(provider);
         const status = !provider.enabled
           ? { key: 'off', label: t('sync.statusOff') }
           : ready
@@ -215,6 +215,81 @@ export const SyncSettings = () => {
               </>
             ) : null}
 
+            {provider.kind === 's3' ? (
+              <>
+                <div className="setting-row">
+                  <label htmlFor={`sync-s3-endpoint-${provider.id}`}>{t('sync.s3Endpoint')}</label>
+                  <input
+                    id={`sync-s3-endpoint-${provider.id}`}
+                    type="url"
+                    value={provider.endpoint}
+                    placeholder="https://s3.example.com"
+                    onChange={(event) =>
+                      patchProvider(provider.id, { endpoint: event.target.value })
+                    }
+                  />
+                </div>
+                <div className="setting-row">
+                  <label htmlFor={`sync-s3-region-${provider.id}`}>{t('sync.s3Region')}</label>
+                  <input
+                    id={`sync-s3-region-${provider.id}`}
+                    type="text"
+                    value={provider.region}
+                    placeholder="us-east-1"
+                    autoComplete="off"
+                    onChange={(event) => patchProvider(provider.id, { region: event.target.value })}
+                  />
+                </div>
+                <div className="setting-row">
+                  <label htmlFor={`sync-s3-bucket-${provider.id}`}>{t('sync.s3Bucket')}</label>
+                  <input
+                    id={`sync-s3-bucket-${provider.id}`}
+                    type="text"
+                    value={provider.bucket}
+                    autoComplete="off"
+                    onChange={(event) => patchProvider(provider.id, { bucket: event.target.value })}
+                  />
+                </div>
+                <div className="setting-row">
+                  <label htmlFor={`sync-s3-access-${provider.id}`}>{t('sync.s3AccessKey')}</label>
+                  <input
+                    id={`sync-s3-access-${provider.id}`}
+                    type="text"
+                    value={provider.accessKeyId}
+                    autoComplete="off"
+                    onChange={(event) =>
+                      patchProvider(provider.id, { accessKeyId: event.target.value })
+                    }
+                  />
+                </div>
+                <div className="setting-row">
+                  <label htmlFor={`sync-s3-secret-${provider.id}`}>{t('sync.s3SecretKey')}</label>
+                  <input
+                    id={`sync-s3-secret-${provider.id}`}
+                    type="password"
+                    value={provider.secretAccessKey}
+                    placeholder={provider.hasSecretKey ? t('sync.passwordSaved') : undefined}
+                    autoComplete="off"
+                    onChange={(event) =>
+                      patchProvider(provider.id, { secretAccessKey: event.target.value })
+                    }
+                  />
+                </div>
+                <div className="setting-row">
+                  <label htmlFor={`sync-s3-proxy-${provider.id}`}>{t('sync.proxy')}</label>
+                  <input
+                    id={`sync-s3-proxy-${provider.id}`}
+                    type="text"
+                    value={provider.proxy}
+                    placeholder="socks5h://127.0.0.1:2080"
+                    autoComplete="off"
+                    onChange={(event) => patchProvider(provider.id, { proxy: event.target.value })}
+                  />
+                </div>
+                <p className="hint sync-field-hint">{t('sync.s3Hint')}</p>
+              </>
+            ) : null}
+
             {provider.kind === 'local-folder' ? (
               <>
                 <div className="setting-row">
@@ -265,6 +340,9 @@ export const SyncSettings = () => {
         <div className="setting-row sync-add">
           <button type="button" className="reader-action" onClick={() => addProvider('webdav')}>
             {t('sync.addWebdav')}
+          </button>
+          <button type="button" className="reader-action" onClick={() => addProvider('s3')}>
+            {t('sync.addS3')}
           </button>
           {isLocalFolderAvailable() ? (
             <button

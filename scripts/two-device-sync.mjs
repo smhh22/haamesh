@@ -52,7 +52,7 @@ const startDevServer = async () => {
 
 const startDavServer = async () => {
   // Deterministic runs: wipe the previous DAV root.
-  const { rmSync, existsSync, readdirSync } = await import('node:fs');
+  const { rmSync, existsSync } = await import('node:fs');
   rmSync('/tmp/hamesh-dav-data', { recursive: true, force: true });
   log(`dav root after wipe: exists=${existsSync('/tmp/hamesh-dav-data')}`);
   log('starting DAV server…');
@@ -93,7 +93,22 @@ const openDevice = async (browser, name) => {
   return { context, page };
 };
 
+// Sync lives in the app-level settings dialog since Batch 2, so each sync
+// interaction opens it first and closes it afterwards.
+const openSettings = async (page) => {
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('dialog', { name: 'Settings' }).waitFor({ timeout: 10000 });
+};
+
+const closeSettings = async (page) => {
+  await page.keyboard.press('Escape');
+  await page
+    .getByRole('dialog', { name: 'Settings' })
+    .waitFor({ state: 'detached', timeout: 10000 });
+};
+
 const syncNow = async (page, label) => {
+  await openSettings(page);
   const syncButton = page.getByRole('button', { name: 'Sync now' });
   await syncButton.click();
   // The report lands in a .hint paragraph after the buttons.
@@ -112,6 +127,7 @@ const syncNow = async (page, label) => {
     `[${label}] sync result: ${hints.filter((text) => text && !text.startsWith('Last sync')).join(' | ')}`,
   );
   await page.screenshot({ path: `${ARTIFACTS}/${label}-after-sync.png` });
+  await closeSettings(page);
 };
 
 const createHighlight = async (page) => {
@@ -136,11 +152,13 @@ const createHighlight = async (page) => {
   await popover.getByRole('button', { name: 'Yellow' }).click();
 };
 
+let browser = null;
+
 const main = async () => {
   await startDavServer();
   await startDevServer();
 
-  const browser = await chromium.launch({ args: ['--disable-web-security'] });
+  browser = await chromium.launch({ args: ['--disable-web-security'] });
   const deviceA = await openDevice(browser, 'device-a');
   const deviceB = await openDevice(browser, 'device-b');
 
@@ -237,7 +255,9 @@ const main = async () => {
     );
   };
   for (let round = 0; round < 5; round += 1) {
+    await Promise.all([openSettings(deviceA.page), openSettings(deviceB.page)]);
     await Promise.all([clickSync(deviceA.page), clickSync(deviceB.page)]);
+    await Promise.all([closeSettings(deviceA.page), closeSettings(deviceB.page)]);
   }
   // Nothing may be lost while both devices race the same index.
   await deviceB.page.waitForTimeout(1200);
@@ -281,6 +301,13 @@ try {
   fail(error instanceof Error ? error.message : String(error));
   console.error(error);
 } finally {
+  // Never leave a browser behind: a hung Playwright process keeps retrying
+  // connection-refused against the servers we just killed.
+  try {
+    await browser?.close();
+  } catch {
+    // already closed
+  }
   for (const child of children) {
     try {
       process.kill(-child.pid, 'SIGTERM');
@@ -288,4 +315,5 @@ try {
       // already gone
     }
   }
+  process.exit(process.exitCode ?? 0);
 }

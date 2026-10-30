@@ -100,6 +100,19 @@
   },
   "sync": {
     "title": "Sync",
+    "lede": "Keep your reading state in step across devices using storage you own. Hāmesh has no servers and never sees your data.",
+    "emptyTitle": "No storage connected",
+    "emptyBody": "Choose where Hāmesh keeps its sync copy. Nothing leaves this device until you connect storage.",
+    "statusReady": "Ready",
+    "statusNeedsSetup": "Needs setup",
+    "statusOff": "Off",
+    "noReady": "Complete the details of at least one provider to sync.",
+    "baseUrlHint": "Nextcloud/ownCloud: https://your-server/remote.php/dav/files/<username>",
+    "proxyHint": "Optional. Needed when your server is only reachable through a proxy.",
+    "folderHint": "Hāmesh creates a Hamesh folder inside the one you choose.",
+    "testOk": "Connection OK.",
+    "testNotConfigured": "Complete the provider details first.",
+    "testFailed": "Connection failed: {{detail}}",
     "provider": "Provider",
     "providerNone": "None",
     "providerWebdav": "WebDAV",
@@ -128,5 +141,39 @@
     "install": "Install & restart",
     "installing": "Installing…",
     "later": "Later"
+  },
+  "settings": {
+    "title": "Settings",
+    "open": "Settings",
+    "appearance": "Appearance",
+    "theme": "Theme",
+    "themes": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "language": "Language",
+    "shortcuts": "Keyboard",
+    "show": "Show",
+    "updates": "Updates",
+    "version": "Version",
+    "checkUpdates": "Check for updates",
+    "upToDate": "You are up to date.",
+    "updateAvailable": "Version {{version}} is available.",
+    "about": "About",
+    "aboutText": "Hāmesh (هامش) — a local-first ebook reader. Your library stays on your device; sync only uses storage you own. MIT licensed."
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "library": "Library",
+    "reader": "Reader",
+    "search": "Focus the search box",
+    "help": "Show this help",
+    "pageTurn": "Turn pages — arrows follow the book direction",
+    "pageNext": "Next page",
+    "pagePrev": "Previous page",
+    "zoom": "Zoom in / out (PDF only)",
+    "escapeLibrary": "Clear the search or close a dialog",
+    "escapeReader": "Close the panel, then return to the library"
   }
 }

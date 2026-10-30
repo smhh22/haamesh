@@ -2,10 +2,19 @@ import type { Direction } from '@hamesh/core';
 import { ImportError, type ImportErrorCode } from '@hamesh/engine';
 import type { BookRecord, ReadingState } from '@hamesh/storage';
 import { DirectionProvider } from '@hamesh/ui';
-import { type ChangeEvent, type DragEvent, useEffect, useMemo, useState } from 'react';
+import {
+  type ChangeEvent,
+  type DragEvent,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { ReaderView } from './components/ReaderView';
-import { SyncSettings } from './components/SyncSettings';
+import { SettingsDialog } from './components/SettingsDialog';
+import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { UpdateBanner } from './components/UpdateBanner';
 import { type BookSort, type BookView, filterAndSortBooks } from './library/bookList';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
@@ -23,9 +32,7 @@ import {
 } from './services/libraryPersistence';
 import { useLibraryStore } from './stores/libraryStore';
 import { useReadingStore } from './stores/readingStore';
-
-const LOCALES = ['en', 'fa'] as const;
-type Locale = (typeof LOCALES)[number];
+import { type UiLocale as Locale, useUiStore } from './stores/uiStore';
 
 const directionFor = (locale: Locale): Direction => (locale === 'fa' ? 'rtl' : 'ltr');
 
@@ -45,7 +52,8 @@ const formatAuthors = (authors: string[], locale: Locale): string => {
 
 export const App = () => {
   const { t, i18n } = useTranslation();
-  const [locale, setLocale] = useState<Locale>('en');
+  const locale = useUiStore((state) => state.locale);
+  const setLocale = useUiStore((state) => state.setLocale);
   const [isImporting, setIsImporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [errorCode, setErrorCode] = useState<ImportErrorCode | 'UNKNOWN' | null>(null);
@@ -53,6 +61,9 @@ export const App = () => {
   const [sort, setSort] = useState<BookSort>('recent');
   const [viewMode, setViewMode] = useState<BookView>('grid');
   const [contentMatches, setContentMatches] = useState<ContentMatch[]>([]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement | null>(null);
   const [readerSession, setReaderSession] = useState<{
     book: BookRecord;
     start: ReadingState | null;
@@ -81,8 +92,31 @@ export const App = () => {
   }, [direction, i18n, locale]);
 
   const toggleLocale = () => {
-    setLocale((current) => (current === 'en' ? 'fa' : 'en'));
+    setLocale(locale === 'en' ? 'fa' : 'en');
   };
+
+  // Global shortcuts: `?` opens the map, `/` focuses library search. Anything
+  // typed into a field wins over both. Attached before paint so the first key
+  // press after mount is never lost.
+  useLayoutEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (settingsOpen || shortcutsOpen) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (event.key === '?') {
+        event.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
+      if (event.key === '/' && !readerSession) {
+        event.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [settingsOpen, shortcutsOpen, readerSession]);
 
   const handleFiles = async (fileList: FileList | File[] | null): Promise<void> => {
     if (!fileList) return;
@@ -202,9 +236,19 @@ export const App = () => {
             <h1>{t('app.title')}</h1>
             <p className="lede">{t('app.lede')}</p>
           </div>
-          <button type="button" className="locale-toggle" onClick={toggleLocale}>
-            {t('app.switch')}
-          </button>
+          <div className="masthead-actions">
+            <button type="button" className="locale-toggle" onClick={toggleLocale}>
+              {t('app.switch')}
+            </button>
+            <button
+              type="button"
+              className="locale-toggle"
+              aria-label={t('settings.title')}
+              onClick={() => setSettingsOpen(true)}
+            >
+              {t('settings.open')}
+            </button>
+          </div>
         </header>
 
         <section
@@ -232,6 +276,7 @@ export const App = () => {
 
           <div className="library-tools">
             <input
+              ref={searchRef}
               type="search"
               className="search-input"
               placeholder={t('library.search')}
@@ -348,7 +393,15 @@ export const App = () => {
           ) : null}
         </section>
 
-        <SyncSettings />
+        <SettingsDialog
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          onOpenShortcuts={() => {
+            setSettingsOpen(false);
+            setShortcutsOpen(true);
+          }}
+        />
+        <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       </main>
     </DirectionProvider>
   );

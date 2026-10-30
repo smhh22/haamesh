@@ -22,3 +22,8 @@ apps/reader/public/vendor/
 
 # Local agent instructions (kept out of the published repo)
 AGENTS.md
+
+# Android release signing (keystore lives outside the repo)
+keystore.properties
+*.keystore
+*.jks

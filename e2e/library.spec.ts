@@ -54,6 +54,47 @@ test('switches the interface to Persian RTL', async ({ page }) => {
   await page.screenshot({ path: 'e2e/artifacts/library-rtl.png', fullPage: true });
 });
 
+test('opens settings from the library, applies dark mode, and survives RTL', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Dark' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  const canvas = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--hamesh-color-canvas').trim(),
+  );
+  expect(canvas).toBe('#14161a');
+
+  // The dialog is direction-agnostic: switching language flips the document
+  // while the dialog stays open and closeable.
+  await page.getByRole('button', { name: 'فارسی' }).click();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(page.getByRole('dialog', { name: 'تنظیمات' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  // The preference is local and persists across reloads.
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+});
+
+test('guides sync setup from an empty state', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+
+  await expect(dialog.getByText('No storage connected')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Add WebDAV' }).click();
+  await expect(dialog.getByText('Needs setup')).toBeVisible();
+
+  await dialog.getByLabel('Server URL').fill('https://dav.example.com');
+  await expect(dialog.getByText('Ready')).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Remove' }).click();
+  await expect(dialog.getByText('No storage connected')).toBeVisible();
+});
+
 test('persists the library across a reload', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(fixture);
@@ -412,6 +453,8 @@ test('applies the book direction when documents omit dir', async ({ page }) => {
   await page.keyboard.press('ArrowLeft');
   await expect.poll(async () => progress.textContent()).not.toBe(initial);
   const advanced = await progress.textContent();
+  // The paginator holds a turn lock during the animation; wait it out.
+  await page.waitForTimeout(700);
   await page.keyboard.press('ArrowRight');
   await expect.poll(async () => progress.textContent()).toBe(initial ?? '');
   void advanced;
@@ -428,6 +471,32 @@ test('escape closes panels, then returns to the library', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(page.getByRole('heading', { name: 'Hāmesh' })).toBeVisible();
   await expect(page.locator('.reader-shell')).toHaveCount(0);
+});
+
+test('opens the shortcut map with ? and focuses search with /', async ({ page }) => {
+  await page.goto('/');
+  // The app mounts after the async storage bootstrap; register shortcuts only then.
+  await expect(page.getByRole('heading', { name: 'Hāmesh' })).toBeVisible();
+  await page.keyboard.press('/');
+  await expect(page.getByPlaceholder('Search title, author, or series')).toBeFocused();
+
+  await page.getByRole('heading', { level: 1 }).click();
+  await page.keyboard.press('?');
+  await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('turns pages with Space in the reader', async ({ page }) => {
+  await openReader(page);
+  const progress = page.locator('.reader-progress');
+  const initial = await progress.textContent();
+  await page.keyboard.press('Space');
+  await expect.poll(async () => progress.textContent()).not.toBe(initial);
+  // Let the page-turn lock release before reversing.
+  await page.waitForTimeout(700);
+  await page.keyboard.press('Shift+Space');
+  await expect.poll(async () => progress.textContent()).toBe(initial ?? '');
 });
 
 test('hides zoom controls for EPUB but keeps them for PDF', async ({ page }) => {

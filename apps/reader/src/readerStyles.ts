@@ -9,7 +9,7 @@ export interface ReaderStyleInput {
 const THEMES = {
   light: { background: '#fffdf8', text: '#24211c', link: '#2f6f5e' },
   sepia: { background: '#f4ecd8', text: '#3a3125', link: '#7a5a2f' },
-  dark: { background: '#1e1e1e', text: '#e6e1d8', link: '#8fc7b4' },
+  dark: { background: '#14161a', text: '#e9e4d9', link: '#7fc7b0' },
 } as const satisfies Record<ReaderTheme, { background: string; text: string; link: string }>;
 
 /**

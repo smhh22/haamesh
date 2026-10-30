@@ -208,20 +208,27 @@ const providersFromConfig = async (config: SyncConfig): Promise<StorageProvider[
 };
 
 /** Basic reachability + credentials check for one provider. */
-export const testSyncConnection = async (
-  provider: SyncProviderConfig,
-): Promise<{ ok: boolean; message: string }> => {
+export type SyncTestResult =
+  | { ok: true }
+  | { ok: false; code: 'not-configured' }
+  | { ok: false; code: 'failed'; detail: string };
+
+export const testSyncConnection = async (provider: SyncProviderConfig): Promise<SyncTestResult> => {
   if (provider.kind === 'local-folder' && provider.localFolder) {
     await restoreSyncRoot(provider.localFolder);
   }
   const built = providerFromConfig(await resolvePassword(provider));
-  if (!built) return { ok: false, message: 'Provider not configured.' };
+  if (!built) return { ok: false, code: 'not-configured' };
   try {
     await built.ensureDir(['Hamesh']);
     await built.readText('Hamesh/index.json');
-    return { ok: true, message: 'Connection OK.' };
+    return { ok: true };
   } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    return {
+      ok: false,
+      code: 'failed',
+      detail: error instanceof Error ? error.message : String(error),
+    };
   }
 };
 

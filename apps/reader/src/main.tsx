@@ -6,7 +6,7 @@ import { App } from './App';
 import './i18n';
 import { initLibraryPersistence } from './services/libraryPersistence';
 import { importInitialFile } from './services/openWith';
-import { initAutoSync } from './services/syncService';
+import { initAutoSync, initSyncSecurity } from './services/syncService';
 import './styles.css';
 
 const container = document.getElementById('root');
@@ -19,6 +19,7 @@ void (async () => {
   try {
     await initLibraryPersistence();
     await importInitialFile();
+    void initSyncSecurity();
     initAutoSync();
   } catch (error) {
     console.error('Failed to load the persisted library', error);

@@ -24,3 +24,4 @@ tauri = { version = "2.12.5", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
 rusqlite = { version = "0.41.1", features = ["bundled"] }
+keyring = { version = "4.2.0", features = ["apple-native-keyring-store", "windows-native-keyring-store", "zbus-secret-service-keyring-store"] }

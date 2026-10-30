@@ -122,6 +122,7 @@ export const SyncSettings = () => {
               id="sync-pass"
               type="password"
               value={config.password}
+              placeholder={config.hasPassword ? t('sync.passwordSaved') : undefined}
               autoComplete="off"
               onChange={(event) => update({ password: event.target.value })}
             />

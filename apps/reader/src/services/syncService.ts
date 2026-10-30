@@ -5,7 +5,8 @@
 
 import type { StorageProvider, SyncReport } from '@hamesh/sync';
 import { createLocalFolderProvider, createSyncEngine, createWebDavProvider } from '@hamesh/sync';
-import { createDataStore } from './dataStore';
+import { createDataStore, isTauriRuntime } from './dataStore';
+import { keychainDelete, keychainGet, keychainSet } from './keychain';
 import { getActiveStorage, getSyncClock } from './libraryPersistence';
 import { createLocalFolderFs, isLocalFolderAvailable, restoreSyncRoot } from './localFolderFs';
 import { createSqlSyncStore, getOrCreateDeviceId } from './syncStore';
@@ -17,6 +18,8 @@ export interface SyncConfig {
   password: string;
   /** Desktop only: absolute path of the user-chosen sync folder. */
   localFolder: string;
+  /** True when the password lives in the OS keychain rather than the config. */
+  hasPassword: boolean;
 }
 
 export interface SyncStatus {
@@ -30,6 +33,7 @@ const DEFAULT_CONFIG: SyncConfig = {
   username: '',
   password: '',
   localFolder: '',
+  hasPassword: false,
 };
 
 const CONFIG_KEY = 'hamesh.sync.config';
@@ -46,8 +50,56 @@ export const loadSyncConfig = (): SyncConfig => {
   }
 };
 
+const PASSWORD_KEY = 'sync.webdav.password';
+
+/**
+ * Persist config. The WebDAV password never goes to localStorage on desktop:
+ * it is written to the OS keychain and only a `hasPassword` marker remains.
+ * On web there is no OS keychain, so the fallback keeps it in localStorage
+ * (documented caveat in the sync settings).
+ */
 export const saveSyncConfig = (config: SyncConfig): void => {
+  if (isTauriRuntime()) {
+    if (config.password) {
+      void keychainSet(PASSWORD_KEY, config.password);
+    } else if (!config.hasPassword) {
+      void keychainDelete(PASSWORD_KEY);
+    }
+    const stored: SyncConfig = {
+      ...config,
+      password: '',
+      hasPassword: config.hasPassword || Boolean(config.password),
+    };
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(stored));
+    return;
+  }
   localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+};
+
+/** Swap the `hasPassword` marker for the real secret before using a provider. */
+const withResolvedPassword = async (config: SyncConfig): Promise<SyncConfig> => {
+  if (config.password || !config.hasPassword) return config;
+  const password = (await keychainGet(PASSWORD_KEY)) ?? '';
+  return { ...config, password };
+};
+
+/** One-way migration: move a plaintext password out of localStorage. */
+export const initSyncSecurity = async (): Promise<void> => {
+  if (!isTauriRuntime()) return;
+  const raw = localStorage.getItem(CONFIG_KEY);
+  if (!raw) return;
+  try {
+    const stored = JSON.parse(raw) as Partial<SyncConfig>;
+    if (stored.password) {
+      await keychainSet(PASSWORD_KEY, stored.password);
+      localStorage.setItem(
+        CONFIG_KEY,
+        JSON.stringify({ ...stored, password: '', hasPassword: true }),
+      );
+    }
+  } catch {
+    // Malformed config is ignored; the next save rewrites it.
+  }
 };
 
 const loadStatus = (): SyncStatus => {
@@ -82,7 +134,7 @@ export const providerFromConfig = (config: SyncConfig): StorageProvider | null =
 export const testSyncConnection = async (
   config: SyncConfig,
 ): Promise<{ ok: boolean; message: string }> => {
-  const provider = providerFromConfig(config);
+  const provider = providerFromConfig(await withResolvedPassword(config));
   if (!provider) return { ok: false, message: 'Provider not configured.' };
   try {
     await provider.ensureDir(['Hamesh']);
@@ -144,7 +196,7 @@ export const initAutoSync = (): (() => void) => {
 
 /** Run one sync round against the configured provider. */
 export const runSync = async (config: SyncConfig): Promise<SyncReport> => {
-  const provider = providerFromConfig(config);
+  const provider = providerFromConfig(await withResolvedPassword(config));
   if (!provider) throw new Error('Provider not configured.');
   const storage = getActiveStorage();
   const clock = getSyncClock();

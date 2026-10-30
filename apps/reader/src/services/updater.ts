@@ -18,7 +18,7 @@ export type UpdateCheck =
   | { status: 'current' }
   | { status: 'error' };
 
-export type InstallKind = 'appimage' | 'deb' | 'unknown';
+export type InstallKind = 'appimage' | 'deb' | 'package' | 'windows' | 'unknown';
 
 const LATEST_JSON = 'https://github.com/smhh22/haamesh/releases/latest/download/latest.json';
 
@@ -71,7 +71,9 @@ const checkViaLatestJson = async (): Promise<UpdateCheck> => {
 export const checkForUpdate = async (): Promise<UpdateCheck> => {
   if (!isTauriRuntime()) return { status: 'error' };
   try {
-    if ((await installKind()) === 'deb') return await checkViaLatestJson();
+    const kind = await installKind();
+    if (kind === 'deb' || kind === 'package') return await checkViaLatestJson();
+    if (kind !== 'appimage' && kind !== 'windows') return { status: 'error' };
     const { check } = await import('@tauri-apps/plugin-updater');
     const update = await check();
     return update
@@ -84,16 +86,21 @@ export const checkForUpdate = async (): Promise<UpdateCheck> => {
 
 /** Download, install, and relaunch. Throws on failure so the UI can report. */
 export const installUpdate = async (version: string): Promise<void> => {
-  if ((await installKind()) === 'deb') {
+  const kind = await installKind();
+  if (kind === 'deb') {
     // Deterministic artifact name from the bundler.
     const url = `https://github.com/smhh22/haamesh/releases/download/v${version}/Hamesh_${version}_amd64.deb`;
     const { invoke } = await import('@tauri-apps/api/core');
     await invoke('install_deb_update', { url, version });
-  } else {
+  } else if (kind === 'appimage' || kind === 'windows') {
     const { check } = await import('@tauri-apps/plugin-updater');
     const update = await check();
     if (!update) return;
     await update.downloadAndInstall();
+  } else {
+    throw new Error(
+      'Automatic install is not available for this package. Download the latest package from the releases page.',
+    );
   }
   const { relaunch } = await import('@tauri-apps/plugin-process');
   await relaunch();

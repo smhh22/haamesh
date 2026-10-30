@@ -247,7 +247,7 @@ const main = async () => {
   log('device B: delete book, sync; device A syncs and should lose it');
   await deviceB.page.getByPlaceholder('Search title, author, or series').fill('');
   await deviceB.page.waitForTimeout(500);
-  await deviceB.page.getByRole('button', { name: 'Remove' }).click();
+  await deviceB.page.locator('.book-grid').getByRole('button', { name: 'Remove' }).click();
   await deviceB.page.waitForTimeout(500);
   await syncNow(deviceB.page, 'device-b-after-delete');
   await syncNow(deviceA.page, 'device-a-after-delete');

@@ -10,6 +10,7 @@ import type { StorageProvider, SyncReport } from '@hamesh/sync';
 import { createLocalFolderProvider, createSyncEngine, createWebDavProvider } from '@hamesh/sync';
 import { extractMissingBookTexts } from './bookTexts';
 import { createDataStore, isTauriRuntime } from './dataStore';
+import { providerFetch } from './httpFetch';
 import { keychainDelete, keychainGet, keychainSet } from './keychain';
 import { getActiveStorage, getSyncClock, reloadLibraryFromStorage } from './libraryPersistence';
 import { createLocalFolderFs, isLocalFolderAvailable, restoreSyncRoot } from './localFolderFs';
@@ -30,6 +31,8 @@ export interface SyncProviderConfig {
   hasPassword: boolean;
   /** Desktop local folder */
   localFolder: string;
+  /** Optional HTTP/SOCKS5 proxy for WebDAV (empty = direct). */
+  proxy: string;
 }
 
 export interface SyncConfig {
@@ -54,6 +57,7 @@ export const newProvider = (kind: ProviderKind): SyncProviderConfig => ({
   password: '',
   hasPassword: false,
   localFolder: '',
+  proxy: '',
 });
 
 const passwordKey = (providerId: string): string => `sync.webdav.password.${providerId}`;
@@ -82,6 +86,7 @@ const migrateLegacy = (legacy: LegacyConfig): SyncConfig => {
         password: legacy.password ?? '',
         hasPassword: legacy.hasPassword ?? false,
         localFolder: legacy.localFolder ?? '',
+        proxy: '',
       },
     ],
   };
@@ -172,11 +177,14 @@ export const providerFromConfig = (provider: SyncProviderConfig): StorageProvide
       return isLocalFolderAvailable() ? createLocalFolderProvider(createLocalFolderFs()) : null;
     case 'webdav':
       return provider.baseUrl
-        ? createWebDavProvider({
-            baseUrl: provider.baseUrl,
-            username: provider.username || undefined,
-            password: provider.password || undefined,
-          })
+        ? createWebDavProvider(
+            {
+              baseUrl: provider.baseUrl,
+              username: provider.username || undefined,
+              password: provider.password || undefined,
+            },
+            providerFetch(provider.proxy),
+          )
         : null;
     default:
       return null;

@@ -121,7 +121,8 @@
     "passwordSaved": "در کلیدزنجیر سیستم ذخیره شده است",
     "remove": "حذف",
     "addWebdav": "افزودن وب‌داو",
-    "addLocalFolder": "افزودن پوشهٔ محلی"
+    "addLocalFolder": "افزودن پوشهٔ محلی",
+    "proxy": "پروکسی (اختیاری)"
   },
   "update": {
     "available": "نسخهٔ {{version}} هامش آماده است.",

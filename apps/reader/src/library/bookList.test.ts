@@ -18,6 +18,8 @@ const book = (
   series,
   identifiers: {},
   direction: 'rtl',
+  category: null,
+  tags: [],
   filePath: `${title}.epub`,
   coverPath: null,
   addedAt,
@@ -57,5 +59,34 @@ describe('filterAndSortBooks', () => {
     expect(filterAndSortBooks(books, '', 'author', new Intl.Collator('en'))[0]?.authors[0]).toBe(
       'Alice',
     );
+  });
+});
+
+describe('filterAndSortBooks organization filters', () => {
+  const organized = [
+    { ...book('a', ['A'], 3), category: 'Studies', tags: ['persian', 'history'] },
+    { ...book('b', ['B'], 2), category: 'Fiction', tags: ['history'] },
+    { ...book('c', ['C'], 1), category: null, tags: [] },
+  ];
+
+  it('filters by category, null meaning uncategorized, and undefined meaning all', () => {
+    expect(
+      filterAndSortBooks(organized, '', 'recent', undefined, { category: 'Studies' }),
+    ).toHaveLength(1);
+    expect(filterAndSortBooks(organized, '', 'recent', undefined, { category: null })).toHaveLength(
+      1,
+    );
+    expect(filterAndSortBooks(organized, '', 'recent', undefined, {})).toHaveLength(3);
+  });
+
+  it('requires every selected tag and matches labels in the text query', () => {
+    expect(
+      filterAndSortBooks(organized, '', 'recent', undefined, { tags: ['history'] }),
+    ).toHaveLength(2);
+    expect(
+      filterAndSortBooks(organized, '', 'recent', undefined, { tags: ['history', 'persian'] }),
+    ).toHaveLength(1);
+    expect(filterAndSortBooks(organized, 'fiction', 'recent')).toHaveLength(1);
+    expect(filterAndSortBooks(organized, 'persian', 'recent')).toHaveLength(1);
   });
 });

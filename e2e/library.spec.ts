@@ -152,6 +152,34 @@ test('configures a Dropbox provider with a user-owned app', async ({ page }) => 
   await expect(dialog.getByText('Needs setup')).toBeVisible();
 });
 
+test('organizes books into a category with tags and filters by them', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(fixture);
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Edit' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Book details' });
+  await dialog.getByLabel('Category').fill('Persian classics');
+  await dialog.getByLabel('Tags').fill('history، persian');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await expect(page.locator('.tag-chip', { hasText: 'history' })).toBeVisible();
+  await page.getByLabel('Category', { exact: true }).selectOption('Persian classics');
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+
+  await page.locator('.tag-chip', { hasText: 'persian' }).click();
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+
+  // Tags filter excludes books without the tag.
+  await page.locator('.tag-chip', { hasText: 'persian' }).click();
+  await page.locator('.tag-chip', { hasText: 'history' }).click();
+  // Give the async SQLite flush a moment before reloading.
+  await page.waitForTimeout(500);
+  await page.reload();
+  await expect(page.locator('.tag-chip', { hasText: 'history' })).toBeVisible();
+});
+
 test('shows grouped shortcuts in the settings dialog', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).click();

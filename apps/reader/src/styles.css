@@ -404,6 +404,61 @@ h1 {
   padding-inline: var(--hamesh-space-4);
 }
 
+.library-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hamesh-space-2);
+  margin-block-end: var(--hamesh-space-3);
+}
+
+.filter-label {
+  color: var(--hamesh-color-muted);
+  font-size: 0.85rem;
+}
+
+.tag-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hamesh-space-1);
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.tag-chip {
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: 999px;
+  background: var(--hamesh-color-surface);
+  color: var(--hamesh-color-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  padding-block: 0.15rem;
+  padding-inline: var(--hamesh-space-2);
+}
+
+.tag-chip.is-selected {
+  border-color: var(--hamesh-color-accent);
+  background: color-mix(in srgb, var(--hamesh-color-accent) 14%, transparent);
+  color: var(--hamesh-color-accent);
+  font-weight: 600;
+}
+
+.book-details-dialog {
+  inline-size: min(28rem, 100%);
+}
+
+.book-details-dialog .settings-content {
+  overflow: visible;
+}
+
+.book-details-title {
+  margin-block: 0 var(--hamesh-space-2);
+  color: var(--hamesh-color-ink);
+  font-weight: 600;
+}
+
 .library-tools {
   display: flex;
   flex-wrap: wrap;

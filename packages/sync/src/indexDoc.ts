@@ -9,7 +9,10 @@ import { compareHlc } from '@hamesh/core';
 import type { Envelope } from './envelope';
 import { mergeEnvelope, mergeEnvelopeOpt } from './envelope';
 
-export const SCHEMA_VERSION = 1 as const;
+export const SCHEMA_VERSION = 2 as const;
+
+/** v1 (pre-categories) documents are read and upgraded on the next write. */
+export const SUPPORTED_SCHEMA_VERSIONS: readonly number[] = [1, 2];
 
 export class SyncError extends Error {
   readonly code: 'SCHEMA_VERSION' | 'MALFORMED';
@@ -93,7 +96,10 @@ export const decodeIndexDoc = (input: unknown): IndexDoc => {
     books?: unknown;
     notes?: unknown;
   };
-  if (raw.schemaVersion !== SCHEMA_VERSION) {
+  if (
+    typeof raw.schemaVersion !== 'number' ||
+    !SUPPORTED_SCHEMA_VERSIONS.includes(raw.schemaVersion)
+  ) {
     throw new SyncError(
       'SCHEMA_VERSION',
       `unsupported schemaVersion: ${String(raw.schemaVersion)}`,

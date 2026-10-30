@@ -53,6 +53,8 @@ export const createSqlSyncStore = (
         series: book.series,
         identifiers: book.identifiers,
         direction: book.direction,
+        category: book.category,
+        tags: book.tags,
         sha256: book.hash,
         ext: book.format,
       },
@@ -139,6 +141,11 @@ export const createSqlSyncStore = (
               ? (fields.identifiers as Record<string, string>)
               : (existing?.identifiers ?? {}),
           direction: fields.direction === 'rtl' ? 'rtl' : 'ltr',
+          category:
+            typeof fields.category === 'string' ? fields.category : (existing?.category ?? null),
+          tags: Array.isArray(fields.tags)
+            ? (fields.tags as string[]).filter((tag) => typeof tag === 'string')
+            : (existing?.tags ?? []),
           filePath: existing?.filePath ?? `books/${hash}.${format}`,
           coverPath: existing?.coverPath ?? null,
           coverMime: existing?.coverMime ?? null,

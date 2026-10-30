@@ -2,6 +2,10 @@ import type { BookFormat, BookMetadata, BookNote, Locator, ReadingStatus } from 
 
 export interface BookRecord extends BookMetadata {
   id: string;
+  /** User-assigned shelf; at most one per book (ADR-0012). */
+  category: string | null;
+  /** User-assigned labels; synced as one LWW field (ADR-0012). */
+  tags: string[];
   filePath: string;
   /** Runtime object URL; never persisted. */
   coverPath: string | null;

@@ -127,6 +127,8 @@ const baseBook = (): BookRecord => ({
   series: null,
   identifiers: {},
   direction: 'rtl',
+  category: null,
+  tags: [],
   filePath: 'books/sha-b1.epub',
   coverPath: null,
   coverMime: null,

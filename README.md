@@ -14,6 +14,8 @@ RTL support and sync to storage you own. No accounts, no vendor backend.
   detection.
 - Library search and content search, sort, grid/list views, and persisted
   reading progress.
+- User categories (one shelf per book) and tags (many per book), with
+  filtering, synced as per-field LWW with the rest of a book's metadata.
 - Paginated and scrolled EPUB reading, TOC, font size, themes, justification,
   and direction-aware navigation for Persian/Arabic and English books.
 - PDF opening, page navigation, zoom, and saved page position.

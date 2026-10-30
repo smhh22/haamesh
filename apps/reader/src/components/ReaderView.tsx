@@ -333,7 +333,7 @@ export const ReaderView = ({
       view.remove();
       viewRef.current = null;
     };
-  }, [file, initialLocation, initialPage, isPdf]);
+  }, [file, initialLocation, initialPage, isPdf, book.direction]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -360,7 +360,7 @@ export const ReaderView = ({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [panel, onClose]);
+  }, [panel, onClose, book.direction]);
 
   const turn = (action: 'next' | 'prev') => {
     const view = viewRef.current;

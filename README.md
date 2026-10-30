@@ -3,14 +3,6 @@
 Hāmesh (هامش) is a local-first, cross-platform ebook reader with first-class
 RTL support and sync to storage you own. No accounts, no vendor backend.
 
-## Status
-
-Phases 0–3 are complete: library and reader, annotations and notes, search
-(including inside book text), SQLite persistence, user-owned sync, and signed
-desktop installers built by CI. Phase 4 is in progress: an Android build exists
-and is being device-tested, more sync providers and their setup UI are planned,
-and the desktop updater is wired to GitHub Releases.
-
 ## What works
 
 - EPUB and PDF import with SHA-256 identity, metadata, covers, and duplicate

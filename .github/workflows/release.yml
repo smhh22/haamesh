@@ -21,6 +21,7 @@ jobs:
       - name: Create the draft release once
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             echo "Release $RELEASE_TAG already exists."
@@ -103,4 +104,5 @@ jobs:
       - name: Publish after every installer uploaded
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: gh release edit "$RELEASE_TAG" --draft=false --latest

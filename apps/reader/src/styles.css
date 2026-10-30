@@ -23,7 +23,8 @@ body {
   gap: var(--hamesh-space-6);
   max-inline-size: 62rem;
   margin-inline: auto;
-  padding-block: var(--hamesh-space-8);
+  padding-block-start: calc(var(--hamesh-space-8) + env(safe-area-inset-top, 0px));
+  padding-block-end: calc(var(--hamesh-space-8) + env(safe-area-inset-bottom, 0px));
   padding-inline: var(--hamesh-space-6);
 }
 
@@ -321,10 +322,13 @@ h1 {
 
 .reader-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--hamesh-space-3);
+  row-gap: var(--hamesh-space-1);
   border-block-end: 1px solid var(--hamesh-color-border);
-  padding-block: var(--hamesh-space-2);
+  padding-block-start: calc(var(--hamesh-space-2) + env(safe-area-inset-top, 0px));
+  padding-block-end: var(--hamesh-space-2);
   padding-inline: var(--hamesh-space-4);
 }
 
@@ -374,7 +378,8 @@ h1 {
   justify-content: space-between;
   gap: var(--hamesh-space-3);
   border-block-start: 1px solid var(--hamesh-color-border);
-  padding-block: var(--hamesh-space-2);
+  padding-block-start: var(--hamesh-space-2);
+  padding-block-end: calc(var(--hamesh-space-2) + env(safe-area-inset-bottom, 0px));
   padding-inline: var(--hamesh-space-4);
 }
 
@@ -411,6 +416,13 @@ h1 {
 
 .search-input {
   flex: 1 1 16rem;
+}
+
+/* Android WebView can fail to paint Tailwind's color-mix placeholder color. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--hamesh-color-muted);
+  opacity: 1;
 }
 
 .search-input:focus-visible,
@@ -1008,4 +1020,19 @@ kbd {
   margin-block-start: var(--hamesh-space-1);
   border: 0;
   padding: 0;
+}
+
+@media (max-width: 36rem) {
+  .reader-title {
+    display: none;
+  }
+
+  .reader-actions {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
+
+  .reader-progress {
+    margin-inline-start: auto;
+  }
 }

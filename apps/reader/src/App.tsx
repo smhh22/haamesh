@@ -2,7 +2,15 @@ import type { Direction } from '@hamesh/core';
 import { ImportError, type ImportErrorCode } from '@hamesh/engine';
 import type { BookRecord, ReadingState } from '@hamesh/storage';
 import { DirectionProvider } from '@hamesh/ui';
-import { type ChangeEvent, type DragEvent, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ChangeEvent,
+  type DragEvent,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { ReaderView } from './components/ReaderView';
 import { SettingsDialog } from './components/SettingsDialog';
@@ -88,8 +96,9 @@ export const App = () => {
   };
 
   // Global shortcuts: `?` opens the map, `/` focuses library search. Anything
-  // typed into a field wins over both.
-  useEffect(() => {
+  // typed into a field wins over both. Attached before paint so the first key
+  // press after mount is never lost.
+  useLayoutEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (settingsOpen || shortcutsOpen) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;

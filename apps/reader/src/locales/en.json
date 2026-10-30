@@ -8,8 +8,8 @@
   "library": {
     "heading": "Library",
     "empty": "No books yet.",
-    "drop": "Drop EPUB files here, or use Import.",
-    "import": "Import EPUB",
+    "drop": "Drop EPUB, PDF, or Markdown files here, or use Import.",
+    "import": "Import books",
     "importing": "Importing…",
     "unknownAuthor": "Unknown author",
     "unknownLanguage": "Unknown language",
@@ -27,7 +27,7 @@
     "noResults": "No books match this search.",
     "errors": {
       "INVALID_FILE": "That file is empty or unreadable.",
-      "UNSUPPORTED_FORMAT": "Only EPUB or PDF files are supported in this build.",
+      "UNSUPPORTED_FORMAT": "Only EPUB, PDF, or Markdown files are supported in this build.",
       "CRYPTO_UNAVAILABLE": "Book hashing needs HTTPS or localhost.",
       "PARSE_FAILED": "This EPUB could not be read.",
       "UNKNOWN": "Something went wrong while importing."

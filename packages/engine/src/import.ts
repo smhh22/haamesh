@@ -1,22 +1,12 @@
 import type { BookFormat, BookMetadata } from '@hamesh/core';
 import { makeBook } from 'foliate-js/view.js';
 import { resolveBookDirection } from './direction';
+import { ImportError } from './error';
+import { sha256Hex } from './hash';
+import { convertMarkdownToEpub, isMarkdownFile } from './markdown';
 
-export type ImportErrorCode =
-  | 'INVALID_FILE'
-  | 'UNSUPPORTED_FORMAT'
-  | 'CRYPTO_UNAVAILABLE'
-  | 'PARSE_FAILED';
-
-export class ImportError extends Error {
-  readonly code: ImportErrorCode;
-
-  constructor(code: ImportErrorCode, message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = 'ImportError';
-    this.code = code;
-  }
-}
+export { ImportError, type ImportErrorCode } from './error';
+export { sha256Hex } from './hash';
 
 export interface ImportedBook {
   metadata: BookMetadata;
@@ -67,20 +57,6 @@ const seriesName = (value: unknown, preferred?: string | null): string | null =>
   const named = languageMapToString((first as { name?: unknown }).name, preferred);
   const fallback = languageMapToString(first, preferred);
   return named || fallback || null;
-};
-
-export const sha256Hex = async (bytes: Uint8Array<ArrayBuffer>): Promise<string> => {
-  const subtle = globalThis.crypto?.subtle;
-  if (!subtle) {
-    throw new ImportError(
-      'CRYPTO_UNAVAILABLE',
-      'Web Crypto is unavailable; use HTTPS or localhost.',
-    );
-  }
-  const digest = await subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
 };
 
 /**
@@ -139,6 +115,16 @@ export const importEpub = (file: File): Promise<ImportedBook> => importBookWithF
 
 export const importPdf = (file: File): Promise<ImportedBook> => importBookWithFormat(file, 'pdf');
 
-/** Import an EPUB or PDF, detected from the file type or extension. */
-export const importBook = (file: File): Promise<ImportedBook> =>
-  isPdfFile(file) ? importPdf(file) : importEpub(file);
+/**
+ * Import a Markdown file by converting it to an EPUB first, so pagination,
+ * search, notes, and sync treat it like any other EPUB.
+ */
+export const importMarkdown = async (file: File): Promise<ImportedBook> =>
+  importEpub(await convertMarkdownToEpub(file));
+
+/** Import an EPUB, PDF, or Markdown file, detected from type or extension. */
+export const importBook = (file: File): Promise<ImportedBook> => {
+  if (isPdfFile(file)) return importPdf(file);
+  if (isMarkdownFile(file)) return importMarkdown(file);
+  return importEpub(file);
+};

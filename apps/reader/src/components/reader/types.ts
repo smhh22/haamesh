@@ -6,3 +6,11 @@ export interface SelectionInfo {
   text: string;
   fraction: number;
 }
+
+export interface SearchResult {
+  cfi: string;
+  label: string;
+  pre: string;
+  match: string;
+  post: string;
+}

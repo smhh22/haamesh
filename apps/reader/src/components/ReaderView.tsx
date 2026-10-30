@@ -12,6 +12,7 @@ import { persistNoteRecord } from '../services/libraryPersistence';
 import { notesForBook, useNotesStore } from '../stores/notesStore';
 import { useReaderSettings } from '../stores/readerSettingsStore';
 import { NotesPanel } from './reader/NotesPanel';
+import { SearchPanel } from './reader/SearchPanel';
 import { SelectionPopover } from './reader/SelectionPopover';
 import { SettingsPanel } from './reader/SettingsPanel';
 import { TocTree } from './reader/TocTree';
@@ -50,15 +51,7 @@ export interface ReaderViewProps {
   onClose: () => void;
 }
 
-import type { SelectionInfo } from './reader/types';
-
-interface SearchResult {
-  cfi: string;
-  label: string;
-  pre: string;
-  match: string;
-  post: string;
-}
+import type { SearchResult, SelectionInfo } from './reader/types';
 
 type ReaderPanel = 'toc' | 'notes' | 'search' | 'settings' | null;
 
@@ -672,50 +665,15 @@ export const ReaderView = ({
       ) : null}
 
       {panel === 'search' ? (
-        <aside className="reader-panel search-panel" aria-label={t('reader.search')}>
-          <div className="panel-header">
-            <h2>{t('reader.search')}</h2>
-            <button type="button" className="text-button" onClick={closePanel}>
-              {t('reader.close')}
-            </button>
-          </div>
-          <form className="search-form" onSubmit={runSearch}>
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.currentTarget.value)}
-              placeholder={t('reader.searchPlaceholder')}
-              aria-label={t('reader.searchPlaceholder')}
-            />
-            <button type="submit" className="reader-action">
-              {t('reader.searchButton')}
-            </button>
-          </form>
-          {searching ? <p className="hint">{t('reader.searching')}</p> : null}
-          {!searching && searchQuery && searchResults.length === 0 ? (
-            <p className="hint">{t('reader.noSearchResults')}</p>
-          ) : null}
-          <ul className="search-results">
-            {searchResults.map((result) => (
-              <li key={result.cfi}>
-                <button
-                  type="button"
-                  className="search-result"
-                  onClick={() => {
-                    void viewRef.current?.goTo(result.cfi);
-                  }}
-                >
-                  {result.label ? <span className="search-label">{result.label}</span> : null}
-                  <span>
-                    {result.pre}
-                    <mark>{result.match}</mark>
-                    {result.post}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </aside>
+        <SearchPanel
+          query={searchQuery}
+          results={searchResults}
+          searching={searching}
+          onQueryChange={setSearchQuery}
+          onSubmit={runSearch}
+          onGoTo={(cfi) => void viewRef.current?.goTo(cfi)}
+          onClose={closePanel}
+        />
       ) : null}
 
       {panel === 'settings' ? (

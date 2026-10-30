@@ -25,7 +25,7 @@ RTL support and sync to storage you own. No accounts, no vendor backend.
 - EPUB sanitization and a restrictive content CSP.
 - SQLite persistence on desktop and web, with a one-time JSON import.
 - Desktop shell with open-with and `.epub`/`.pdf` file associations; Linux
-  (deb/rpm/AppImage) and Windows installers from CI.
+  (deb/rpm/AppImage) and Windows installers plus a signed Android APK from CI.
 
 ## Requirements
 

@@ -95,8 +95,87 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
+  android:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      NDK_HOME: /usr/local/lib/android/sdk/ndk/28.2.13676358
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          submodules: recursive
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/reader/src-tauri
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platforms;android-37.0" "build-tools;36.0.0" "ndk;28.2.13676358"
+
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Stamp the release version
+        shell: bash
+        run: |
+          node -e "const fs=require('fs');const p='apps/reader/src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(p,'utf8'));c.version=process.env.RELEASE_TAG.replace(/^v/,'');fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n')"
+
+      - name: Decode the release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/hamesh-release.jks"
+          {
+            echo "storeFile=$RUNNER_TEMP/hamesh-release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > "$RUNNER_TEMP/keystore.properties"
+
+      - name: Build the signed APK
+        env:
+          HAMESH_KEYSTORE_PROPERTIES: ${{ runner.temp }}/keystore.properties
+        run: pnpm --filter @hamesh/reader tauri android build --apk
+
+      - name: Upload the APK to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          gh release upload "$RELEASE_TAG" \
+            "apps/reader/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk#Hamesh_${version}_universal.apk" \
+            --clobber
+
   publish:
-    needs: build
+    needs: [build, android]
     runs-on: ubuntu-latest
     env:
       RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
@@ -134,3 +213,4 @@ jobs:
           PY
           curl -fsIL "${base}/Hamesh_${version}_amd64.deb" -o /dev/null
           curl -fsIL "${base}/Hamesh_${version}_x64-setup.exe" -o /dev/null
+          curl -fsIL "${base}/Hamesh_${version}_universal.apk" -o /dev/null

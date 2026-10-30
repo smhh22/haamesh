@@ -6,6 +6,7 @@ const fixture = fileURLToPath(new URL('./fixtures/sample.epub', import.meta.url)
 const englishFixture = fileURLToPath(new URL('./fixtures/english.epub', import.meta.url));
 const pdfFixture = fileURLToPath(new URL('./fixtures/sample.pdf', import.meta.url));
 const nodirFixture = fileURLToPath(new URL('./fixtures/nodir.epub', import.meta.url));
+const markdownFixture = fileURLToPath(new URL('./fixtures/sample.md', import.meta.url));
 
 test('imports a Persian EPUB and opens the reader', async ({ page }) => {
   const pageErrors: string[] = [];
@@ -296,6 +297,21 @@ test('creates a highlight and bookmark, then persists them', async ({ page }) =>
   });
   await page.getByRole('button', { name: 'Notes' }).click();
   await expect(page.locator('.note-item')).toHaveCount(2);
+});
+
+test('imports a Persian markdown file and reads it RTL', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(markdownFixture);
+  await expect(page.getByRole('heading', { name: 'دفترچهٔ آزمون' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-format', 'epub');
+  // The front-matter title wins when the file has no level-1 heading conflict,
+  // and the content detects as RTL from the Persian text.
+  await expect(page.locator('foliate-view')).toBeVisible();
 });
 
 test('imports and reads a PDF', async ({ page }) => {

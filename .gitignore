@@ -16,3 +16,6 @@ apps/reader/src-tauri/target/
 
 # Generated pdf.js assets (copied by apps/reader/scripts/copy-pdfjs.mjs)
 apps/reader/public/vendor/
+
+# Local tooling config (ZCode)
+.zcode/

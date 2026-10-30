@@ -1,6 +1,6 @@
 # Project status
 
-Last updated: 2026-10-30, 12:35 (v0.1.0 released; CI green — read with `AGENTS.md`).
+Last updated: 2026-10-30, 14:10 (Phase 4 in progress — read with `AGENTS.md`).
 
 ## Where the project is
 
@@ -150,9 +150,10 @@ Last updated: 2026-10-30, 12:35 (v0.1.0 released; CI green — read with `AGENTS
    the user smoke-tests v0.1.0), tag `v0.1.0` → draft release with Linux
    deb/rpm/AppImage + Windows setup.exe/MSI; CI green after pinning the dev
    server to 127.0.0.1 (CI runners resolved localhost to ::1).
-2. Sync: auto-sync on app open/pagehide DONE (`94c5cf1`); remaining:
-   local-folder provider (Syncthing story), keychain credentials, real
-   WebDAV server test (user said they may provide one), S3/SFTP providers.
+2. Sync: auto-sync on app open/pagehide DONE; local-folder provider + native
+   picker DONE; keychain credentials DONE; multi-provider mirroring UI DONE;
+   per-provider HTTP/SOCKS5 proxy via a Rust `http_request` bridge DONE
+   (sanctioned networks). Remaining: S3-compatible + SFTP providers.
 3. ReaderView.tsx refactor — COMPLETE: all four panels (TocTree, NotesPanel,
    SearchPanel, SettingsPanel) plus SelectionPopover are presentational
    components under `components/reader/`; ReaderView is ~740 lines of

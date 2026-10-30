@@ -226,7 +226,7 @@ export const createSqlSyncStore = (
 };
 
 /** Stable per-install device id for HLC tie-breaks (ADR-0006). */
-export const getOrCreateDeviceId = async (dataStore: DataStorePort): Promise<string> => {
+const resolveDeviceId = async (dataStore: DataStorePort): Promise<string> => {
   const existing = await dataStore.read('device-id');
   if (existing) {
     const id = new TextDecoder().decode(existing).trim();
@@ -235,4 +235,13 @@ export const getOrCreateDeviceId = async (dataStore: DataStorePort): Promise<str
   const id = crypto.randomUUID();
   await dataStore.write('device-id', new TextEncoder().encode(id));
   return id;
+};
+
+// Startup calls this from two places (clock creation and the first sync
+// round); memoize so a race cannot mint two ids.
+let deviceIdPromise: Promise<string> | null = null;
+
+export const getOrCreateDeviceId = (dataStore: DataStorePort): Promise<string> => {
+  deviceIdPromise ??= resolveDeviceId(dataStore);
+  return deviceIdPromise;
 };

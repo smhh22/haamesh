@@ -39,6 +39,6 @@ Ship content search **without SQLite FTS5**:
 - Snippet windows assume length-preserving normalization; exotic NFKC forms
   could shift a window slightly.
 - PDFs are not searchable (no text extraction yet).
-- **Upgrade path:** add FTS5 as an index *beside* `book_texts` (desktop only),
+- **Upgrade path:** add FTS5 as an index _beside_ `book_texts` (desktop only),
   keep the JS path for web, backfill the index at migration. No data migration
   and no wire-format change.

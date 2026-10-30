@@ -98,16 +98,7 @@ export const initLibraryPersistence = async (): Promise<void> => {
       });
     }
 
-    const books = await sql.storage.books.list();
-    const hydrated = await hydrateBooks(books, store);
-    const reading = await sql.storage.reading.list();
-    const notes = await sql.storage.notes.listAll();
-
-    useLibraryStore.setState({ books: hydrated });
-    useReadingStore.setState({
-      states: Object.fromEntries(reading.map((state) => [state.bookId, state])),
-    });
-    useNotesStore.setState({ notes });
+    await reloadLibraryFromStorage();
     return;
   }
 
@@ -189,6 +180,23 @@ export const persistNoteRecord = async (note: BookNoteRecord): Promise<void> => 
   }
   await activeStorage?.flush();
   schedulePersist();
+};
+
+/**
+ * Rehydrate the in-memory stores from SQLite. Called after init and after a
+ * sync round that pulled changes — otherwise SQL writes never reach the UI.
+ */
+export const reloadLibraryFromStorage = async (): Promise<void> => {
+  if (!activeStorage) return;
+  const books = await activeStorage.storage.books.list();
+  const hydrated = await hydrateBooks(books, store);
+  const reading = await activeStorage.storage.reading.list();
+  const notes = await activeStorage.storage.notes.listAll();
+  useLibraryStore.setState({ books: hydrated });
+  useReadingStore.setState({
+    states: Object.fromEntries(reading.map((state) => [state.bookId, state])),
+  });
+  useNotesStore.setState({ notes });
 };
 
 /** Runtime accessors for the sync service (null before init or on JSON fallback). */

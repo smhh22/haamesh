@@ -179,16 +179,24 @@ export const diffPull = (
       out[key] = remoteDoc;
       continue;
     }
+    // Remove-wins (ADR-0006): a record tombstoned on this device must never
+    // be resurrected by remote field writes — only a newer tombstone pulls.
+    if (localDoc.deletedAt) {
+      const newerTombstone =
+        remoteDoc.deletedAt && compareHlc(localDoc.deletedAt.t, remoteDoc.deletedAt.t) < 0
+          ? remoteDoc.deletedAt
+          : null;
+      if (newerTombstone) out[key] = { fields: {}, deletedAt: newerTombstone };
+      continue;
+    }
     const fields: Record<string, Envelope> = {};
     for (const [field, envelope] of Object.entries(remoteDoc.fields)) {
       const mine = localDoc.fields[field];
       if (!mine || compareHlc(mine.t, envelope.t) < 0) fields[field] = envelope;
     }
-    const deletedAt =
-      remoteDoc.deletedAt &&
-      (!localDoc.deletedAt || compareHlc(localDoc.deletedAt.t, remoteDoc.deletedAt.t) < 0)
-        ? remoteDoc.deletedAt
-        : null;
+    // Locally tombstoned records returned above, so any remote tombstone here
+    // is strictly newer than "no local tombstone".
+    const deletedAt = remoteDoc.deletedAt ?? null;
     if (Object.keys(fields).length > 0 || deletedAt) out[key] = { fields, deletedAt };
   }
   return out;

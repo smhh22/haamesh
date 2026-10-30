@@ -20,6 +20,8 @@ const BOOK_SYNC_FIELDS = [
   'series',
   'identifiers',
   'direction',
+  'category',
+  'tags',
   'sha256',
   'ext',
 ] as const;
@@ -141,6 +143,27 @@ export const persistBook = async (
     await stampFieldClocks(activeStorage.clocks, syncClock, `book:${book.id}`, BOOK_SYNC_FIELDS);
   }
   await activeStorage?.flush();
+  await persistNow();
+};
+
+/**
+ * Persist a category/tag edit (ADR-0012). Only those two fields are stamped,
+ * so a concurrent progress write on another device is not clobbered.
+ */
+export const persistBookOrganization = async (
+  book: BookRecord,
+  organization: { category: string | null; tags: string[] },
+): Promise<void> => {
+  const updated: BookRecord = { ...book, ...organization, updatedAt: Date.now() };
+  await activeStorage?.storage.books.upsert(updated);
+  if (activeStorage && syncClock) {
+    await stampFieldClocks(activeStorage.clocks, syncClock, `book:${book.id}`, [
+      'category',
+      'tags',
+    ]);
+  }
+  await activeStorage?.flush();
+  // The JSON manifest remains the reload fallback; keep it in step.
   await persistNow();
 };
 

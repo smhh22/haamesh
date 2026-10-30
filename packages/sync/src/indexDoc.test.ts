@@ -9,6 +9,7 @@ import {
   encodeIndexDoc,
   mergeAllIndexDocs,
   mergeIndexDoc,
+  SCHEMA_VERSION,
 } from './indexDoc';
 
 const deviceArb = fc.constantFrom('device-a', 'device-b', 'device-c');
@@ -50,7 +51,7 @@ const indexDocArb: fc.Arbitrary<IndexDoc> = fc
     ),
   )
   .map(([books, notes]) => ({
-    schemaVersion: 1 as const,
+    schemaVersion: SCHEMA_VERSION,
     devices: {},
     books: Object.fromEntries(books),
     notes: Object.fromEntries(notes),

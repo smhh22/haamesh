@@ -52,6 +52,9 @@ const foliateUpstreamGuards = {
 export default defineConfig({
   plugins: [react(), tailwindcss(), foliatePdfPathFix, foliateUpstreamGuards],
   server: {
+    // Pin IPv4: Playwright (and the Tauri dev URL) use 127.0.0.1, while some
+    // CI runners resolve "localhost" to ::1 first, which silently times out.
+    host: '127.0.0.1',
     port: 5173,
     strictPort: true,
   },

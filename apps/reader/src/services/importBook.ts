@@ -1,4 +1,4 @@
-import { importBook } from '@hamesh/engine';
+import { convertMarkdownToEpub, importBook, isMarkdownFile } from '@hamesh/engine';
 import type { BookRecord } from '@hamesh/storage';
 import { rememberBookFile } from './bookFiles';
 
@@ -9,16 +9,20 @@ export interface ImportedBookFile {
 }
 
 /**
- * Import an EPUB into the library. The file and cover are returned so the
- * persistence layer can store them; the record only carries a runtime cover URL.
+ * Import a book into the library. Markdown is converted to EPUB first so the
+ * stored bytes, the hash, and the file the reader opens are the same EPUB; the
+ * record keeps the original file name for display. The file and cover are
+ * returned so the persistence layer can store them; the record only carries a
+ * runtime cover URL.
  */
 export const importBookFile = async (file: File): Promise<ImportedBookFile> => {
-  const { metadata, cover } = await importBook(file);
+  const bookFile = isMarkdownFile(file) ? await convertMarkdownToEpub(file) : file;
+  const { metadata, cover } = await importBook(bookFile);
   const now = Date.now();
   const coverPath =
     cover && typeof URL.createObjectURL === 'function' ? URL.createObjectURL(cover) : null;
 
-  rememberBookFile(metadata.hash, file);
+  rememberBookFile(metadata.hash, bookFile);
 
   return {
     record: {
@@ -30,7 +34,7 @@ export const importBookFile = async (file: File): Promise<ImportedBookFile> => {
       addedAt: now,
       updatedAt: now,
     },
-    file,
+    file: bookFile,
     cover,
   };
 };

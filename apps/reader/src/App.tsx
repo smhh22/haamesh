@@ -39,7 +39,8 @@ const directionFor = (locale: Locale): Direction => (locale === 'fa' ? 'rtl' : '
 const isSupportedBook = (file: File): boolean =>
   file.type === 'application/epub+zip' ||
   file.type === 'application/pdf' ||
-  /\.(epub|pdf)$/i.test(file.name);
+  file.type === 'text/markdown' ||
+  /\.(epub|pdf|md|markdown)$/i.test(file.name);
 
 const formatAuthors = (authors: string[], locale: Locale): string => {
   if (authors.length === 0) return '';
@@ -267,7 +268,7 @@ export const App = () => {
               <input
                 className="visually-hidden"
                 type="file"
-                accept=".epub,.pdf,application/epub+zip,application/pdf"
+                accept=".epub,.pdf,.md,.markdown,application/epub+zip,application/pdf,text/markdown"
                 multiple
                 disabled={isImporting}
                 onChange={handleInputChange}

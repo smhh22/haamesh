@@ -82,6 +82,12 @@ android {
     buildFeatures {
         buildConfig = true
     }
+    // Release vital-lint pulls a lint classpath that cannot resolve
+    // (androidx.graphics:graphics-shapes-desktop via material 1.13), which
+    // blocks assembleRelease; the Rust build is linted in CI instead.
+    lint {
+        checkReleaseBuilds = false
+    }
 }
 
 kotlin {

@@ -106,7 +106,11 @@ const sanitizeDocument = (doc: Document): Document => {
 export const sanitizeEpubHtml = (html: string): string => {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   sanitizeDocument(doc);
-  return `<!DOCTYPE html>${doc.documentElement.outerHTML}`;
+  // Foliate parses XHTML documents as XML: serialize through XMLSerializer so
+  // void elements close and attributes escape; outerHTML would produce
+  // HTML-only syntax and a parser error document with no body.
+  const serialized = new XMLSerializer().serializeToString(doc.documentElement);
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n${serialized}`;
 };
 
 /**

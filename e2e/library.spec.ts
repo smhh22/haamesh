@@ -534,6 +534,15 @@ test('turns pages with Space in the reader', async ({ page }) => {
   await expect.poll(async () => progress.textContent()).toBe(initial ?? '');
 });
 
+test('closes the shortcut map in the reader without leaving the book', async ({ page }) => {
+  await openReader(page);
+  await page.keyboard.press('?');
+  await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.reader-shell')).toBeVisible();
+});
+
 test('hides zoom controls for EPUB but keeps them for PDF', async ({ page }) => {
   await openReader(page);
   await page.getByRole('button', { name: 'Settings' }).click();

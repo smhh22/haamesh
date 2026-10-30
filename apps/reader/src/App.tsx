@@ -222,6 +222,7 @@ export const App = () => {
           }}
           onClose={() => setReaderSession(null)}
         />
+        <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       </DirectionProvider>
     );
   }

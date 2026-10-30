@@ -58,18 +58,18 @@ export const SettingsDialog = ({ open, onClose, onOpenShortcuts }: SettingsDialo
   const checkUpdates = async () => {
     setChecking(true);
     setUpdateMessage('');
-    const update = await checkForUpdate();
-    if (!update) {
+    const result = await checkForUpdate();
+    if (result.status === 'error') {
+      setUpdateMessage(t('settings.checkFailed'));
+    } else if (result.status === 'current') {
       setUpdateMessage(t('settings.upToDate'));
-    } else if (supportsInAppUpdate()) {
-      setUpdateMessage(t('settings.updateAvailable', { version: update.version }));
+    } else {
+      setUpdateMessage(t('settings.updateAvailable', { version: result.version }));
       try {
-        await installUpdate(update.version);
+        await installUpdate(result.version);
       } catch (error) {
         setUpdateMessage(error instanceof Error ? error.message : String(error));
       }
-    } else {
-      setUpdateMessage(t('settings.updateAvailable', { version: update.version }));
     }
     setChecking(false);
   };

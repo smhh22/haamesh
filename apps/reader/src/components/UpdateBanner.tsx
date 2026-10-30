@@ -20,7 +20,11 @@ export const UpdateBanner = () => {
 
   useEffect(() => {
     if (!supportsInAppUpdate()) return;
-    void checkForUpdate().then(setUpdate);
+    void checkForUpdate().then((result) => {
+      if (result.status === 'available') {
+        setUpdate({ version: result.version, notes: result.notes });
+      }
+    });
   }, []);
 
   if (!update || dismissed) return null;

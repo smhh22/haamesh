@@ -13,6 +13,11 @@ export interface UpdateInfo {
   notes: string | null;
 }
 
+export type UpdateCheck =
+  | ({ status: 'available' } & UpdateInfo)
+  | { status: 'current' }
+  | { status: 'error' };
+
 export type InstallKind = 'appimage' | 'deb' | 'unknown';
 
 const LATEST_JSON = 'https://github.com/smhh22/haamesh/releases/latest/download/latest.json';
@@ -53,25 +58,27 @@ const fetchLatest = async (): Promise<{ version?: string; notes?: string } | nul
   }
 };
 
-const checkViaLatestJson = async (): Promise<UpdateInfo | null> => {
+const checkViaLatestJson = async (): Promise<UpdateCheck> => {
   const data = await fetchLatest();
-  if (!data?.version) return null;
+  if (!data?.version) return { status: 'error' };
   const installed = await currentVersion();
   return isNewerVersion(data.version, installed)
-    ? { version: data.version, notes: data.notes ?? null }
-    : null;
+    ? { status: 'available', version: data.version, notes: data.notes ?? null }
+    : { status: 'current' };
 };
 
-/** Silent check; resolves null on web, when up to date, or on any failure. */
-export const checkForUpdate = async (): Promise<UpdateInfo | null> => {
-  if (!isTauriRuntime()) return null;
+/** Distinguishes "no update" from "could not check" for the manual button. */
+export const checkForUpdate = async (): Promise<UpdateCheck> => {
+  if (!isTauriRuntime()) return { status: 'error' };
   try {
     if ((await installKind()) === 'deb') return await checkViaLatestJson();
     const { check } = await import('@tauri-apps/plugin-updater');
     const update = await check();
-    return update ? { version: update.version, notes: update.body ?? null } : null;
+    return update
+      ? { status: 'available', version: update.version, notes: update.body ?? null }
+      : { status: 'current' };
   } catch {
-    return null;
+    return { status: 'error' };
   }
 };
 

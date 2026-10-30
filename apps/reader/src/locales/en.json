@@ -166,6 +166,7 @@
     "version": "Version",
     "checkUpdates": "Check for updates",
     "upToDate": "You are up to date.",
+    "checkFailed": "Couldn't check for updates. Check your connection.",
     "updateAvailable": "Version {{version}} is available.",
     "about": "About",
     "aboutText": "Hāmesh (هامش) — a local-first ebook reader. Your library stays on your device; sync only uses storage you own. MIT licensed."

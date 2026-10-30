@@ -148,7 +148,7 @@ export const SyncSettings = () => {
                     patchProvider(provider.id, { enabled: event.target.checked })
                   }
                 />
-                {provider.label}
+                {provider.kind === 'local-folder' ? t('sync.providerLocalFolder') : provider.label}
               </label>
               <span className={`sync-status is-${status.key}`}>{status.label}</span>
               <button

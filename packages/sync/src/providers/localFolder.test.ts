@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { runProviderConformance } from '../conformance';
+import { describeProviderConformance } from '../conformance.vitest';
 import type { FolderFs } from './localFolder';
 import { createLocalFolderProvider } from './localFolder';
 
@@ -70,7 +70,7 @@ const createFakeFs = (): FolderFs & { dirs: Set<string> } => {
 };
 
 describe('local folder provider', () => {
-  runProviderConformance(() => createLocalFolderProvider(createFakeFs()));
+  describeProviderConformance(() => createLocalFolderProvider(createFakeFs()));
 
   it('detects directories from filesystem structure', async () => {
     const fs = createFakeFs();

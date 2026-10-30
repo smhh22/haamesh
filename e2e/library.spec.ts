@@ -162,7 +162,6 @@ test('shows grouped shortcuts in the settings dialog', async ({ page }) => {
   await expect(dialog.getByRole('heading', { name: 'Reader' })).toBeVisible();
   await expect(dialog.locator('.shortcut-group')).toHaveCount(2);
   await expect(dialog.locator('kbd').first()).toBeVisible();
-
 });
 
 test('persists the library across a reload', async ({ page }) => {

@@ -8,8 +8,6 @@ RTL support and sync to storage you own. No accounts, no vendor backend.
   <img src=".github/assets/reader.png" alt="A Persian book in the dark reading view" width="49%" />
 </p>
 
-The screenshots refresh automatically with every release.
-
 ## What works
 
 - EPUB and PDF import with SHA-256 identity, metadata, covers, and duplicate

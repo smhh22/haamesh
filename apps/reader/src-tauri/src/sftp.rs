@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use russh::client::{self, AuthResult, Handle};
-use russh::keys::{load_secret_key, HashAlg, PrivateKeyWithHashAlg, PublicKeyOrCertificate};
+use russh::keys::{HashAlg, PrivateKeyWithHashAlg, PublicKeyOrCertificate, load_secret_key};
 use russh_sftp::client::SftpSession;
 use tauri::Manager;
 
@@ -161,10 +161,8 @@ pub async fn sftp_connect(
             let mut map = read_known_hosts(&app);
             map.insert(key, fingerprint);
             if let Ok(path) = known_hosts_path(&app) {
-                let _ = std::fs::write(
-                    path,
-                    serde_json::to_string_pretty(&map).unwrap_or_default(),
-                );
+                let _ =
+                    std::fs::write(path, serde_json::to_string_pretty(&map).unwrap_or_default());
             }
         }
     }
@@ -266,7 +264,9 @@ pub async fn sftp_exists(
 ) -> Result<bool, String> {
     validate_remote_path(&path)?;
     let sftp = lookup_session(&sessions, &session).await?;
-    sftp.try_exists(path).await.map_err(|error| error.to_string())
+    sftp.try_exists(path)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

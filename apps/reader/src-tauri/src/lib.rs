@@ -652,7 +652,9 @@ pub fn run() {
             let connection = rusqlite::Connection::open(data_dir.join("hamesh.db"))?;
             app.manage(DbState(Mutex::new(connection)));
             app.manage(SyncRootState(Mutex::new(None)));
-            app.manage(sftp::SftpSessions(Mutex::new(std::collections::HashMap::new())));
+            app.manage(sftp::SftpSessions(Mutex::new(
+                std::collections::HashMap::new(),
+            )));
 
             if cfg!(debug_assertions) {
                 app.handle().plugin(

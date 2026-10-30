@@ -9,7 +9,8 @@ import { locatorFromRelocate, type RelocateDetail } from '../readerLocator';
 import { buildReaderCss } from '../readerStyles';
 import { persistNoteRecord } from '../services/libraryPersistence';
 import { notesForBook, useNotesStore } from '../stores/notesStore';
-import { useReaderSettings } from '../stores/readerSettingsStore';
+import { type ResolvedReaderTheme, useReaderSettings } from '../stores/readerSettingsStore';
+import { useResolvedUiTheme } from '../stores/uiStore';
 import { NotesPanel } from './reader/NotesPanel';
 import { SearchPanel } from './reader/SearchPanel';
 import { SelectionPopover } from './reader/SelectionPopover';
@@ -86,12 +87,21 @@ export const ReaderView = ({
   const removeNote = useNotesStore((state) => state.remove);
   const bookNotes = useMemo(() => notesForBook(allNotes, book.id), [allNotes, book.id]);
   const isPdf = book.format === 'pdf';
+  // 'auto' follows the app theme so a dark app opens a dark book.
+  const resolvedAppTheme = useResolvedUiTheme();
+  const readerTheme: ResolvedReaderTheme =
+    settings.theme === 'auto' ? resolvedAppTheme : settings.theme;
 
   const stageRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<FoliateViewElement | null>(null);
   const onProgressRef = useRef(onProgress);
+  // Latest keydown handler; book iframe documents forward their key events to
+  // it because keys pressed inside an iframe never reach the parent window.
+  const keyHandlerRef = useRef<(event: KeyboardEvent) => void>(() => {});
   const notesRef = useRef<BookNoteRecord[]>(bookNotes);
-  const settingsCssRef = useRef(buildReaderCss(settings));
+  const settingsCssRef = useRef(
+    buildReaderCss({ fontSize: settings.fontSize, theme: readerTheme, justify: settings.justify }),
+  );
   const flowRef = useRef(settings.flow);
   const lastCfiRef = useRef<string | null>(null);
   const lastFractionRef = useRef(initialFraction);
@@ -125,7 +135,11 @@ export const ReaderView = ({
       view?.renderer?.setAttribute('zoom', String(settings.pdfZoom));
       return;
     }
-    const css = buildReaderCss(settings);
+    const css = buildReaderCss({
+      fontSize: settings.fontSize,
+      theme: readerTheme,
+      justify: settings.justify,
+    });
     settingsCssRef.current = css;
     flowRef.current = settings.flow;
 
@@ -147,7 +161,7 @@ export const ReaderView = ({
         void view.goTo(cfi);
       });
     }
-  }, [settings, isPdf]);
+  }, [settings, isPdf, readerTheme]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -226,6 +240,9 @@ export const ReaderView = ({
         doc.documentElement.dir = book.direction;
       }
       applyReaderStyle(doc, settingsCssRef.current);
+      // The paginator iframes own focus once the reader clicks the text;
+      // forward their keydowns so page turns and shortcuts keep working.
+      doc.addEventListener('keydown', (event) => keyHandlerRef.current(event));
       for (const note of notesRef.current) applyNote(note);
 
       let timer: number | undefined;
@@ -385,6 +402,7 @@ export const ReaderView = ({
       if (!view) return;
       void (turn === 'next' ? view.next() : view.prev());
     };
+    keyHandlerRef.current = onKeyDown;
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [panel, onClose, book.direction, isPdf]);
@@ -598,7 +616,7 @@ export const ReaderView = ({
       data-format={book.format}
       data-ready={ready ? 'true' : 'false'}
       data-failed={failed ? 'true' : 'false'}
-      data-theme={settings.theme}
+      data-theme={readerTheme}
       data-flow={settings.flow}
       data-font-size={settings.fontSize}
       data-zoom={String(settings.pdfZoom)}

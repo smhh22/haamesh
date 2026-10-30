@@ -81,6 +81,7 @@
     "increaseFont": "Increase font size",
     "theme": "Theme",
     "themes": {
+      "auto": "Match app",
       "light": "Light",
       "sepia": "Sepia",
       "dark": "Dark"

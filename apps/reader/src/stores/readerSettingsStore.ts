@@ -1,9 +1,28 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type ReaderTheme = 'light' | 'sepia' | 'dark';
+export type ReaderTheme = 'auto' | 'light' | 'sepia' | 'dark';
+/** A theme resolved against the app theme; 'auto' maps to light or dark. */
+export type ResolvedReaderTheme = Exclude<ReaderTheme, 'auto'>;
 export type ReaderFlow = 'paginated' | 'scrolled';
 export type PdfZoom = 'fit-page' | 'fit-width' | number;
+
+export const READER_SETTINGS_VERSION = 2;
+
+/**
+ * v2: 'light' used to be the default, so most persisted readers have it
+ * without ever choosing it. Map stored 'light' to 'auto' so the book follows
+ * the app's dark mode; anyone who wants plain light re-picks it once.
+ */
+export const migrateReaderSettings = (
+  persisted: unknown,
+  version: number,
+): Partial<ReaderSettings> | undefined => {
+  if (!persisted || typeof persisted !== 'object') return undefined;
+  const state = { ...(persisted as Record<string, unknown>) };
+  if (version < READER_SETTINGS_VERSION && state.theme === 'light') state.theme = 'auto';
+  return state as Partial<ReaderSettings>;
+};
 
 export interface ReaderSettings {
   fontSize: number;
@@ -29,7 +48,7 @@ export const useReaderSettings = create<ReaderSettings>()(
   persist(
     (set) => ({
       fontSize: 100,
-      theme: 'light',
+      theme: 'auto',
       justify: true,
       flow: 'paginated',
       pdfZoom: 'fit-page',
@@ -50,6 +69,10 @@ export const useReaderSettings = create<ReaderSettings>()(
           return { pdfZoom: Math.max(0.5, current - 0.25) };
         }),
     }),
-    { name: 'hamesh.reader-settings' },
+    {
+      name: 'hamesh.reader-settings',
+      version: READER_SETTINGS_VERSION,
+      migrate: migrateReaderSettings,
+    },
   ),
 );

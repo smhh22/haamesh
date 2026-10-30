@@ -94,7 +94,11 @@ const checkFile = async (path, packageName) => {
       continue;
     }
 
-    const banned = forbiddenExternal[packageName];
+    // Test files run under Node only (vitest/jsdom), so they may use node:
+    // builtins; production code in browser-bound packages may not.
+    const banned = forbiddenExternal[packageName]?.filter(
+      (pattern) => !(isTest(path) && String(pattern) === '/^node:/'),
+    );
     if (banned?.some((pattern) => pattern.test(specifier))) {
       errors.push(`${where}: "${packageName}" must not depend on "${specifier}"`);
     }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { runProviderConformance } from '../conformance';
+import { describeProviderConformance } from '../conformance.vitest';
 import type { ProviderError } from '../provider';
 import type { FetchLike } from './webdav';
 import { createWebDavProvider } from './webdav';
@@ -122,7 +122,7 @@ const createFakeDavServer = (options: { hrefStyle?: 'path' | 'url' } = {}) => {
 const SERVER_BASE = 'https://dav.example.com/remote.php/dav/files/alice';
 
 describe('webdav provider', () => {
-  runProviderConformance(() =>
+  describeProviderConformance(() =>
     createWebDavProvider(
       { baseUrl: SERVER_BASE, username: 'alice', password: 's3cret' },
       createFakeDavServer(),

@@ -1,4 +1,4 @@
-import { runProviderConformance } from '../conformance';
+import { describeProviderConformance } from '../conformance.vitest';
 import { createMemoryProvider } from './memory';
 
-runProviderConformance(() => createMemoryProvider());
+describeProviderConformance(() => createMemoryProvider());

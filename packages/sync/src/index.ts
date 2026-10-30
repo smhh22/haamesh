@@ -4,7 +4,6 @@
  */
 
 export { HybridLogicalClock } from '@hamesh/core';
-export { runProviderConformance } from './conformance';
 export type {
   SyncEngine,
   SyncKind,
@@ -47,5 +46,7 @@ export { ProviderError } from './provider';
 export type { FolderFs } from './providers/localFolder';
 export { createLocalFolderProvider } from './providers/localFolder';
 export { createMemoryProvider } from './providers/memory';
+export type { S3Config } from './providers/s3';
+export { createS3Provider } from './providers/s3';
 export type { FetchLike, WebDavConfig } from './providers/webdav';
 export { createWebDavProvider } from './providers/webdav';

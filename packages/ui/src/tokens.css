@@ -19,4 +19,21 @@
 
   --hamesh-radius: 0.75rem;
   --hamesh-line-height-book: 1.9;
+
+  color-scheme: light;
+}
+
+/* Dark surface palette for the app shell (the reading themes live separately
+   in the reader settings). data-theme is resolved from the user preference by
+   the UI store: 'light' | 'dark'. */
+:root[data-theme='dark'] {
+  --hamesh-color-canvas: #14161a;
+  --hamesh-color-surface: #1b1e24;
+  --hamesh-color-ink: #e9e4d9;
+  --hamesh-color-muted: #9d978a;
+  --hamesh-color-accent: #6fbfa6;
+  --hamesh-color-border: #2f343c;
+  --hamesh-color-danger: #e2796d;
+
+  color-scheme: dark;
 }

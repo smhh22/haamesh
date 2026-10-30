@@ -9,11 +9,12 @@
  */
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 
 const DEV_URL = 'http://127.0.0.1:5173';
 const DAV_URL = 'http://127.0.0.1:8081';
-const FIXTURE = '/home/smhh22/Desktop/development/haamesh/e2e/fixtures/sample.epub';
+const FIXTURE = fileURLToPath(new URL('../e2e/fixtures/sample.epub', import.meta.url));
 const ARTIFACTS = 'e2e/artifacts/two-device';
 mkdirSync(ARTIFACTS, { recursive: true });
 

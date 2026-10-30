@@ -118,7 +118,10 @@
     "folder": "Sync folder",
     "chooseFolder": "Choose folder…",
     "noFolder": "No folder chosen",
-    "passwordSaved": "Saved in your system keychain"
+    "passwordSaved": "Saved in your system keychain",
+    "remove": "Remove",
+    "addWebdav": "Add WebDAV",
+    "addLocalFolder": "Add local folder"
   },
   "update": {
     "available": "Hāmesh {{version}} is available.",

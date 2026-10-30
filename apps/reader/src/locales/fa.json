@@ -118,7 +118,10 @@
     "folder": "پوشه همگام‌سازی",
     "chooseFolder": "انتخاب پوشه…",
     "noFolder": "پوشه‌ای انتخاب نشده",
-    "passwordSaved": "در کلیدزنجیر سیستم ذخیره شده است"
+    "passwordSaved": "در کلیدزنجیر سیستم ذخیره شده است",
+    "remove": "حذف",
+    "addWebdav": "افزودن وب‌داو",
+    "addLocalFolder": "افزودن پوشهٔ محلی"
   },
   "update": {
     "available": "نسخهٔ {{version}} هامش آماده است.",

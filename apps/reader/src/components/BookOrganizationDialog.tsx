@@ -22,7 +22,7 @@ export const parseTags = (value: string): string[] => {
 /**
  * Category and tag editor for one book. Categories are free text with
  * suggestions from the library; tags are comma-separated and synced as one
- * field (ADR-0012).
+ * field (ADR-0013).
  */
 export const BookOrganizationDialog = ({
   book,

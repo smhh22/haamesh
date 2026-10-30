@@ -150,7 +150,7 @@ export const persistBook = async (
 };
 
 /**
- * Persist a category/tag edit (ADR-0012). Only those two fields are stamped,
+ * Persist a category/tag edit (ADR-0013). Only those two fields are stamped,
  * so a concurrent progress write on another device is not clobbered.
  */
 export const persistBookOrganization = async (

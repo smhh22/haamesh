@@ -19,3 +19,6 @@ apps/reader/public/vendor/
 
 # Local tooling config (ZCode)
 .zcode/
+
+# Local agent instructions (kept out of the published repo)
+AGENTS.md

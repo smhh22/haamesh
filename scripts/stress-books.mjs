@@ -6,7 +6,8 @@
 import { mkdirSync } from 'node:fs';
 import { chromium } from '@playwright/test';
 
-const BOOKS = '/home/smhh22/Desktop/books';
+// Point BOOKS_DIR at your own book folder; nothing user-specific is committed.
+const BOOKS = process.env.BOOKS_DIR ?? `${process.env.HOME ?? '~'}/Desktop/books`;
 const TARGETS = [
   {
     file: `${BOOKS}/Calculus-A-Complete-Course-Adams-9th-Edition-[konkur.in].pdf`,

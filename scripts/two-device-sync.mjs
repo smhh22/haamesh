@@ -98,6 +98,8 @@ const openDevice = async (browser, name) => {
 const openSettings = async (page) => {
   await page.getByRole('button', { name: 'Settings' }).click();
   await page.getByRole('dialog', { name: 'Settings' }).waitFor({ timeout: 10000 });
+  // Sync is a sidebar section inside the settings dialog.
+  await page.getByRole('button', { name: 'Sync', exact: true }).click();
 };
 
 const closeSettings = async (page) => {

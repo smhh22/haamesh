@@ -13,11 +13,16 @@ import {
   testSyncConnection,
 } from '../services/syncService';
 
+interface SyncSettingsProps {
+  /** The settings dialog renders its own section title; hide ours there. */
+  showHeading?: boolean;
+}
+
 /**
  * Sync settings with mirroring (ADR-0006): every enabled provider holds a full
  * replica. Passwords live in the OS keychain on desktop.
  */
-export const SyncSettings = () => {
+export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
   const { t, i18n } = useTranslation();
   const [config, setConfig] = useState<SyncConfig>(loadSyncConfig);
   const [message, setMessage] = useState('');
@@ -95,10 +100,14 @@ export const SyncSettings = () => {
 
   return (
     <section className="sync-settings" aria-label={t('sync.title')}>
-      <div className="settings-section-heading">
-        <h3>{t('sync.title')}</h3>
-        <p className="hint">{t('sync.lede')}</p>
-      </div>
+      {showHeading ? (
+        <div className="settings-section-heading">
+          <h3>{t('sync.title')}</h3>
+          <p className="hint">{t('sync.lede')}</p>
+        </div>
+      ) : (
+        <p className="hint sync-lede">{t('sync.lede')}</p>
+      )}
 
       {config.providers.length === 0 ? (
         <div className="sync-empty">
@@ -162,9 +171,10 @@ export const SyncSettings = () => {
 
             {provider.kind === 'webdav' ? (
               <>
-                <div className="setting-row">
+                <div className="setting-row is-field">
                   <label htmlFor={`sync-url-${provider.id}`}>{t('sync.baseUrl')}</label>
                   <input
+                    className="text-input"
                     id={`sync-url-${provider.id}`}
                     type="url"
                     value={provider.baseUrl}
@@ -175,9 +185,10 @@ export const SyncSettings = () => {
                   />
                 </div>
                 <p className="hint sync-field-hint">{t('sync.baseUrlHint')}</p>
-                <div className="setting-row">
+                <div className="setting-row is-field">
                   <label htmlFor={`sync-user-${provider.id}`}>{t('sync.username')}</label>
                   <input
+                    className="text-input"
                     id={`sync-user-${provider.id}`}
                     type="text"
                     value={provider.username}
@@ -187,9 +198,10 @@ export const SyncSettings = () => {
                     }
                   />
                 </div>
-                <div className="setting-row">
+                <div className="setting-row is-field">
                   <label htmlFor={`sync-pass-${provider.id}`}>{t('sync.password')}</label>
                   <input
+                    className="text-input"
                     id={`sync-pass-${provider.id}`}
                     type="password"
                     value={provider.password}
@@ -200,9 +212,10 @@ export const SyncSettings = () => {
                     }
                   />
                 </div>
-                <div className="setting-row">
+                <div className="setting-row is-field">
                   <label htmlFor={`sync-proxy-${provider.id}`}>{t('sync.proxy')}</label>
                   <input
+                    className="text-input"
                     id={`sync-proxy-${provider.id}`}
                     type="text"
                     value={provider.proxy}
@@ -217,9 +230,10 @@ export const SyncSettings = () => {
 
             {provider.kind === 's3' ? (
               <>
-                <div className="setting-row">
+                <div className="setting-row is-field">
                   <label htmlFor={`sync-s3-endpoint-${provider.id}`}>{t('sync.s3Endpoint')}</label>
                   <input
+                    className="text-input"
                     id={`sync-s3-endpoint-${provider.id}`}
                     type="url"
                     value={provider.endpoint}
@@ -229,9 +243,10 @@ export const SyncSettings = () => {
                     }
                   />
                 </div>
-                <div className="setting-row">
+                <div className="setting-row is-field">
                   <label htmlFor={`sync-s3-region-${provider.id}`}>{t('sync.s3Region')}</label>
                   <input
+                    className="text-input"
                     id={`sync-s3-region-${provider.id}`}
                     type="text"
                     value={provider.region}
@@ -240,9 +255,10 @@ export const SyncSettings = () => {
                     onChange={(event) => patchProvider(provider.id, { region: event.target.value })}
                   />
                 </div>
-                <div className="setting-row">
+                <div className="setting-row is-field">
                   <label htmlFor={`sync-s3-bucket-${provider.id}`}>{t('sync.s3Bucket')}</label>
                   <input
+                    className="text-input"
                     id={`sync-s3-bucket-${provider.id}`}
                     type="text"
                     value={provider.bucket}
@@ -250,9 +266,10 @@ export const SyncSettings = () => {
                     onChange={(event) => patchProvider(provider.id, { bucket: event.target.value })}
                   />
                 </div>
-                <div className="setting-row">
+                <div className="setting-row is-field">
                   <label htmlFor={`sync-s3-access-${provider.id}`}>{t('sync.s3AccessKey')}</label>
                   <input
+                    className="text-input"
                     id={`sync-s3-access-${provider.id}`}
                     type="text"
                     value={provider.accessKeyId}
@@ -262,9 +279,10 @@ export const SyncSettings = () => {
                     }
                   />
                 </div>
-                <div className="setting-row">
+                <div className="setting-row is-field">
                   <label htmlFor={`sync-s3-secret-${provider.id}`}>{t('sync.s3SecretKey')}</label>
                   <input
+                    className="text-input"
                     id={`sync-s3-secret-${provider.id}`}
                     type="password"
                     value={provider.secretAccessKey}
@@ -275,9 +293,10 @@ export const SyncSettings = () => {
                     }
                   />
                 </div>
-                <div className="setting-row">
+                <div className="setting-row is-field">
                   <label htmlFor={`sync-s3-proxy-${provider.id}`}>{t('sync.proxy')}</label>
                   <input
+                    className="text-input"
                     id={`sync-s3-proxy-${provider.id}`}
                     type="text"
                     value={provider.proxy}
@@ -294,20 +313,22 @@ export const SyncSettings = () => {
               <>
                 <div className="setting-row">
                   <span>{t('sync.folder')}</span>
-                  <span className="hint" dir="ltr">
-                    {provider.localFolder || t('sync.noFolder')}
-                  </span>
-                  <button
-                    type="button"
-                    className="reader-action"
-                    onClick={() => {
-                      void pickSyncFolder().then((path) => {
-                        if (path) patchProvider(provider.id, { localFolder: path });
-                      });
-                    }}
-                  >
-                    {t('sync.chooseFolder')}
-                  </button>
+                  <div className="setting-controls">
+                    <span className="hint" dir="ltr">
+                      {provider.localFolder || t('sync.noFolder')}
+                    </span>
+                    <button
+                      type="button"
+                      className="reader-action"
+                      onClick={() => {
+                        void pickSyncFolder().then((path) => {
+                          if (path) patchProvider(provider.id, { localFolder: path });
+                        });
+                      }}
+                    >
+                      {t('sync.chooseFolder')}
+                    </button>
+                  </div>
                 </div>
                 <p className="hint sync-field-hint">{t('sync.folderHint')}</p>
               </>
@@ -322,7 +343,7 @@ export const SyncSettings = () => {
               </p>
             ) : null}
 
-            <div className="setting-row">
+            <div className="sync-card-footer">
               <button
                 type="button"
                 className="reader-action"

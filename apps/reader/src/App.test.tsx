@@ -5,8 +5,11 @@ import { App } from './App';
 import i18n from './i18n';
 import { importBookFile } from './services/importBook';
 import { useLibraryStore } from './stores/libraryStore';
+import { useUiStore } from './stores/uiStore';
 
 beforeEach(async () => {
+  localStorage.clear();
+  useUiStore.setState({ locale: 'en', theme: 'system' });
   await i18n.changeLanguage('en');
   useLibraryStore.setState({ books: [] });
 });

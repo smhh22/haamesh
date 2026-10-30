@@ -5,7 +5,7 @@ Last updated: 2026-10-30, 03:30 (overnight autonomous session — read with `AGE
 ## Where the project is
 
 - **Phases 0–2 complete. Phase 3 (sync) functionally complete end-to-end.**
-- 23 commits on `main`, newest first: normalization tests (`e44086f`), local-folder provider (`c639830`),
+- 25 commits on `main`, newest first: search panel extraction (`<next>`), normalization tests (`e44086f`), local-folder provider (`c639830`),
   status docs (`4bcd2c6`), content search (`3db793d`), auto-sync (`94c5cf1`), ReaderView refactor
   (`f1f9ba6`), STATUS update (`e811b2f`), sanitizer hardening (`72e47cd`), app sync
   integration (`f395623`), WebDAV provider (`84ea213`), sync engine core
@@ -127,9 +127,10 @@ Last updated: 2026-10-30, 03:30 (overnight autonomous session — read with `AGE
 2. Sync: auto-sync on app open/pagehide DONE (`94c5cf1`); remaining:
    local-folder provider (Syncthing story), keychain credentials, real
    WebDAV server test (user said they may provide one), S3/SFTP providers.
-3. ReaderView.tsx refactor — DONE for the three clean extractions
-   (TocTree/SettingsPanel/SelectionPopover in `components/reader/`, e2e-guarded);
-   notes/search panels still inline if further splitting is wanted.
+3. ReaderView.tsx refactor — COMPLETE: all four panels (TocTree, NotesPanel,
+   SearchPanel, SettingsPanel) plus SelectionPopover are presentational
+   components under `components/reader/`; ReaderView is ~740 lines of
+   lifecycle + wiring, e2e-guarded.
 4. PDF annotation support (deliberately deferred); extraction for sync-
    downloaded books (wire storeBookTexts into the sync path);
    RTL page-progression detection for Persian PDFs.

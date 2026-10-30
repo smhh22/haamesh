@@ -7,9 +7,23 @@ import { useReadingStore } from '../stores/readingStore';
 import { rememberBookFile } from './bookFiles';
 import { createDataStore } from './dataStore';
 import { type ActiveStorage, createActiveStorage } from './sqlStorage';
-import { getOrCreateDeviceId, stampRecordClock } from './syncStore';
+import { getOrCreateDeviceId, stampFieldClocks, stampRecordClock } from './syncStore';
 
 const MANIFEST = 'library.json';
+
+/** Wire field names written by persistBook / persistNoteRecord (ADR-0011). */
+const BOOK_SYNC_FIELDS = [
+  'title',
+  'authors',
+  'language',
+  'publisher',
+  'series',
+  'identifiers',
+  'direction',
+  'sha256',
+  'ext',
+] as const;
+const NOTE_SYNC_FIELDS = ['bookId', 'type', 'locator', 'color', 'text', 'note'] as const;
 let store: DataStorePort | null = null;
 let activeStorage: ActiveStorage | null = null;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -133,7 +147,7 @@ export const persistBook = async (
 
   await activeStorage?.storage.books.upsert(book);
   if (activeStorage && syncClock) {
-    await stampRecordClock(activeStorage.clocks, syncClock, `book:${book.id}`);
+    await stampFieldClocks(activeStorage.clocks, syncClock, `book:${book.id}`, BOOK_SYNC_FIELDS);
   }
   await activeStorage?.flush();
   await persistNow();
@@ -156,7 +170,11 @@ export const deletePersistedBook = async (book: BookRecord): Promise<void> => {
 export const persistReadingState = async (state: ReadingState): Promise<void> => {
   await activeStorage?.storage.reading.save(state);
   if (activeStorage && syncClock) {
-    await stampRecordClock(activeStorage.clocks, syncClock, `reading:${state.bookId}`);
+    await stampFieldClocks(activeStorage.clocks, syncClock, `book:${state.bookId}`, [
+      'reading.locator',
+      'reading.fraction',
+      'reading.status',
+    ]);
   }
   schedulePersist();
 };
@@ -164,7 +182,10 @@ export const persistReadingState = async (state: ReadingState): Promise<void> =>
 export const persistNoteRecord = async (note: BookNoteRecord): Promise<void> => {
   await activeStorage?.storage.notes.upsert(note);
   if (activeStorage && syncClock) {
-    await stampRecordClock(activeStorage.clocks, syncClock, `note:${note.id}`);
+    await stampFieldClocks(activeStorage.clocks, syncClock, `note:${note.id}`, NOTE_SYNC_FIELDS);
+    if (note.deletedAt !== null) {
+      await stampRecordClock(activeStorage.clocks, syncClock, `note:${note.id}:deleted`);
+    }
   }
   await activeStorage?.flush();
   schedulePersist();

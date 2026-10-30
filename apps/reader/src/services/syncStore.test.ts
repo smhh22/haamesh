@@ -38,12 +38,28 @@ interface FakeRepos {
 }
 
 const createFakeStorage = (repos: FakeRepos, clockMap: Map<string, string>): ActiveStorage => {
+  const fieldClockMap = new Map<string, string>();
   const clockRepo: SyncClockRepository = {
     async list() {
       return Object.fromEntries(clockMap);
     },
     async set(entries) {
       for (const [key, hlc] of entries) clockMap.set(key, hlc);
+    },
+    async listFields() {
+      const out: Record<string, Record<string, string>> = {};
+      for (const [compound, hlc] of fieldClockMap) {
+        const separator = compound.indexOf('\u0000');
+        const key = compound.slice(0, separator);
+        const field = compound.slice(separator + 1);
+        const bucket = out[key] ?? {};
+        bucket[field] = hlc;
+        out[key] = bucket;
+      }
+      return out;
+    },
+    async setFields(entries) {
+      for (const [key, field, hlc] of entries) fieldClockMap.set(`${key}\u0000${field}`, hlc);
     },
   };
   return {

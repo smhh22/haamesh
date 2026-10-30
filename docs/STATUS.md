@@ -1,6 +1,6 @@
 # Project status
 
-Last updated: 2026-10-30, 03:30 (overnight autonomous session — read with `AGENTS.md`).
+Last updated: 2026-10-30, 10:50 (morning review with user — read with `AGENTS.md`).
 
 ## Where the project is
 
@@ -62,9 +62,11 @@ Last updated: 2026-10-30, 03:30 (overnight autonomous session — read with `AGE
   password, Test connection, Sync now; en+fa). Orchestration in
   `services/syncService.ts`. Device id persisted per install (`device-id`).
 - **Night decisions to review**:
-  - Per-RECORD LWW v1 (record-level clock stamps) instead of per-field:
-    simpler migration; per-field can come later without wire-format change
-    (envelopes are already per-field, stamps are just equal per record).
+  - ~~Per-RECORD LWW v1~~ **SUPERSEDED during morning review**: the user
+    chose per-field LWW now. Implemented as ADR-0011: storage v4
+    `sync_field_clocks`, writes stamp only the fields they touch, pull stamps
+    only arriving fields. New simulation proves concurrent edits to different
+    fields of one book both survive.
   - WebDAV as first real provider (universal, self-hostable, sanction-safe);
     local-folder provider ALSO implemented over a minimal FolderFs surface
     (`providers/localFolder.ts`, conformance-tested) — needs the DialogPort

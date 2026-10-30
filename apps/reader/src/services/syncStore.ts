@@ -21,6 +21,16 @@ export const stampRecordClock = async (
   await clocks.set([[key, clockFor(clock)]]);
 };
 
+/** ADR-0011: stamp exactly the fields a local write touches. */
+export const stampFieldClocks = async (
+  clocks: ActiveStorage['clocks'],
+  clock: HybridLogicalClock,
+  key: string,
+  fields: readonly string[],
+): Promise<void> => {
+  await clocks.setFields(fields.map((field) => [key, field, clockFor(clock)] as const));
+};
+
 const isLocator = (value: unknown): value is Locator =>
   typeof value === 'object' && value !== null && 'kind' in value;
 
@@ -189,11 +199,15 @@ export const createSqlSyncStore = (
     },
 
     async clocks() {
-      return clocks.list();
+      return { records: await clocks.list(), fields: await clocks.listFields() };
     },
 
     async setClocks(entries) {
       await clocks.set([...entries]);
+    },
+
+    async setFieldClocks(entries) {
+      await clocks.setFields([...entries]);
     },
 
     async bookFile(sha256) {

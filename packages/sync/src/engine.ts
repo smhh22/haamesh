@@ -4,7 +4,7 @@
  * write the merged index back as the commit point. Provider-agnostic: it
  * only sees StorageProvider and the SyncStore port implemented by the app.
  */
-import { compareHlc, formatHlc, type HybridLogicalClock } from '@hamesh/core';
+import { formatHlc, type HybridLogicalClock } from '@hamesh/core';
 import type { Envelope } from './envelope';
 import type { IndexDoc, RecordDoc } from './indexDoc';
 import {
@@ -34,20 +34,29 @@ export interface SyncRecord {
   updatedAt: number;
 }
 
+/** Local clock state: record-level (legacy, bootstrap, tombstones) and per-field (ADR-0011). */
+export interface SyncClocks {
+  /** `${kind}:${id}` -> packed HLC; `:deleted` suffix marks tombstones. */
+  records: Record<string, string>;
+  /** `${kind}:${id}` -> doc field name -> packed HLC. */
+  fields: Record<string, Record<string, string>>;
+}
+
 /**
  * The app-side store seen by the engine. Field writes from `apply` must be
  * merged into existing local records (only the given fields change).
  *
- * Clock contract: the app stamps `${kind}:${id}` with `clock.now()` on every
- * LOCAL write; the engine stamps it with the pulled timestamp on every REMOTE
- * apply. A record with no clock entry bootstraps from its `updatedAt`.
+ * Clock contract: the app stamps the FIELDS a local write touches with
+ * `clock.now()` (ADR-0011) and the `:deleted` record key on removal; the
+ * engine stamps arriving fields with the remote timestamps. Missing clocks
+ * fall back to the record clock and then to the record's `updatedAt`.
  */
 export interface SyncStore {
   list(): Promise<SyncRecord[]>;
   apply(record: SyncRecord): Promise<void>;
-  /** Persisted per-record clocks, keyed `${kind}:${id}`; `:deleted` marks tombstones. */
-  clocks(): Promise<Record<string, string>>;
+  clocks(): Promise<SyncClocks>;
   setClocks(entries: Array<readonly [string, string]>): Promise<void>;
+  setFieldClocks(entries: Array<readonly [string, string, string]>): Promise<void>;
   bookFile(sha256: string): Promise<{ ext: string; data: Uint8Array } | null>;
   saveBookFile(sha256: string, ext: string, data: Uint8Array): Promise<void>;
 }
@@ -90,7 +99,7 @@ export const legacyTimestamp = (record: SyncRecord, deviceId: string): string =>
 
 export const buildLocalDoc = (
   records: SyncRecord[],
-  clocks: Record<string, string>,
+  clocks: SyncClocks,
   deviceId: string,
 ): IndexDoc => {
   const doc = emptyIndexDoc();
@@ -101,34 +110,35 @@ export const buildLocalDoc = (
     doc.books[id] = fresh;
     return fresh;
   };
+  /** ADR-0011 resolution: field clock -> record clock -> legacy updatedAt. */
+  const stampFor = (record: SyncRecord, docField: string): string =>
+    clocks.fields[recordKey(record)]?.[docField] ??
+    clocks.records[recordKey(record)] ??
+    legacyTimestamp(record, deviceId);
+
   for (const record of records) {
-    const base = clocks[recordKey(record)] ?? legacyTimestamp(record, deviceId);
     if (record.kind === 'reading') {
       const book = ensureBook(record.id);
       for (const [field, value] of Object.entries(record.fields)) {
-        book.fields[`${READING_PREFIX}${field}`] = { v: value, t: base };
+        const docField = `${READING_PREFIX}${field}`;
+        book.fields[docField] = { v: value, t: stampFor(record, docField) };
       }
       continue;
     }
     const target = record.kind === 'note' ? doc.notes : doc.books;
     const fields: Record<string, Envelope> = {};
     for (const [field, value] of Object.entries(record.fields)) {
-      fields[field] = { v: value, t: base };
+      fields[field] = { v: value, t: stampFor(record, field) };
     }
+    const recordClock = clocks.records[recordKey(record)] ?? legacyTimestamp(record, deviceId);
     target[record.id] = {
       fields,
-      deletedAt: record.deleted ? { v: base, t: clocks[deletedKey(record)] ?? base } : null,
+      deletedAt: record.deleted
+        ? { v: recordClock, t: clocks.records[deletedKey(record)] ?? recordClock }
+        : null,
     };
   }
   return doc;
-};
-
-const maxTimestamp = (doc: RecordDoc): string | null => {
-  let max: string | null = doc.deletedAt?.t ?? null;
-  for (const envelope of Object.values(doc.fields)) {
-    if (!max || compareHlc(envelope.t, max) > 0) max = envelope.t;
-  }
-  return max;
 };
 
 /** Split a pulled book entry into plain fields and `reading.*` fields. */
@@ -174,7 +184,19 @@ export const createSyncEngine = (options: SyncOptions) => {
       // 1. Pull remote-wins fields into the local store.
       const pullBooks = diffPull(localDoc.books, remote.books);
       const pullNotes = diffPull(localDoc.notes, remote.notes);
-      const clockEntries: Array<readonly [string, string]> = [];
+      const fieldClockEntries: Array<readonly [string, string, string]> = [];
+      const recordClockEntries: Array<readonly [string, string]> = [];
+      /** Stamp exactly the fields that arrived, with their remote timestamps. */
+      const stampPulled = (kind: string, id: string, entry: RecordDoc): void => {
+        for (const [field, envelope] of Object.entries(entry.fields)) {
+          clock.observe(envelope.t);
+          fieldClockEntries.push([`${kind}:${id}`, field, envelope.t] as const);
+        }
+        if (entry.deletedAt) {
+          clock.observe(entry.deletedAt.t);
+          recordClockEntries.push([`${kind}:${id}:deleted`, entry.deletedAt.t] as const);
+        }
+      };
       for (const [id, entry] of Object.entries(pullBooks)) {
         const { book, reading } = splitBookFields(entry.fields);
         if (Object.keys(book).length > 0) {
@@ -191,11 +213,7 @@ export const createSyncEngine = (options: SyncOptions) => {
           await store.apply({ id, kind: 'reading', fields: reading, deleted: false, updatedAt: 0 });
           report.pulledRecords += 1;
         }
-        const stamp = maxTimestamp(entry);
-        if (stamp) {
-          clock.observe(stamp);
-          clockEntries.push([`book:${id}`, stamp] as const);
-        }
+        stampPulled('book', id, entry);
       }
       for (const [id, entry] of Object.entries(pullNotes)) {
         if (Object.keys(entry.fields).length > 0 || entry.deletedAt) {
@@ -207,14 +225,11 @@ export const createSyncEngine = (options: SyncOptions) => {
             updatedAt: 0,
           });
           report.pulledRecords += 1;
-          const stamp = maxTimestamp(entry);
-          if (stamp) {
-            clock.observe(stamp);
-            clockEntries.push([`note:${id}`, stamp] as const);
-          }
+          stampPulled('note', id, entry);
         }
       }
-      if (clockEntries.length > 0) await store.setClocks(clockEntries);
+      if (fieldClockEntries.length > 0) await store.setFieldClocks(fieldClockEntries);
+      if (recordClockEntries.length > 0) await store.setClocks(recordClockEntries);
 
       // 2. Transfer content-addressed blobs against the merged state.
       const merged = mergeIndexDoc(localDoc, remote);

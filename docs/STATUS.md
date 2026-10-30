@@ -1,6 +1,6 @@
 # Project status
 
-Last updated: 2026-10-30, 12:00 (morning review complete — read with `AGENTS.md`).
+Last updated: 2026-10-30, 12:35 (v0.1.0 released; CI green — read with `AGENTS.md`).
 
 ## Where the project is
 
@@ -146,8 +146,10 @@ Last updated: 2026-10-30, 12:00 (morning review complete — read with `AGENTS.m
 
 ## Remaining work (suggested order)
 
-1. Connect GitHub (user) → CI goes green; push a `v0.0.1` tag to smoke the
-   release workflow.
+1. ~~Connect GitHub / push a tag~~ DONE: repo `smhh22/haamesh` (private until
+   the user smoke-tests v0.1.0), tag `v0.1.0` → draft release with Linux
+   deb/rpm/AppImage + Windows setup.exe/MSI; CI green after pinning the dev
+   server to 127.0.0.1 (CI runners resolved localhost to ::1).
 2. Sync: auto-sync on app open/pagehide DONE (`94c5cf1`); remaining:
    local-folder provider (Syncthing story), keychain credentials, real
    WebDAV server test (user said they may provide one), S3/SFTP providers.

@@ -328,6 +328,52 @@ fn keychain_delete(key: String) -> Result<(), String> {
     }
 }
 
+/// Which package kind is running: AppImage, deb/rpm, or unknown.
+#[tauri::command]
+fn install_kind() -> String {
+    if std::env::var_os("APPIMAGE").is_some() {
+        return "appimage".into();
+    }
+    if Path::new("/usr/bin/hamesh").exists() {
+        return "deb".into();
+    }
+    "unknown".into()
+}
+
+/// Download a .deb from our own GitHub release and install it via
+/// `pkexec apt-get install`, which resolves dependencies and asks for the
+/// admin password in a system dialog. The caller relaunches afterwards.
+#[tauri::command]
+async fn install_deb_update(url: String, version: String) -> Result<(), String> {
+    const PREFIX: &str = "https://github.com/smhh22/haamesh/releases/download/";
+    if !url.starts_with(PREFIX) {
+        return Err("unexpected update URL".into());
+    }
+    let dir = std::env::temp_dir().join("hamesh-update");
+    fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    let file = dir.join(format!("hamesh_{version}_amd64.deb"));
+
+    let response = reqwest::get(&url).await.map_err(|error| error.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("download failed: HTTP {}", response.status()));
+    }
+    let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+    fs::write(&file, &bytes).map_err(|error| error.to_string())?;
+
+    let status = std::process::Command::new("pkexec")
+        .args(["apt-get", "install", "-y", "--allow-downgrades"])
+        .arg(&file)
+        .status()
+        .map_err(|error| format!("pkexec unavailable: {error}"))?;
+    if !status.success() {
+        return Err(format!(
+            "installer exited with {status}; install manually: sudo apt install {}",
+            file.display()
+        ));
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -353,7 +399,9 @@ pub fn run() {
             sync_fs_list,
             keychain_set,
             keychain_get,
-            keychain_delete
+            keychain_delete,
+            install_kind,
+            install_deb_update
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;

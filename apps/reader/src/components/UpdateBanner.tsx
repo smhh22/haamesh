@@ -27,10 +27,7 @@ export const UpdateBanner = () => {
 
   return (
     <div className="update-banner" role="status">
-      <span>
-        {t('update.available', { version: update.version })}
-        {!supportsInAppUpdate() ? ` — ${t('update.downloadManually')}` : ''}
-      </span>
+      <span>{t('update.available', { version: update.version })}</span>
       {supportsInAppUpdate() ? (
         <button
           type="button"
@@ -39,7 +36,7 @@ export const UpdateBanner = () => {
           onClick={() => {
             setBusy(true);
             setError('');
-            void installUpdate().catch((cause: unknown) => {
+            void installUpdate(update.version).catch((cause: unknown) => {
               setBusy(false);
               setError(cause instanceof Error ? cause.message : String(cause));
             });

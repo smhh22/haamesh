@@ -124,7 +124,6 @@
     "available": "Hāmesh {{version}} is available.",
     "install": "Install & restart",
     "installing": "Installing…",
-    "later": "Later",
-    "downloadManually": "download it from the releases page"
+    "later": "Later"
   }
 }

@@ -5,6 +5,7 @@
 
 import type { StorageProvider, SyncReport } from '@hamesh/sync';
 import { createLocalFolderProvider, createSyncEngine, createWebDavProvider } from '@hamesh/sync';
+import { extractMissingBookTexts } from './bookTexts';
 import { createDataStore, isTauriRuntime } from './dataStore';
 import { keychainDelete, keychainGet, keychainSet } from './keychain';
 import { getActiveStorage, getSyncClock } from './libraryPersistence';
@@ -211,5 +212,10 @@ export const runSync = async (config: SyncConfig): Promise<SyncReport> => {
     STATUS_KEY,
     JSON.stringify({ lastSyncAt: Date.now(), lastReport: report } satisfies SyncStatus),
   );
+  // Books that arrived via sync have no extracted text yet; reconcile so
+  // library content search covers them without a re-import.
+  if (report.providers.some((item) => item.downloadedBlobs > 0)) {
+    await extractMissingBookTexts();
+  }
   return report;
 };

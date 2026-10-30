@@ -67,6 +67,7 @@ const createFakeStorage = (repos: FakeRepos, clockMap: Map<string, string>): Act
       texts: {
         replace: async () => undefined,
         remove: async () => undefined,
+        has: async () => false,
         search: async () => [],
       },
       books: {

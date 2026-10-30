@@ -38,10 +38,7 @@
     ],
     "fileAssociations": [
       {
-        "ext": [
-          "epub",
-          "pdf"
-        ],
+        "ext": ["epub", "pdf"],
         "name": "Book",
         "description": "EPUB or PDF book",
         "role": "Viewer",

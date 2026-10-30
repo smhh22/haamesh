@@ -793,3 +793,22 @@ blockquote.note-text {
   border-radius: 10px;
   background: color-mix(in srgb, var(--hamesh-color-accent) 8%, transparent);
 }
+
+.sync-provider-card {
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: 10px;
+  padding: var(--hamesh-space-2) var(--hamesh-space-2) 0;
+  margin-block-end: var(--hamesh-space-2);
+}
+
+.sync-enabled {
+  display: flex;
+  align-items: center;
+  gap: var(--hamesh-space-1);
+  font-weight: 600;
+}
+
+.sync-add {
+  justify-content: flex-start;
+  gap: var(--hamesh-space-2);
+}

@@ -453,6 +453,8 @@ test('applies the book direction when documents omit dir', async ({ page }) => {
   await page.keyboard.press('ArrowLeft');
   await expect.poll(async () => progress.textContent()).not.toBe(initial);
   const advanced = await progress.textContent();
+  // The paginator holds a turn lock during the animation; wait it out.
+  await page.waitForTimeout(700);
   await page.keyboard.press('ArrowRight');
   await expect.poll(async () => progress.textContent()).toBe(initial ?? '');
   void advanced;
@@ -469,6 +471,32 @@ test('escape closes panels, then returns to the library', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(page.getByRole('heading', { name: 'Hāmesh' })).toBeVisible();
   await expect(page.locator('.reader-shell')).toHaveCount(0);
+});
+
+test('opens the shortcut map with ? and focuses search with /', async ({ page }) => {
+  await page.goto('/');
+  // The app mounts after the async storage bootstrap; register shortcuts only then.
+  await expect(page.getByRole('heading', { name: 'Hāmesh' })).toBeVisible();
+  await page.keyboard.press('/');
+  await expect(page.getByPlaceholder('Search title, author, or series')).toBeFocused();
+
+  await page.getByRole('heading', { level: 1 }).click();
+  await page.keyboard.press('?');
+  await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('turns pages with Space in the reader', async ({ page }) => {
+  await openReader(page);
+  const progress = page.locator('.reader-progress');
+  const initial = await progress.textContent();
+  await page.keyboard.press('Space');
+  await expect.poll(async () => progress.textContent()).not.toBe(initial);
+  // Let the page-turn lock release before reversing.
+  await page.waitForTimeout(700);
+  await page.keyboard.press('Shift+Space');
+  await expect.poll(async () => progress.textContent()).toBe(initial ?? '');
 });
 
 test('hides zoom controls for EPUB but keeps them for PDF', async ({ page }) => {

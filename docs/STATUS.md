@@ -1,6 +1,6 @@
 # Project status
 
-Last updated: 2026-10-30, 11:05 (morning review with user — read with `AGENTS.md`).
+Last updated: 2026-10-30, 11:40 (morning review with user — read with `AGENTS.md`).
 
 ## Where the project is
 
@@ -82,8 +82,14 @@ Last updated: 2026-10-30, 11:05 (morning review with user — read with `AGENTS.
     instead of FTS5: portable across rusqlite/sql.js and normalization-exact.
     Gap: books downloaded by SYNC lack texts until re-imported — wire
     storeBookTexts into the sync download path later.
-  - Sync credentials in **localStorage** for now — MUST move to the OS
-    keychain (KeychainPort) before shipping; flagged in the UI comment.
+  - ~~Sync credentials in localStorage~~ **FIXED during morning review**:
+    desktop stores the WebDAV password in the OS secret store (`keyring`
+    crate v4: Secret Service/KWallet, Credential Manager, Keychain) via
+    `keychain_set/get/delete`; a one-way startup migration moves any
+    plaintext password out of localStorage. Web keeps a localStorage
+    fallback with a visible "saved in your system keychain" caveat in the UI.
+  - Periodic auto-sync every 5 minutes while visible (overlap-guarded) added
+    on top of open/page-hide/manual, per user decision.
   - Tombstoned books keep blobs remotely (no remote deletion in v1).
   - No automatic/periodic sync yet: manual "Sync now" only (ADR-0006 says
     convergence on open/close/manual — wire open/close triggers next).

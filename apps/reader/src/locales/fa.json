@@ -117,6 +117,7 @@
     "providerLocalFolder": "پوشه محلی",
     "folder": "پوشه همگام‌سازی",
     "chooseFolder": "انتخاب پوشه…",
-    "noFolder": "پوشه‌ای انتخاب نشده"
+    "noFolder": "پوشه‌ای انتخاب نشده",
+    "passwordSaved": "در کلیدزنجیر سیستم ذخیره شده است"
   }
 }

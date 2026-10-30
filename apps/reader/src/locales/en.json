@@ -117,6 +117,7 @@
     "providerLocalFolder": "Local folder",
     "folder": "Sync folder",
     "chooseFolder": "Choose folder…",
-    "noFolder": "No folder chosen"
+    "noFolder": "No folder chosen",
+    "passwordSaved": "Saved in your system keychain"
   }
 }

@@ -112,9 +112,17 @@ fn initial_book_path() -> Option<String> {
 
 #[tauri::command]
 fn read_external_file(path: String) -> Result<Vec<u8>, String> {
+    const MAX_BOOK_BYTES: u64 = 512 * 1024 * 1024;
     let lower = path.to_lowercase();
     if !lower.ends_with(".epub") && !lower.ends_with(".pdf") {
         return Err("only epub and pdf files are supported".into());
+    }
+    let metadata = fs::metadata(&path).map_err(|error| error.to_string())?;
+    if !metadata.is_file() {
+        return Err("not a file".into());
+    }
+    if metadata.len() > MAX_BOOK_BYTES {
+        return Err("file is too large".into());
     }
     fs::read(path).map_err(|error| error.to_string())
 }
@@ -190,8 +198,9 @@ fn db_select(
     Ok(output)
 }
 
-/// Resolve a sync path below the stored root. Same discipline as
-/// `resolve_data_path`: absolute paths and non-normal components are rejected.
+/// Resolve a sync path below the stored root. Absolute paths and non-normal
+/// components are rejected, and existing path components must not be symlinks,
+/// so a link inside the sync folder cannot redirect reads or writes elsewhere.
 fn resolve_sync_path(root_state: &SyncRootState, relative: &str) -> Result<PathBuf, String> {
     let root = root_state
         .0
@@ -200,14 +209,22 @@ fn resolve_sync_path(root_state: &SyncRootState, relative: &str) -> Result<PathB
         .clone()
         .ok_or_else(|| "no sync folder selected".to_string())?;
     let relative_path = Path::new(relative);
-    if relative_path.is_absolute()
-        || relative_path
-            .components()
-            .any(|component| !matches!(component, Component::Normal(_)))
-    {
-        return Err("invalid sync path".into());
+    let mut resolved = root;
+    for component in relative_path.components() {
+        let Component::Normal(name) = component else {
+            return Err("invalid sync path".into());
+        };
+        resolved.push(name);
+        match fs::symlink_metadata(&resolved) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err("sync path must not contain symlinks".into());
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.to_string()),
+        }
     }
-    Ok(root.join(relative_path))
+    Ok(resolved)
 }
 
 #[tauri::command]
@@ -346,14 +363,25 @@ fn install_kind() -> String {
 #[tauri::command]
 async fn install_deb_update(url: String, version: String) -> Result<(), String> {
     const PREFIX: &str = "https://github.com/smhh22/haamesh/releases/download/";
-    if !url.starts_with(PREFIX) {
+    if version.is_empty()
+        || version.len() > 32
+        || !version.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '+' | '_')
+        })
+    {
+        return Err("invalid version".into());
+    }
+    let expected = format!("/v{version}/Hamesh_{version}_amd64.deb");
+    if !url.starts_with(PREFIX) || !url.ends_with(&expected) {
         return Err("unexpected update URL".into());
     }
     let dir = std::env::temp_dir().join("hamesh-update");
     fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
     let file = dir.join(format!("hamesh_{version}_amd64.deb"));
 
-    let response = reqwest::get(&url).await.map_err(|error| error.to_string())?;
+    let response = reqwest::get(&url)
+        .await
+        .map_err(|error| error.to_string())?;
     if !response.status().is_success() {
         return Err(format!("download failed: HTTP {}", response.status()));
     }
@@ -398,7 +426,8 @@ async fn http_request(
     }
     let mut builder = reqwest::Client::builder();
     if let Some(proxy_url) = proxy.filter(|value| !value.is_empty()) {
-        builder = builder.proxy(reqwest::Proxy::all(&proxy_url).map_err(|error| error.to_string())?);
+        builder =
+            builder.proxy(reqwest::Proxy::all(&proxy_url).map_err(|error| error.to_string())?);
     }
     let client = builder.build().map_err(|error| error.to_string())?;
 

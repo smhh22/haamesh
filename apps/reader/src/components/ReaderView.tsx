@@ -1,5 +1,5 @@
 import type { Locator, TocItem } from '@hamesh/core';
-import { pageTurnForKey, sanitizeEpubHtml } from '@hamesh/engine';
+import { isSanitizableMediaType, pageTurnForKey, sanitizeEpubHtml } from '@hamesh/engine';
 import type { BookNoteRecord, BookRecord } from '@hamesh/storage';
 import { Overlayer } from 'foliate-js/overlayer.js';
 import { type FoliateBook, makeBook } from 'foliate-js/view.js';
@@ -315,7 +315,10 @@ export const ReaderView = ({
     const onData = (event: Event) => {
       const detail = (event as CustomEvent<{ data: string | Promise<string>; type: string }>)
         .detail;
-      if (detail.type === 'application/xhtml+xml' || detail.type === 'text/html') {
+      // Normalize media types: spine items may carry parameters or differ in
+      // case, and SVG documents can run script too. Every such document must
+      // pass through the sanitizer.
+      if (isSanitizableMediaType(detail.type)) {
         detail.data = Promise.resolve(detail.data).then(sanitizeEpubHtml);
       }
     };

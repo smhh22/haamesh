@@ -26,6 +26,14 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 const joinUrl = (base: string, path: string): string =>
   `${base.replace(/\/$/, '')}/${path.split('/').filter(Boolean).map(encodeURIComponent).join('/')}`;
 
+/** UTF-8 safe Basic auth: btoa throws on non-Latin credentials. */
+const basicAuth = (username: string, password: string): string => {
+  const bytes = new TextEncoder().encode(`${username}:${password}`);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return `Basic ${btoa(binary)}`;
+};
+
 export const createWebDavProvider = (
   config: WebDavConfig,
   fetchImpl: FetchLike = (input, init) => fetch(input, init),
@@ -54,7 +62,7 @@ export const createWebDavProvider = (
   };
   const authHeader =
     config.username !== undefined || config.password !== undefined
-      ? `Basic ${btoa(`${config.username ?? ''}:${config.password ?? ''}`)}`
+      ? basicAuth(config.username ?? '', config.password ?? '')
       : null;
 
   const request = async (

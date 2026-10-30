@@ -172,6 +172,26 @@ export const loadSyncConfig = (): SyncConfig => {
  * there is no OS keychain, so the fallback keeps them in localStorage
  * (documented caveat in the sync settings).
  */
+/**
+ * Keychain writes are serialized so rapid edits cannot interleave and store a
+ * partial password out of order.
+ */
+let secretQueue: Promise<void> = Promise.resolve();
+const queueSecret = (operation: () => Promise<void>): void => {
+  secretQueue = secretQueue.then(operation, operation);
+};
+
+/** Forget every stored secret belonging to a removed provider. */
+export const removeProviderSecrets = (providerId: string): void => {
+  if (!isTauriRuntime()) return;
+  queueSecret(async () => {
+    await keychainDelete(passwordKey(providerId));
+    await keychainDelete(secretKey(providerId));
+    await keychainDelete(appSecretKey(providerId));
+    await keychainDelete(refreshTokenKey(providerId));
+  });
+};
+
 export const saveSyncConfig = (config: SyncConfig): void => {
   if (!isTauriRuntime()) {
     localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
@@ -181,14 +201,14 @@ export const saveSyncConfig = (config: SyncConfig): void => {
     providers: config.providers.map((provider) => {
       if (provider.kind === 'dropbox') {
         if (provider.appSecret) {
-          void keychainSet(appSecretKey(provider.id), provider.appSecret);
+          queueSecret(() => keychainSet(appSecretKey(provider.id), provider.appSecret));
         } else if (!provider.hasAppSecret) {
-          void keychainDelete(appSecretKey(provider.id));
+          queueSecret(() => keychainDelete(appSecretKey(provider.id)));
         }
         if (provider.refreshToken) {
-          void keychainSet(refreshTokenKey(provider.id), provider.refreshToken);
+          queueSecret(() => keychainSet(refreshTokenKey(provider.id), provider.refreshToken));
         } else if (!provider.hasRefreshToken) {
-          void keychainDelete(refreshTokenKey(provider.id));
+          queueSecret(() => keychainDelete(refreshTokenKey(provider.id)));
         }
         return {
           ...provider,
@@ -200,9 +220,9 @@ export const saveSyncConfig = (config: SyncConfig): void => {
       }
       if (provider.kind === 's3') {
         if (provider.secretAccessKey) {
-          void keychainSet(secretKey(provider.id), provider.secretAccessKey);
+          queueSecret(() => keychainSet(secretKey(provider.id), provider.secretAccessKey));
         } else if (!provider.hasSecretKey) {
-          void keychainDelete(secretKey(provider.id));
+          queueSecret(() => keychainDelete(secretKey(provider.id)));
         }
         return {
           ...provider,
@@ -211,9 +231,9 @@ export const saveSyncConfig = (config: SyncConfig): void => {
         };
       }
       if (provider.password) {
-        void keychainSet(passwordKey(provider.id), provider.password);
+        queueSecret(() => keychainSet(passwordKey(provider.id), provider.password));
       } else if (!provider.hasPassword) {
-        void keychainDelete(passwordKey(provider.id));
+        queueSecret(() => keychainDelete(passwordKey(provider.id)));
       }
       return {
         ...provider,

@@ -140,6 +140,9 @@ export const persistBook = async (
 
   await activeStorage?.storage.books.upsert(book);
   if (activeStorage && syncClock) {
+    // Re-importing a previously deleted file revives it locally: drop the
+    // record-level tombstone so the next sync does not delete it again.
+    await activeStorage.clocks.remove([`book:${book.id}:deleted`]);
     await stampFieldClocks(activeStorage.clocks, syncClock, `book:${book.id}`, BOOK_SYNC_FIELDS);
   }
   await activeStorage?.flush();
@@ -171,6 +174,18 @@ export const deletePersistedBook = async (book: BookRecord): Promise<void> => {
   if (store) {
     await store.remove(bookPath(book.hash, book.format));
     await store.remove(coverPath(book.hash));
+  }
+  // Tombstone the book's notes before the cascade removes their rows, so a
+  // later pull cannot resurrect them as orphans (ADR-0006 remove-wins).
+  if (activeStorage && syncClock) {
+    const notes = (await activeStorage.storage.notes.listAll()).filter(
+      (note) => note.bookId === book.id && note.deletedAt === null,
+    );
+    for (const note of notes) {
+      await activeStorage.storage.notes.upsert({ ...note, deletedAt: Date.now() });
+      await stampFieldClocks(activeStorage.clocks, syncClock, `note:${note.id}`, NOTE_SYNC_FIELDS);
+      await stampRecordClock(activeStorage.clocks, syncClock, `note:${note.id}:deleted`);
+    }
   }
   await activeStorage?.storage.books.remove(book.id);
   if (activeStorage && syncClock) {

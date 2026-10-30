@@ -102,10 +102,16 @@ export const migrate = async (db: SqlDatabase): Promise<void> => {
     await db.exec(SYNC_FIELD_CLOCKS_TABLE);
     await db.exec('PRAGMA user_version = 4');
   }
-  // v5 adds user categories and tags (ADR-0012).
+  // v5 adds user categories and tags (ADR-0012). Check the columns first so a
+  // crash between the ALTERs cannot wedge the next start; the whole step is
+  // idempotent.
   if (version < 5) {
-    await db.exec('ALTER TABLE books ADD COLUMN category TEXT');
-    await db.exec("ALTER TABLE books ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'");
+    const columns = await db.all<{ name: string }>('PRAGMA table_info(books)');
+    const names = new Set(columns.map((column) => column.name));
+    if (!names.has('category')) await db.exec('ALTER TABLE books ADD COLUMN category TEXT');
+    if (!names.has('tags_json')) {
+      await db.exec("ALTER TABLE books ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'");
+    }
     await db.exec('PRAGMA user_version = 5');
   }
 };
@@ -207,8 +213,8 @@ const createBookRepository = (db: SqlDatabase): BookRepository => ({
         book.series,
         JSON.stringify(book.identifiers),
         book.direction,
-        book.category,
-        JSON.stringify(book.tags),
+        book.category ?? null,
+        JSON.stringify(book.tags ?? []),
         book.filePath,
         book.coverMime ?? null,
         book.addedAt,
@@ -409,6 +415,8 @@ export interface SyncClockRepository {
   /** Per-field clocks (ADR-0011): record key -> field -> packed HLC. */
   listFields(): Promise<Record<string, Record<string, string>>>;
   setFields(entries: Array<readonly [string, string, string]>): Promise<void>;
+  /** Drop record-level clocks (used to clear a tombstone on re-import). */
+  remove(keys: string[]): Promise<void>;
 }
 
 export const createSyncClockRepository = (db: SqlDatabase): SyncClockRepository => ({
@@ -442,6 +450,11 @@ export const createSyncClockRepository = (db: SqlDatabase): SyncClockRepository 
         'INSERT INTO sync_field_clocks (record_key, field, hlc) VALUES (?, ?, ?) ON CONFLICT(record_key, field) DO UPDATE SET hlc = excluded.hlc',
         [key, field, hlc],
       );
+    }
+  },
+  async remove(keys) {
+    for (const key of keys) {
+      await db.run('DELETE FROM sync_clocks WHERE key = ?', [key]);
     }
   },
 });

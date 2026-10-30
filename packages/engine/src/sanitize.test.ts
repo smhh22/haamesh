@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeEpubHtml } from './sanitize';
+import { isSanitizableMediaType, sanitizeEpubHtml } from './sanitize';
 
 describe('sanitizeEpubHtml', () => {
   it('removes scripts, event handlers, and javascript URLs', () => {
@@ -83,13 +83,51 @@ describe('sanitizeEpubHtml', () => {
 
   it('gives headless documents a valid head with the CSP', () => {
     const clean = sanitizeEpubHtml('<p>no head</p>');
-    expect(clean.startsWith('<head>')).toBe(true);
+    expect(clean).toContain('<head>');
     expect(clean).toContain('Content-Security-Policy');
+    expect(clean).toContain('<p>no head</p>');
   });
 
   it('still injects CSP for documents with html but no head', () => {
     const clean = sanitizeEpubHtml('<html><body>x</body></html>');
     expect(clean).toContain('<head>');
     expect(clean).toContain('Content-Security-Policy');
+  });
+});
+
+describe('sanitizeEpubHtml hardening', () => {
+  it('discards an author CSP and always installs the restrictive one', () => {
+    const html = `<html><head><meta http-equiv="Content-Security-Policy" content="default-src * data: blob: 'unsafe-inline'"/></head><body>text</body></html>`;
+    const clean = sanitizeEpubHtml(html);
+    expect(clean.match(/Content-Security-Policy/g)).toHaveLength(1);
+    expect(clean).toContain("default-src 'none'");
+    expect(clean).not.toContain('default-src *');
+  });
+
+  it('strips SVG scripts and namespaced handlers', () => {
+    const clean = sanitizeEpubHtml(
+      '<html><body><svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script><circle onmouseover="alert(3)"/></svg></body></html>',
+    );
+    expect(clean).not.toMatch(/<script/i);
+    expect(clean).not.toContain('onload');
+    expect(clean).not.toContain('onmouseover');
+  });
+
+  it('removes entity-obfuscated script URLs and srcdoc', () => {
+    const clean = sanitizeEpubHtml(
+      '<html><body><a href="java&#115;cript:alert(1)">x</a><iframe srcdoc="<script>alert(2)</script>"></iframe></body></html>',
+    );
+    expect(clean.toLowerCase()).not.toContain('javascript:');
+    expect(clean).not.toContain('srcdoc');
+  });
+});
+
+describe('isSanitizableMediaType', () => {
+  it('normalizes parameters and casing, including SVG', () => {
+    expect(isSanitizableMediaType('application/xhtml+xml; charset=utf-8')).toBe(true);
+    expect(isSanitizableMediaType('TEXT/HTML')).toBe(true);
+    expect(isSanitizableMediaType('image/svg+xml')).toBe(true);
+    expect(isSanitizableMediaType('text/css')).toBe(false);
+    expect(isSanitizableMediaType(null)).toBe(false);
   });
 });

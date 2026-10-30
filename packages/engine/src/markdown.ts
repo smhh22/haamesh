@@ -92,6 +92,9 @@ export const convertMarkdownToEpub = async (file: File): Promise<File> => {
   // the result is well-formed XML: void elements close, attributes escape,
   // and the XHTML namespace is explicit.
   const parsed = new DOMParser().parseFromString(sanitizeEpubHtml(html), 'text/html');
+  // The sanitizer's XML serialization carries an explicit xmlns; XMLSerializer
+  // re-adds the namespace, and keeping both produces a duplicate attribute.
+  parsed.documentElement.removeAttribute('xmlns');
   parsed.documentElement.setAttribute('dir', direction);
   parsed.title = title;
   const link = parsed.createElement('link');

@@ -1,7 +1,7 @@
-import { HybridLogicalClock } from '@hamesh/core';
+import { formatHlc, HybridLogicalClock } from '@hamesh/core';
 import { describe, expect, it } from 'vitest';
 import type { SyncRecord, SyncStore } from './engine';
-import { createSyncEngine } from './engine';
+import { buildLocalDoc, createSyncEngine } from './engine';
 import type { StorageProvider } from './provider';
 import { createMemoryProvider } from './providers/memory';
 
@@ -95,7 +95,15 @@ const blobs = new Map<string, Uint8Array>();
 const bookRecord = (id: string, title: string, updatedAt: number): SyncRecord => ({
   id,
   kind: 'book',
-  fields: { sha256: `sha-${id}`, ext: 'epub', title },
+  // Hash-shaped so the engine's remote path validation accepts it.
+  fields: {
+    sha256: id
+      .repeat(64)
+      .slice(0, 64)
+      .replace(/[^0-9a-f]/g, '0'),
+    ext: 'epub',
+    title,
+  },
   deleted: false,
   updatedAt,
 });
@@ -127,7 +135,9 @@ describe('sync engine', () => {
     expect(report.providers[0]?.pulledRecords).toBeGreaterThan(0);
     const pulled = storeB.records.get('book:1');
     expect(pulled?.fields.title).toBe('Persian Book');
-    expect(pulled?.fields.sha256).toBe('sha-1');
+    expect(pulled?.fields.sha256).toBe(
+      '1111111111111111111111111111111111111111111111111111111111111111',
+    );
   });
 
   it('converges concurrent title edits to one winner', async () => {
@@ -280,7 +290,10 @@ describe('sync engine', () => {
     const now = () => wall;
     const storeA = createMemoryStore('device-a', now);
     await storeA.localEdit(bookRecord('1', 'Book', 1000));
-    blobs.set('sha-1', new Uint8Array([1, 2, 3]));
+    blobs.set(
+      '1111111111111111111111111111111111111111111111111111111111111111',
+      new Uint8Array([1, 2, 3]),
+    );
     const storeB = createMemoryStore('device-b', now);
 
     await createSyncEngine({
@@ -289,7 +302,8 @@ describe('sync engine', () => {
       store: storeA,
       providers: [provider],
     }).sync();
-    expect(await provider.head('Hamesh/books/sha-1/book.epub')).not.toBeNull();
+    const expectedPath = `Hamesh/books/${'1'.repeat(64)}/book.epub`;
+    expect(await provider.head(expectedPath)).not.toBeNull();
 
     wall = 2000;
     await createSyncEngine({
@@ -298,7 +312,9 @@ describe('sync engine', () => {
       store: storeB,
       providers: [provider],
     }).sync();
-    const file = await storeB.bookFile('sha-1');
+    const file = await storeB.bookFile(
+      '1111111111111111111111111111111111111111111111111111111111111111',
+    );
     expect([...(file?.data ?? [])]).toEqual([1, 2, 3]);
   });
 
@@ -587,5 +603,33 @@ describe('sync engine', () => {
       [...store.records.values()].find((record) => record.kind === 'book' && record.id === '1');
     expect(book(storeA)?.deleted).toBe(true);
     expect(book(storeB)?.deleted).toBe(true);
+  });
+});
+
+describe('local document field clocks', () => {
+  it('reads reading-state field clocks from the book key, not the reading key', () => {
+    // Writers stamp reading fields under `book:<id>` (ADR-0011); if the
+    // builder looks under `reading:<id>` the HLC is ignored and wall-clock
+    // skew decides merge order.
+    const stamp = formatHlc({ physical: 5000, counter: 1, deviceId: 'device-a' });
+    const records: SyncRecord[] = [
+      {
+        id: 'b1',
+        kind: 'reading',
+        fields: { fraction: 0.5, status: 'reading', locator: null },
+        deleted: false,
+        updatedAt: 1000,
+      },
+    ];
+    const doc = buildLocalDoc(
+      records,
+      {
+        records: {},
+        fields: { 'book:b1': { 'reading.fraction': stamp, 'reading.status': stamp } },
+      },
+      'device-a',
+    );
+    expect(doc.books.b1?.fields['reading.fraction']?.t).toBe(stamp);
+    expect(doc.books.b1?.fields['reading.status']?.t).toBe(stamp);
   });
 });

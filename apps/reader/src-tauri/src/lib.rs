@@ -40,6 +40,11 @@ fn to_sql_value(value: &Value) -> rusqlite::types::Value {
 /// parent traversal, and prefixes are rejected so the frontend cannot escape
 /// its own storage subtree.
 fn resolve_data_path(app: &tauri::AppHandle, relative: &str) -> Result<PathBuf, String> {
+    // An empty path resolves to the data root itself; removing it would wipe
+    // the database, books, and covers.
+    if relative.trim().is_empty() {
+        return Err("invalid data path".into());
+    }
     let relative_path = Path::new(relative);
     if relative_path.is_absolute()
         || relative_path
@@ -77,6 +82,13 @@ fn data_write(app: tauri::AppHandle, relative: String, data: Vec<u8>) -> Result<
 #[tauri::command]
 fn data_remove(app: tauri::AppHandle, relative: String) -> Result<(), String> {
     let path = resolve_data_path(&app, &relative)?;
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    if path == base {
+        return Err("refusing to remove the data root".into());
+    }
     if path.is_dir() {
         fs::remove_dir_all(path).map_err(|error| error.to_string())
     } else if path.exists() {
@@ -202,6 +214,9 @@ fn db_select(
 /// components are rejected, and existing path components must not be symlinks,
 /// so a link inside the sync folder cannot redirect reads or writes elsewhere.
 fn resolve_sync_path(root_state: &SyncRootState, relative: &str) -> Result<PathBuf, String> {
+    if relative.trim().is_empty() {
+        return Err("invalid sync path".into());
+    }
     let root = root_state
         .0
         .lock()
@@ -227,17 +242,93 @@ fn resolve_sync_path(root_state: &SyncRootState, relative: &str) -> Result<PathB
     Ok(resolved)
 }
 
+const SYNC_ROOT_FILE: &str = "sync_root";
+
+/// Persist the chosen sync root next to the app's data so a restart can
+/// restore it without the webview ever supplying a path.
+fn persist_sync_root(app: &tauri::AppHandle, path: &Path) -> Result<(), String> {
+    let config = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
+    fs::create_dir_all(&config).map_err(|error| error.to_string())?;
+    fs::write(
+        config.join(SYNC_ROOT_FILE),
+        path.to_string_lossy().as_bytes(),
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn read_persisted_sync_root(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let config = app.path().app_config_dir().ok()?;
+    let raw = fs::read_to_string(config.join(SYNC_ROOT_FILE)).ok()?;
+    let path = PathBuf::from(raw.trim());
+    if path.is_dir() { Some(path) } else { None }
+}
+
+/// Pick the sync folder with the native dialog and set the root in Rust. The
+/// webview never supplies the path, so an injected script cannot widen the
+/// filesystem scope of the sync_fs_* commands.
 #[tauri::command]
-fn sync_set_root(state: tauri::State<'_, SyncRootState>, path: String) -> Result<String, String> {
-    let candidate = PathBuf::from(&path)
+async fn sync_pick_root(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SyncRootState>,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let picked = app.dialog().file().blocking_pick_folder();
+    let Some(file_path) = picked else {
+        return Ok(None);
+    };
+    let candidate = file_path
+        .into_path()
+        .map_err(|error| error.to_string())?
         .canonicalize()
         .map_err(|error| format!("cannot open folder: {error}"))?;
     if !candidate.is_dir() {
         return Err("not a directory".into());
     }
+    persist_sync_root(&app, &candidate)?;
     let display = candidate.to_string_lossy().into_owned();
     *state.0.lock().map_err(|error| error.to_string())? = Some(candidate);
-    Ok(display)
+    Ok(Some(display))
+}
+
+/// One-time migration: adopt the folder saved by an older build that stored
+/// its path in the webview config. Refuses once a root is persisted, and only
+/// accepts an existing directory that is not a filesystem root.
+#[tauri::command]
+fn sync_adopt_root(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SyncRootState>,
+    path: String,
+) -> Result<Option<String>, String> {
+    if read_persisted_sync_root(&app).is_some() {
+        return Err("a sync folder is already configured".into());
+    }
+    let candidate = PathBuf::from(path.trim())
+        .canonicalize()
+        .map_err(|error| format!("cannot open folder: {error}"))?;
+    if !candidate.is_dir() || candidate.parent().is_none() {
+        return Err("not a directory".into());
+    }
+    persist_sync_root(&app, &candidate)?;
+    let display = candidate.to_string_lossy().into_owned();
+    *state.0.lock().map_err(|error| error.to_string())? = Some(candidate);
+    Ok(Some(display))
+}
+
+/// Restore the previously picked sync root (path comes from disk, not IPC).
+#[tauri::command]
+fn sync_restore_root(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SyncRootState>,
+) -> Result<Option<String>, String> {
+    let Some(candidate) = read_persisted_sync_root(&app) else {
+        return Ok(None);
+    };
+    let display = candidate.to_string_lossy().into_owned();
+    *state.0.lock().map_err(|error| error.to_string())? = Some(candidate);
+    Ok(Some(display))
 }
 
 #[tauri::command]
@@ -287,6 +378,15 @@ fn sync_fs_exists(
 #[tauri::command]
 fn sync_fs_remove(state: tauri::State<'_, SyncRootState>, relative: String) -> Result<(), String> {
     let path = resolve_sync_path(&state, &relative)?;
+    let root = state
+        .0
+        .lock()
+        .map_err(|error| error.to_string())?
+        .clone()
+        .ok_or_else(|| "no sync folder selected".to_string())?;
+    if path == root {
+        return Err("refusing to remove the sync root".into());
+    }
     if path.is_dir() {
         fs::remove_dir_all(path).map_err(|error| error.to_string())
     } else if path.exists() {
@@ -383,8 +483,24 @@ async fn install_deb_update(url: String, version: String) -> Result<(), String> 
     if !url.starts_with(PREFIX) || !url.ends_with(&expected) {
         return Err("unexpected update URL".into());
     }
-    let dir = std::env::temp_dir().join("hamesh-update");
+    // A private, unpredictable temp dir: a predictable path under /tmp can be
+    // pre-created by another local user (symlink/TOCTOU).
+    let unique = format!(
+        "hamesh-update-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default()
+    );
+    let dir = std::env::temp_dir().join(unique);
     fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))
+            .map_err(|error| error.to_string())?;
+    }
     let file = dir.join(format!("hamesh_{version}_amd64.deb"));
 
     let response = reqwest::get(&url)
@@ -397,7 +513,7 @@ async fn install_deb_update(url: String, version: String) -> Result<(), String> 
     fs::write(&file, &bytes).map_err(|error| error.to_string())?;
 
     let status = std::process::Command::new("pkexec")
-        .args(["apt-get", "install", "-y", "--allow-downgrades"])
+        .args(["apt-get", "install", "-y"])
         .arg(&file)
         .status()
         .map_err(|error| format!("pkexec unavailable: {error}"))?;
@@ -432,7 +548,13 @@ async fn http_request(
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err("only http(s) URLs are supported".into());
     }
-    let mut builder = reqwest::Client::builder();
+    // Bounded total time, bounded redirects, and a hard response cap: this
+    // bridge handles book-sized payloads, so 1 GiB is generous while keeping
+    // a hostile or broken endpoint from hanging or exhausting memory.
+    const MAX_RESPONSE_BYTES: u64 = 1024 * 1024 * 1024;
+    let mut builder = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .redirect(reqwest::redirect::Policy::limited(5));
     if let Some(proxy_url) = proxy.filter(|value| !value.is_empty()) {
         builder =
             builder.proxy(reqwest::Proxy::all(&proxy_url).map_err(|error| error.to_string())?);
@@ -461,7 +583,13 @@ async fn http_request(
             )
         })
         .collect();
+    if response.content_length().unwrap_or(0) > MAX_RESPONSE_BYTES {
+        return Err("response too large".into());
+    }
     let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+    if bytes.len() as u64 > MAX_RESPONSE_BYTES {
+        return Err("response too large".into());
+    }
     Ok(HttpResult {
         status,
         headers: response_headers,
@@ -485,7 +613,9 @@ pub fn run() {
             db_execute,
             db_execute_batch,
             db_select,
-            sync_set_root,
+            sync_pick_root,
+            sync_restore_root,
+            sync_adopt_root,
             sync_root,
             sync_fs_read,
             sync_fs_write,

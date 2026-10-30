@@ -58,8 +58,11 @@ export const extractMissingBookTexts = async (): Promise<number> => {
       if (!bytes) continue;
       const copy = new Uint8Array(new ArrayBuffer(bytes.byteLength));
       copy.set(bytes);
-      const blob = new Blob([copy], { type: 'application/epub+zip' });
-      const { sections } = await extractEpubText(blob);
+      // foliate inspects file.name (isCBZ), so a real File is required.
+      const file = new File([copy], `${book.hash}.${book.format}`, {
+        type: 'application/epub+zip',
+      });
+      const { sections } = await extractEpubText(file);
       await storage.storage.texts.replace(book.id, sections);
       extracted += 1;
     }

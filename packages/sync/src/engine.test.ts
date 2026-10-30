@@ -354,6 +354,56 @@ describe('sync engine', () => {
     expect(note?.deleted).toBe(true);
   });
 
+  it('does not resurrect a locally deleted book from remote fields', async () => {
+    const provider = createMemoryProvider();
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    const storeB = createMemoryStore('device-b', now);
+
+    // Remote (B) still holds the live book with all fields.
+    await storeB.localEdit(bookRecord('1', 'Live Book', 1000));
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+
+    // A never saw the book, deletes nothing... simulate a local import-then-
+    // delete: A pulls nothing yet; delete means a tombstone record.
+    await storeA.localEdit({ id: '1', kind: 'book', fields: {}, deleted: true, updatedAt: 1200 });
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+
+    expect(storeA.records.get('book:1')?.deleted).toBe(true);
+    expect(storeA.records.get('book:1')?.fields.title).toBeUndefined();
+
+    // The tombstone must now reach B and delete the live record there.
+    wall = 3000;
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+    expect(storeB.records.get('book:1')?.deleted).toBe(true);
+
+    // And a second A round must not re-create anything.
+    wall = 4000;
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    expect(storeA.records.get('book:1')?.deleted).toBe(true);
+  });
+
   it('reports a failed provider without failing the others', async () => {
     const failing = createMemoryProvider({ id: 'flaky', failFirst: 1 });
     const healthy = createMemoryProvider({ id: 'solid' });

@@ -199,7 +199,8 @@ export const createSyncEngine = (options: SyncOptions) => {
       };
       for (const [id, entry] of Object.entries(pullBooks)) {
         const { book, reading } = splitBookFields(entry.fields);
-        if (Object.keys(book).length > 0) {
+        // A tombstone-only diff (no fields) must still delete the local book.
+        if (Object.keys(book).length > 0 || entry.deletedAt) {
           await store.apply({
             id,
             kind: 'book',

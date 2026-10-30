@@ -8,7 +8,7 @@ import { createLocalFolderProvider, createSyncEngine, createWebDavProvider } fro
 import { extractMissingBookTexts } from './bookTexts';
 import { createDataStore, isTauriRuntime } from './dataStore';
 import { keychainDelete, keychainGet, keychainSet } from './keychain';
-import { getActiveStorage, getSyncClock } from './libraryPersistence';
+import { getActiveStorage, getSyncClock, reloadLibraryFromStorage } from './libraryPersistence';
 import { createLocalFolderFs, isLocalFolderAvailable, restoreSyncRoot } from './localFolderFs';
 import { createSqlSyncStore, getOrCreateDeviceId } from './syncStore';
 
@@ -212,10 +212,16 @@ export const runSync = async (config: SyncConfig): Promise<SyncReport> => {
     STATUS_KEY,
     JSON.stringify({ lastSyncAt: Date.now(), lastReport: report } satisfies SyncStatus),
   );
-  // Books that arrived via sync have no extracted text yet; reconcile so
-  // library content search covers them without a re-import.
-  if (report.providers.some((item) => item.downloadedBlobs > 0)) {
-    await extractMissingBookTexts();
+  // Local SQL writes from the pull are invisible to the running UI until the
+  // stores rehydrate; do both only when the round actually changed something.
+  const changed = report.providers.some(
+    (item) => item.pulledRecords > 0 || item.downloadedBlobs > 0,
+  );
+  if (changed) {
+    await reloadLibraryFromStorage();
+    if (report.providers.some((item) => item.downloadedBlobs > 0)) {
+      await extractMissingBookTexts();
+    }
   }
   return report;
 };

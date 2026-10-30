@@ -153,6 +153,7 @@
   "settings": {
     "title": "Settings",
     "open": "Settings",
+    "general": "General",
     "appearance": "Appearance",
     "theme": "Theme",
     "themes": {

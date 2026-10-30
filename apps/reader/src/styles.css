@@ -465,8 +465,9 @@ textarea::placeholder {
 }
 
 .reader-action {
+  min-block-size: 2rem;
   border: 1px solid var(--hamesh-color-border);
-  border-radius: var(--hamesh-radius);
+  border-radius: calc(var(--hamesh-radius) * 0.5);
   background: var(--hamesh-color-surface);
   color: var(--hamesh-color-ink);
   cursor: pointer;
@@ -476,9 +477,13 @@ textarea::placeholder {
   padding-inline: var(--hamesh-space-2);
 }
 
+/* A selected control must stand out from its neighbours at a glance, so the
+   state is carried by fill, border, and weight — not color alone. */
 .reader-action.is-selected {
   border-color: var(--hamesh-color-accent);
+  background: color-mix(in srgb, var(--hamesh-color-accent) 14%, transparent);
   color: var(--hamesh-color-accent);
+  font-weight: 600;
 }
 
 .reader-panel {
@@ -549,17 +554,25 @@ textarea::placeholder {
   color: var(--hamesh-color-accent);
 }
 
+/* Every settings row shares one grid so labels and controls line up
+   vertically across sections instead of drifting with content length. */
 .setting-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--hamesh-space-2);
+  gap: var(--hamesh-space-3);
+  min-block-size: 2.6rem;
   padding-block: var(--hamesh-space-2);
   border-block-start: 1px solid var(--hamesh-color-border);
 }
 
 .setting-row:first-of-type {
   border-block-start: 0;
+}
+
+/* Field rows put a fixed-width label next to a stretching input. */
+.setting-row.is-field {
+  grid-template-columns: 8rem minmax(0, 1fr);
 }
 
 .setting-controls {
@@ -574,6 +587,24 @@ textarea::placeholder {
   color: var(--hamesh-color-muted);
   font-variant-numeric: tabular-nums;
   text-align: center;
+}
+
+.text-input {
+  inline-size: 100%;
+  min-block-size: 2.2rem;
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: calc(var(--hamesh-radius) * 0.5);
+  background: var(--hamesh-color-canvas);
+  color: var(--hamesh-color-ink);
+  font: inherit;
+  font-size: 0.9rem;
+  padding-block: var(--hamesh-space-1);
+  padding-inline: var(--hamesh-space-2);
+}
+
+.text-input:focus-visible {
+  outline: 2px solid var(--hamesh-color-accent);
+  outline-offset: 1px;
 }
 
 .selection-popover {
@@ -740,31 +771,11 @@ blockquote.note-text {
 }
 
 .sync-settings {
-  margin-block-start: var(--hamesh-space-4);
-  padding: var(--hamesh-space-3);
-  border: 1px solid var(--hamesh-color-border);
-  border-radius: var(--hamesh-radius, 12px);
-  background: var(--hamesh-color-surface, transparent);
+  margin-block-start: var(--hamesh-space-2);
 }
 
-.sync-settings h2 {
-  margin-block: 0 var(--hamesh-space-2);
-  font-size: 1rem;
-}
-
-.sync-settings .setting-row label {
-  flex: 0 0 auto;
-}
-
-.sync-settings .setting-row input,
-.sync-settings .setting-row select {
-  flex: 1 1 auto;
-  min-inline-size: 0;
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--hamesh-color-border);
-  border-radius: 8px;
-  background: transparent;
-  color: inherit;
+.sync-lede {
+  margin-block-end: var(--hamesh-space-2);
 }
 
 .content-matches {
@@ -789,7 +800,7 @@ blockquote.note-text {
   text-align: start;
   padding: var(--hamesh-space-2);
   border: 1px solid var(--hamesh-color-border);
-  border-radius: 10px;
+  border-radius: calc(var(--hamesh-radius) * 0.75);
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -818,13 +829,13 @@ blockquote.note-text {
   padding: var(--hamesh-space-2) var(--hamesh-space-3);
   margin-block-end: var(--hamesh-space-2);
   border: 1px solid var(--hamesh-color-accent);
-  border-radius: 10px;
+  border-radius: calc(var(--hamesh-radius) * 0.75);
   background: color-mix(in srgb, var(--hamesh-color-accent) 8%, transparent);
 }
 
 .sync-provider-card {
   border: 1px solid var(--hamesh-color-border);
-  border-radius: 10px;
+  border-radius: calc(var(--hamesh-radius) * 0.75);
   padding: var(--hamesh-space-2) var(--hamesh-space-2) 0;
   margin-block-end: var(--hamesh-space-2);
 }
@@ -837,8 +848,15 @@ blockquote.note-text {
 }
 
 .sync-add {
+  display: flex;
   justify-content: flex-start;
   gap: var(--hamesh-space-2);
+}
+
+.sync-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: var(--hamesh-space-2);
 }
 
 .settings-section-heading h3 {
@@ -847,7 +865,7 @@ blockquote.note-text {
 
 .sync-empty {
   border: 1px dashed var(--hamesh-color-border);
-  border-radius: 10px;
+  border-radius: calc(var(--hamesh-radius) * 0.75);
   padding: var(--hamesh-space-3);
   text-align: center;
 }
@@ -991,35 +1009,87 @@ kbd {
   backdrop-filter: blur(3px);
 }
 
+/* Sidebar navigation on the inline start, scrolling content pane on the end. */
 .settings-dialog {
-  inline-size: min(46rem, 100%);
-  max-block-size: 86vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  inline-size: min(50rem, 100%);
+  max-block-size: min(86vh, 44rem);
+  overflow: hidden;
   background: var(--hamesh-color-surface);
   color: var(--hamesh-color-ink);
   border: 1px solid var(--hamesh-color-border);
   border-radius: var(--hamesh-radius);
-  padding: var(--hamesh-space-4);
   box-shadow: 0 24px 64px rgb(0 0 0 / 28%);
 }
 
-.settings-section {
-  border-block-start: 1px solid var(--hamesh-color-border);
-  padding-block-start: var(--hamesh-space-2);
-  margin-block-start: var(--hamesh-space-2);
+.settings-dialog .panel-header {
+  margin-block-end: 0;
+  padding: var(--hamesh-space-3) var(--hamesh-space-4);
+  border-block-end: 1px solid var(--hamesh-color-border);
 }
 
-.settings-section h3 {
-  margin-block: var(--hamesh-space-2) 0;
-  color: var(--hamesh-color-muted);
-  font-size: 0.8rem;
+.settings-layout {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  min-block-size: 0;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hamesh-space-1);
+  padding: var(--hamesh-space-3);
+  border-inline-end: 1px solid var(--hamesh-color-border);
+  background: var(--hamesh-color-canvas);
+}
+
+.settings-nav-item {
+  border: 0;
+  border-radius: calc(var(--hamesh-radius) * 0.5);
+  background: none;
+  color: var(--hamesh-color-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  padding-block: var(--hamesh-space-2);
+  padding-inline: var(--hamesh-space-3);
+  text-align: start;
+}
+
+.settings-nav-item:hover {
+  background: color-mix(in srgb, var(--hamesh-color-accent) 8%, transparent);
+}
+
+.settings-nav-item.is-active {
+  background: color-mix(in srgb, var(--hamesh-color-accent) 14%, transparent);
+  color: var(--hamesh-color-accent);
   font-weight: 600;
 }
 
-.settings-dialog .settings-section .sync-settings {
-  margin-block-start: var(--hamesh-space-1);
-  border: 0;
-  padding: 0;
+.settings-content {
+  min-block-size: 0;
+  overflow-y: auto;
+  padding: var(--hamesh-space-4);
+}
+
+@media (max-width: 36rem) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--hamesh-color-border);
+  }
+
+  .settings-nav-item {
+    white-space: nowrap;
+  }
 }
 
 @media (max-width: 36rem) {

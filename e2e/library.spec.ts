@@ -103,6 +103,7 @@ test('guides sync setup from an empty state', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog', { name: 'Settings' });
+  await dialog.getByRole('button', { name: 'Sync', exact: true }).click();
 
   await expect(dialog.getByText('No storage connected')).toBeVisible();
   await dialog.getByRole('button', { name: 'Add WebDAV' }).click();
@@ -119,6 +120,7 @@ test('configures an S3-compatible provider', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog', { name: 'Settings' });
+  await dialog.getByRole('button', { name: 'Sync', exact: true }).click();
 
   await dialog.getByRole('button', { name: 'Add S3 storage' }).click();
   await expect(dialog.getByText('Needs setup')).toBeVisible();

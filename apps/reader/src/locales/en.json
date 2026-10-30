@@ -153,6 +153,8 @@
       "dark": "Dark"
     },
     "language": "Language",
+    "shortcuts": "Keyboard",
+    "openShortcuts": "Show shortcuts",
     "updates": "Updates",
     "version": "Version",
     "checkUpdates": "Check for updates",
@@ -160,5 +162,18 @@
     "updateAvailable": "Version {{version}} is available.",
     "about": "About",
     "aboutText": "Hāmesh (هامش) — a local-first ebook reader. Your library stays on your device; sync only uses storage you own. MIT licensed."
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "library": "Library",
+    "reader": "Reader",
+    "search": "Focus the search box",
+    "help": "Show this help",
+    "pageTurn": "Turn pages — arrows follow the book direction",
+    "pageNext": "Next page",
+    "pagePrev": "Previous page",
+    "zoom": "Zoom in / out (PDF only)",
+    "escapeLibrary": "Clear the search or close a dialog",
+    "escapeReader": "Close the panel, then return to the library"
   }
 }

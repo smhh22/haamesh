@@ -2,10 +2,11 @@ import type { Direction } from '@hamesh/core';
 import { ImportError, type ImportErrorCode } from '@hamesh/engine';
 import type { BookRecord, ReadingState } from '@hamesh/storage';
 import { DirectionProvider } from '@hamesh/ui';
-import { type ChangeEvent, type DragEvent, useEffect, useMemo, useState } from 'react';
+import { type ChangeEvent, type DragEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ReaderView } from './components/ReaderView';
 import { SettingsDialog } from './components/SettingsDialog';
+import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { UpdateBanner } from './components/UpdateBanner';
 import { type BookSort, type BookView, filterAndSortBooks } from './library/bookList';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
@@ -53,6 +54,8 @@ export const App = () => {
   const [viewMode, setViewMode] = useState<BookView>('grid');
   const [contentMatches, setContentMatches] = useState<ContentMatch[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement | null>(null);
   const [readerSession, setReaderSession] = useState<{
     book: BookRecord;
     start: ReadingState | null;
@@ -83,6 +86,28 @@ export const App = () => {
   const toggleLocale = () => {
     setLocale(locale === 'en' ? 'fa' : 'en');
   };
+
+  // Global shortcuts: `?` opens the map, `/` focuses library search. Anything
+  // typed into a field wins over both.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (settingsOpen || shortcutsOpen) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (event.key === '?') {
+        event.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
+      if (event.key === '/' && !readerSession) {
+        event.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [settingsOpen, shortcutsOpen, readerSession]);
 
   const handleFiles = async (fileList: FileList | File[] | null): Promise<void> => {
     if (!fileList) return;
@@ -242,6 +267,7 @@ export const App = () => {
 
           <div className="library-tools">
             <input
+              ref={searchRef}
               type="search"
               className="search-input"
               placeholder={t('library.search')}
@@ -358,7 +384,15 @@ export const App = () => {
           ) : null}
         </section>
 
-        <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        <SettingsDialog
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          onOpenShortcuts={() => {
+            setSettingsOpen(false);
+            setShortcutsOpen(true);
+          }}
+        />
+        <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       </main>
     </DirectionProvider>
   );

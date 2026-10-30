@@ -7,13 +7,14 @@ import { SyncSettings } from './SyncSettings';
 interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
+  onOpenShortcuts: () => void;
 }
 
 /**
  * App-level settings: appearance, language, sync, updates, about. Reachable
  * from the library header; Esc and the backdrop close it.
  */
-export const SettingsDialog = ({ open, onClose }: SettingsDialogProps) => {
+export const SettingsDialog = ({ open, onClose, onOpenShortcuts }: SettingsDialogProps) => {
   const { t } = useTranslation();
   const theme = useUiStore((state) => state.theme);
   const setTheme = useUiStore((state) => state.setTheme);
@@ -110,6 +111,16 @@ export const SettingsDialog = ({ open, onClose }: SettingsDialogProps) => {
             <span>{t('settings.language')}</span>
             <button type="button" className="reader-action" onClick={toggleLanguage}>
               {locale === 'fa' ? 'English' : 'فارسی'}
+            </button>
+          </div>
+        </section>
+
+        <section className="settings-section">
+          <h3>{t('settings.shortcuts')}</h3>
+          <div className="setting-row">
+            <span>{t('shortcuts.title')}</span>
+            <button type="button" className="reader-action" onClick={onOpenShortcuts}>
+              {t('settings.openShortcuts')}
             </button>
           </div>
         </section>

@@ -351,6 +351,24 @@ export const ReaderView = ({
       const target = event.target as HTMLElement | null;
       if (target?.closest('input, select, textarea, button, [role="dialog"]')) return;
 
+      if (
+        isPdf &&
+        (event.key === '+' || event.key === '=' || event.key === '-' || event.key === '_')
+      ) {
+        event.preventDefault();
+        if (event.key === '+' || event.key === '=') useReaderSettings.getState().zoomIn();
+        else useReaderSettings.getState().zoomOut();
+        return;
+      }
+
+      if (event.key === ' ' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault();
+        const view = viewRef.current;
+        if (!view) return;
+        void (event.shiftKey ? view.prev() : view.next());
+        return;
+      }
+
       const turn = pageTurnForKey(event.key, book.direction);
       if (!turn) return;
       event.preventDefault();
@@ -360,7 +378,7 @@ export const ReaderView = ({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [panel, onClose, book.direction]);
+  }, [panel, onClose, book.direction, isPdf]);
 
   const turn = (action: 'next' | 'prev') => {
     const view = viewRef.current;

@@ -99,10 +99,20 @@ export const ReaderView = ({
   // it because keys pressed inside an iframe never reach the parent window.
   const keyHandlerRef = useRef<(event: KeyboardEvent) => void>(() => {});
   const notesRef = useRef<BookNoteRecord[]>(bookNotes);
-  const settingsCssRef = useRef(
-    buildReaderCss({ fontSize: settings.fontSize, theme: readerTheme, justify: settings.justify }),
-  );
+  const buildCss = () =>
+    buildReaderCss({
+      fontSize: settings.fontSize,
+      theme: readerTheme,
+      justify: settings.justify,
+      fontFamily: settings.fontFamily,
+      lineHeight: settings.lineHeight,
+      hyphenate: settings.hyphenate,
+      flow: settings.flow,
+      margin: settings.margin,
+    });
+  const settingsCssRef = useRef(buildCss());
   const flowRef = useRef(settings.flow);
+  const marginRef = useRef(settings.margin);
   const lastCfiRef = useRef<string | null>(null);
   const lastFractionRef = useRef(initialFraction);
   const [progress, setProgress] = useState(initialFraction);
@@ -139,9 +149,15 @@ export const ReaderView = ({
       fontSize: settings.fontSize,
       theme: readerTheme,
       justify: settings.justify,
+      fontFamily: settings.fontFamily,
+      lineHeight: settings.lineHeight,
+      hyphenate: settings.hyphenate,
+      flow: settings.flow,
+      margin: settings.margin,
     });
     settingsCssRef.current = css;
     flowRef.current = settings.flow;
+    marginRef.current = settings.margin;
 
     if (!view?.renderer) return;
 
@@ -149,6 +165,9 @@ export const ReaderView = ({
       applyReaderStyle(doc, css);
     }
     view.renderer.setAttribute('flow', settings.flow);
+    // The paginator reads its page margin from this attribute; it must be set
+    // before render() measures the columns.
+    view.renderer.setAttribute('margin', `${settings.margin}px`);
     view.renderer.render?.();
     // The paginator caches the document background for its gutter and only
     // refreshes it from setStyles(); without this, changing the theme leaves
@@ -330,6 +349,7 @@ export const ReaderView = ({
 
         if (!isPdf) {
           view.renderer?.setAttribute('flow', flowRef.current);
+          view.renderer?.setAttribute('margin', `${marginRef.current}px`);
           for (const { doc } of view.renderer?.getContents() ?? []) {
             applyReaderStyle(doc, settingsCssRef.current);
           }
@@ -619,8 +639,20 @@ export const ReaderView = ({
       data-theme={readerTheme}
       data-flow={settings.flow}
       data-font-size={settings.fontSize}
+      data-font-family={settings.fontFamily}
+      data-line-height={settings.lineHeight}
+      data-margin={settings.margin}
+      data-hyphenate={settings.hyphenate ? 'true' : 'false'}
+      data-brightness={settings.brightness}
       data-zoom={String(settings.pdfZoom)}
     >
+      {settings.brightness < 100 ? (
+        <div
+          className="reader-dim"
+          style={{ opacity: (100 - settings.brightness) / 100 }}
+          aria-hidden="true"
+        />
+      ) : null}
       <header className="reader-header">
         <button type="button" className="text-button" onClick={onClose}>
           {t('reader.back')}

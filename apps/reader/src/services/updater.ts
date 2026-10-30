@@ -1,9 +1,12 @@
 /**
- * In-app updates (Tauri updater): AppImage and Windows get real
- * download-and-install with signed artifacts from GitHub Releases; deb/rpm
- * installs cannot be replaced in place, so the UI links to the release page.
+ * In-app updates: AppImage and Windows use the Tauri updater with signed
+ * artifacts from GitHub Releases. deb/rpm installs download `latest.json` and
+ * the deb through the native HTTP bridge (GitHub release assets do not send
+ * CORS headers, so a WebView fetch cannot read them), then hand the deb to
+ * apt-get through pkexec.
  */
 import { isTauriRuntime } from './dataStore';
+import { isNewerVersion } from './version';
 
 export interface UpdateInfo {
   version: string;
@@ -32,13 +35,31 @@ const currentVersion = async (): Promise<string> => {
 };
 
 /** deb/rpm: the plugin's check targets AppImage artifacts, so read latest.json. */
+const fetchLatest = async (): Promise<{ version?: string; notes?: string } | null> => {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const response = await invoke<{ status: number; body: number[] }>('http_request', {
+      method: 'GET',
+      url: LATEST_JSON,
+      headers: {},
+      body: null,
+      proxy: null,
+    });
+    if (response.status < 200 || response.status >= 300) return null;
+    const text = new TextDecoder().decode(Uint8Array.from(response.body));
+    return JSON.parse(text) as { version?: string; notes?: string };
+  } catch {
+    return null;
+  }
+};
+
 const checkViaLatestJson = async (): Promise<UpdateInfo | null> => {
-  const response = await fetch(LATEST_JSON, { cache: 'no-store' });
-  if (!response.ok) return null;
-  const data = (await response.json()) as { version?: string; notes?: string };
-  if (!data.version) return null;
+  const data = await fetchLatest();
+  if (!data?.version) return null;
   const installed = await currentVersion();
-  return data.version !== installed ? { version: data.version, notes: data.notes ?? null } : null;
+  return isNewerVersion(data.version, installed)
+    ? { version: data.version, notes: data.notes ?? null }
+    : null;
 };
 
 /** Silent check; resolves null on web, when up to date, or on any failure. */

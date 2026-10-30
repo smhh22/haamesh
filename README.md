@@ -47,3 +47,8 @@ pnpm tauri:build
 `main` is protected: open a branch and a pull request instead of pushing to
 `main` directly. CI runs lint, unit tests, the web build, the Playwright suite,
 and a Windows desktop check on every pull request.
+
+Releases are automatic. The squash commit subject (the PR title) drives the
+version: `feat:` bumps minor, `fix:`/`perf:`/`refactor:` bumps patch,
+`!:` or `BREAKING CHANGE` bumps major, and `docs:`/`ci:`/`chore:` merges do
+not release. A merge creates the tag and publishes the installers immediately.

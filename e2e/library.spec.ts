@@ -180,6 +180,32 @@ test('organizes books into a category with tags and filters by them', async ({ p
   await expect(page.locator('.tag-chip', { hasText: 'history' })).toBeVisible();
 });
 
+test('lays out a real mobile shelf and reader', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(fixture);
+  await page.locator('input[type="file"]').setInputFiles(pdfFixture);
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+
+  // Two-column shelf instead of the desktop minmax(14rem) single column.
+  const columns = await page.locator('.book-grid').evaluate((element) => {
+    const value = getComputedStyle(element).gridTemplateColumns;
+    return value.trim().split(/\s+/).length;
+  });
+  expect(columns).toBe(2);
+
+  await page.getByRole('button', { name: 'Read' }).first().click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+  // Reader turn buttons split the footer on phones.
+  const turnBoxes = await page
+    .locator('.reader-turn')
+    .evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().width));
+  expect(turnBoxes).toHaveLength(2);
+  expect(turnBoxes.every((width) => width > 100)).toBe(true);
+});
+
 test('shows grouped shortcuts in the settings dialog', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).click();

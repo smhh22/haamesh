@@ -17,6 +17,8 @@ export interface FolderFs {
   exists(path: string): Promise<boolean>;
   remove(path: string): Promise<void>;
   list(path: string): Promise<string[]>;
+  /** Optional; without it, ensureDir leaves a marker file instead. */
+  mkdir?(path: string): Promise<void>;
 }
 
 export const createLocalFolderProvider = (fs: FolderFs, baseDir = ''): StorageProvider => {
@@ -93,10 +95,12 @@ export const createLocalFolderProvider = (fs: FolderFs, baseDir = ''): StoragePr
     },
 
     async ensureDir(paths) {
-      // FileSystemPort has no mkdir; writes create parents implicitly on the
-      // desktop adapter. Existence is verified so missing roots fail loudly.
       for (const path of paths) {
-        if (!(await fs.exists(join(path)))) {
+        if (fs.mkdir) {
+          await fs.mkdir(join(path));
+        } else if (!(await fs.exists(join(path)))) {
+          // Fallback for filesystem ports without mkdir: a marker file makes
+          // the directory exist.
           await fs.writeFile(join(path, '.hamesh-dir'), new Uint8Array());
         }
       }

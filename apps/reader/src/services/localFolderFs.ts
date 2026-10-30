@@ -64,4 +64,7 @@ export const createLocalFolderFs = (): FolderFs => ({
   async list(relative) {
     return invokeFs<string[]>('sync_fs_list', { relative });
   },
+  async mkdir(relative) {
+    await invokeFs<null>('sync_fs_mkdir', { relative });
+  },
 });

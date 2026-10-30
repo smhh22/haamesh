@@ -3,6 +3,8 @@ use rusqlite::types::ValueRef;
 use serde_json::{Map, Value};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+
+mod sftp;
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -386,6 +388,12 @@ fn sync_fs_exists(
 }
 
 #[tauri::command]
+fn sync_fs_mkdir(state: tauri::State<'_, SyncRootState>, relative: String) -> Result<(), String> {
+    let path = resolve_sync_path(&state, &relative)?;
+    fs::create_dir_all(path).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn sync_fs_remove(state: tauri::State<'_, SyncRootState>, relative: String) -> Result<(), String> {
     let path = resolve_sync_path(&state, &relative)?;
     let root = state
@@ -626,10 +634,19 @@ pub fn run() {
             sync_pick_root,
             sync_restore_root,
             sync_adopt_root,
+            sftp::sftp_connect,
+            sftp::sftp_read,
+            sftp::sftp_write,
+            sftp::sftp_mkdir,
+            sftp::sftp_exists,
+            sftp::sftp_remove,
+            sftp::sftp_list,
+            sftp::sftp_disconnect,
             sync_root,
             sync_fs_read,
             sync_fs_write,
             sync_fs_exists,
+            sync_fs_mkdir,
             sync_fs_remove,
             sync_fs_list,
             keychain_set,
@@ -645,6 +662,9 @@ pub fn run() {
             let connection = rusqlite::Connection::open(data_dir.join("hamesh.db"))?;
             app.manage(DbState(Mutex::new(connection)));
             app.manage(SyncRootState(Mutex::new(None)));
+            app.manage(sftp::SftpSessions(Mutex::new(
+                std::collections::HashMap::new(),
+            )));
 
             if cfg!(debug_assertions) {
                 app.handle().plugin(

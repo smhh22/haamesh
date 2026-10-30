@@ -2,6 +2,7 @@ import { dropboxAuthorizeUrl } from '@hamesh/sync';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isLocalFolderAvailable, pickSyncFolder } from '../services/localFolderFs';
+import { isSftpAvailable } from '../services/sftpFs';
 import {
   completeDropboxConnect,
   isProviderConfigured,
@@ -195,6 +196,11 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                 </button>
               </>
             ) : null}
+            {isSftpAvailable() ? (
+              <button type="button" className="reader-action" onClick={() => addProvider('sftp')}>
+                {t('sync.addSftp')}
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -234,6 +240,97 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                 {t('sync.remove')}
               </button>
             </div>
+
+            {provider.kind === 'sftp' ? (
+              <>
+                <div className="setting-row is-field">
+                  <label htmlFor={`sync-sftp-host-${provider.id}`}>{t('sync.sftpHost')}</label>
+                  <input
+                    className="text-input"
+                    id={`sync-sftp-host-${provider.id}`}
+                    type="text"
+                    value={provider.baseUrl}
+                    autoComplete="off"
+                    placeholder="server.example.com"
+                    onChange={(event) =>
+                      patchProvider(provider.id, { baseUrl: event.target.value })
+                    }
+                  />
+                </div>
+                <div className="setting-row is-field">
+                  <label htmlFor={`sync-sftp-port-${provider.id}`}>{t('sync.sftpPort')}</label>
+                  <input
+                    className="text-input"
+                    id={`sync-sftp-port-${provider.id}`}
+                    type="number"
+                    min={1}
+                    max={65535}
+                    value={provider.sftpPort}
+                    onChange={(event) =>
+                      patchProvider(provider.id, { sftpPort: Number(event.target.value) || 22 })
+                    }
+                  />
+                </div>
+                <div className="setting-row is-field">
+                  <label htmlFor={`sync-sftp-user-${provider.id}`}>{t('sync.username')}</label>
+                  <input
+                    className="text-input"
+                    id={`sync-sftp-user-${provider.id}`}
+                    type="text"
+                    value={provider.username}
+                    autoComplete="off"
+                    onChange={(event) =>
+                      patchProvider(provider.id, { username: event.target.value })
+                    }
+                  />
+                </div>
+                <div className="setting-row is-field">
+                  <label htmlFor={`sync-sftp-pass-${provider.id}`}>{t('sync.password')}</label>
+                  <input
+                    className="text-input"
+                    id={`sync-sftp-pass-${provider.id}`}
+                    type="password"
+                    value={provider.password}
+                    placeholder={provider.hasPassword ? t('sync.passwordSaved') : undefined}
+                    autoComplete="off"
+                    onChange={(event) =>
+                      patchProvider(provider.id, { password: event.target.value })
+                    }
+                  />
+                </div>
+                <div className="setting-row is-field">
+                  <label htmlFor={`sync-sftp-key-${provider.id}`}>{t('sync.sftpKeyPath')}</label>
+                  <input
+                    className="text-input"
+                    id={`sync-sftp-key-${provider.id}`}
+                    type="text"
+                    value={provider.sftpKeyPath}
+                    autoComplete="off"
+                    placeholder="~/.ssh/id_ed25519"
+                    onChange={(event) =>
+                      patchProvider(provider.id, { sftpKeyPath: event.target.value })
+                    }
+                  />
+                </div>
+                <div className="setting-row is-field">
+                  <label htmlFor={`sync-sftp-base-${provider.id}`}>
+                    {t('sync.sftpRemoteBase')}
+                  </label>
+                  <input
+                    className="text-input"
+                    id={`sync-sftp-base-${provider.id}`}
+                    type="text"
+                    value={provider.sftpRemoteBase}
+                    autoComplete="off"
+                    placeholder="/home/user"
+                    onChange={(event) =>
+                      patchProvider(provider.id, { sftpRemoteBase: event.target.value })
+                    }
+                  />
+                </div>
+                <p className="hint sync-field-hint">{t('sync.sftpHint')}</p>
+              </>
+            ) : null}
 
             {provider.kind === 'webdav' ? (
               <>
@@ -561,6 +658,11 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                 {t('sync.addSyncthing')}
               </button>
             </>
+          ) : null}
+          {isSftpAvailable() ? (
+            <button type="button" className="reader-action" onClick={() => addProvider('sftp')}>
+              {t('sync.addSftp')}
+            </button>
           ) : null}
         </div>
       ) : null}

@@ -21,9 +21,10 @@ import { providerFetch } from './httpFetch';
 import { keychainDelete, keychainGet, keychainSet } from './keychain';
 import { getActiveStorage, getSyncClock, reloadLibraryFromStorage } from './libraryPersistence';
 import { createLocalFolderFs, isLocalFolderAvailable, restoreSyncRoot } from './localFolderFs';
+import { connectSftp, createSftpFs, isSftpAvailable } from './sftpFs';
 import { createSqlSyncStore, getOrCreateDeviceId } from './syncStore';
 
-export type ProviderKind = 'webdav' | 'local-folder' | 's3' | 'dropbox';
+export type ProviderKind = 'webdav' | 'local-folder' | 's3' | 'dropbox' | 'sftp';
 
 export interface SyncProviderConfig {
   id: string;
@@ -38,6 +39,10 @@ export interface SyncProviderConfig {
   hasPassword: boolean;
   /** Desktop local folder */
   localFolder: string;
+  /** SFTP (desktop): host lives in baseUrl, credentials in username/password */
+  sftpPort: number;
+  sftpKeyPath: string;
+  sftpRemoteBase: string;
   /** S3-compatible */
   endpoint: string;
   region: string;
@@ -78,6 +83,8 @@ const providerLabel = (kind: ProviderKind): string => {
       return 'S3';
     case 'dropbox':
       return 'Dropbox';
+    case 'sftp':
+      return 'SFTP';
     default:
       return 'Local folder';
   }
@@ -96,6 +103,9 @@ export const newProvider = (
   password: '',
   hasPassword: false,
   localFolder: '',
+  sftpPort: 22,
+  sftpKeyPath: '',
+  sftpRemoteBase: '/',
   endpoint: '',
   region: kind === 's3' ? 'us-east-1' : '',
   bucket: '',
@@ -170,6 +180,9 @@ const migrateLegacy = (legacy: LegacyConfig): SyncConfig => {
         password: legacy.password ?? '',
         hasPassword: legacy.hasPassword ?? false,
         localFolder: legacy.localFolder ?? '',
+        sftpPort: 22,
+        sftpKeyPath: '',
+        sftpRemoteBase: '/',
         endpoint: '',
         region: '',
         bucket: '',
@@ -356,13 +369,51 @@ export const isProviderConfigured = (provider: SyncProviderConfig): boolean => {
           (provider.hasAppSecret || provider.appSecret) &&
           (provider.hasRefreshToken || provider.refreshToken),
       );
+    case 'sftp':
+      return Boolean(
+        provider.baseUrl &&
+          provider.username &&
+          (provider.password || provider.hasPassword || provider.sftpKeyPath),
+      );
     default:
       return false;
   }
 };
 
-export const providerFromConfig = (provider: SyncProviderConfig): StorageProvider | null => {
+/**
+ * Desktop-only SFTP sessions, one per configured provider. A dropped session
+ * surfaces as a sync failure; the next round reconnects.
+ */
+const sftpSessions = new Map<string, string>();
+
+const buildSftpProvider = async (provider: SyncProviderConfig): Promise<StorageProvider | null> => {
+  if (!isSftpAvailable()) return null;
+  const base = provider.sftpRemoteBase || '/';
+  let session = sftpSessions.get(provider.id);
+  if (!session) {
+    try {
+      session = await connectSftp({
+        host: provider.baseUrl.trim(),
+        port: provider.sftpPort || 22,
+        username: provider.username,
+        password: provider.password,
+        keyPath: provider.sftpKeyPath,
+        keyPassphrase: '',
+      });
+      sftpSessions.set(provider.id, session);
+    } catch {
+      return null;
+    }
+  }
+  return createLocalFolderProvider(createSftpFs(session, base));
+};
+
+export const providerFromConfig = async (
+  provider: SyncProviderConfig,
+): Promise<StorageProvider | null> => {
   switch (provider.kind) {
+    case 'sftp':
+      return buildSftpProvider(provider);
     case 'local-folder':
       return isLocalFolderAvailable() ? createLocalFolderProvider(createLocalFolderFs()) : null;
     case 'webdav':
@@ -416,7 +467,7 @@ const providersFromConfig = async (config: SyncConfig): Promise<StorageProvider[
     if (entry.kind === 'local-folder') {
       await restoreSyncRoot(entry.localFolder);
     }
-    const provider = providerFromConfig(await resolveSecrets(entry));
+    const provider = await providerFromConfig(await resolveSecrets(entry));
     if (provider) providers.push(provider);
   }
   return providers;
@@ -449,7 +500,7 @@ export const testSyncConnection = async (provider: SyncProviderConfig): Promise<
   if (provider.kind === 'local-folder' && provider.localFolder) {
     await restoreSyncRoot(provider.localFolder);
   }
-  const built = providerFromConfig(await resolveSecrets(provider));
+  const built = await providerFromConfig(await resolveSecrets(provider));
   if (!built) return { ok: false, code: 'not-configured' };
   try {
     await built.ensureDir(['Hamesh']);

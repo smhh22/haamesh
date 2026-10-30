@@ -180,7 +180,13 @@
     "webdavGeneric": "Generic WebDAV",
     "addSyncthing": "Syncthing folder",
     "providerSyncthing": "Syncthing",
-    "syncthingHint": "Point this at the folder Syncthing syncs; Hāmesh keeps its copy in a Hamesh subfolder there."
+    "syncthingHint": "Point this at the folder Syncthing syncs; Hāmesh keeps its copy in a Hamesh subfolder there.",
+    "addSftp": "Add SFTP",
+    "sftpHost": "Host",
+    "sftpPort": "Port",
+    "sftpKeyPath": "Private key path (optional)",
+    "sftpRemoteBase": "Remote folder",
+    "sftpHint": "Sync over SSH to your own server. Enter a password or a private key path; the host key is remembered on first connect."
   },
   "update": {
     "available": "Hāmesh {{version}} is available.",

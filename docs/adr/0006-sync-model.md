@@ -101,7 +101,8 @@ encryption ships.
 
 ## Consequences
 
-- No real-time sync; convergence happens on open, close, and manual sync.
+- No real-time sync; convergence happens on open, close, a 5-minute timer
+  while the app is visible, and manual sync.
 - Plaintext v1 means a storage provider can read titles, progress, and notes.
 - Mirroring multiplies bandwidth and storage in Phase 4.
 - The conformance suite is the gate for every new provider.

@@ -1,7 +1,9 @@
+import { dropboxAuthorizeUrl } from '@hamesh/sync';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isLocalFolderAvailable, pickSyncFolder } from '../services/localFolderFs';
 import {
+  completeDropboxConnect,
   isProviderConfigured,
   loadSyncConfig,
   newProvider,
@@ -29,6 +31,8 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
   const [busy, setBusy] = useState<'idle' | 'testing' | 'syncing'>('idle');
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; text: string }>>({});
+  const [dropboxCode, setDropboxCode] = useState<Record<string, string>>({});
+  const [connectingId, setConnectingId] = useState<string | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(syncStatus().lastSyncAt);
 
   const commit = (next: SyncConfig) => {
@@ -64,6 +68,29 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
     setTestResults((current) => ({ ...current, [provider.id]: { ok: result.ok, text } }));
     setBusy('idle');
     setTestingId(null);
+  };
+
+  const onDropboxConnect = async (provider: SyncProviderConfig) => {
+    const code = (dropboxCode[provider.id] ?? '').trim();
+    if (!code) return;
+    setBusy('testing');
+    setConnectingId(provider.id);
+    try {
+      const refreshToken = await completeDropboxConnect(provider, code);
+      patchProvider(provider.id, { refreshToken, hasRefreshToken: true });
+      setDropboxCode((current) => ({ ...current, [provider.id]: '' }));
+      setTestResults((current) => ({
+        ...current,
+        [provider.id]: { ok: true, text: t('sync.dropboxConnected') },
+      }));
+    } catch {
+      setTestResults((current) => ({
+        ...current,
+        [provider.id]: { ok: false, text: t('sync.dropboxConnectFailed') },
+      }));
+    }
+    setBusy('idle');
+    setConnectingId(null);
   };
 
   const onSync = async () => {
@@ -123,6 +150,9 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
             </button>
             <button type="button" className="reader-action" onClick={() => addProvider('s3')}>
               {t('sync.addS3')}
+            </button>
+            <button type="button" className="reader-action" onClick={() => addProvider('dropbox')}>
+              {t('sync.addDropbox')}
             </button>
             {isLocalFolderAvailable() ? (
               <button
@@ -309,6 +339,95 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
               </>
             ) : null}
 
+            {provider.kind === 'dropbox' ? (
+              <>
+                <div className="setting-row is-field">
+                  <label htmlFor={`sync-dropbox-key-${provider.id}`}>
+                    {t('sync.dropboxAppKey')}
+                  </label>
+                  <input
+                    className="text-input"
+                    id={`sync-dropbox-key-${provider.id}`}
+                    type="text"
+                    value={provider.appKey}
+                    autoComplete="off"
+                    onChange={(event) => patchProvider(provider.id, { appKey: event.target.value })}
+                  />
+                </div>
+                <div className="setting-row is-field">
+                  <label htmlFor={`sync-dropbox-secret-${provider.id}`}>
+                    {t('sync.dropboxAppSecret')}
+                  </label>
+                  <input
+                    className="text-input"
+                    id={`sync-dropbox-secret-${provider.id}`}
+                    type="password"
+                    value={provider.appSecret}
+                    placeholder={provider.hasAppSecret ? t('sync.passwordSaved') : undefined}
+                    autoComplete="off"
+                    onChange={(event) =>
+                      patchProvider(provider.id, { appSecret: event.target.value })
+                    }
+                  />
+                </div>
+                <p className="hint sync-field-hint">{t('sync.dropboxHint')}</p>
+                {provider.appKey ? (
+                  <div className="setting-row">
+                    <span>{t('sync.dropboxAuthorize')}</span>
+                    <a
+                      className="reader-action"
+                      href={dropboxAuthorizeUrl(provider.appKey)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {t('sync.dropboxOpenLink')}
+                    </a>
+                  </div>
+                ) : null}
+                <div className="setting-row is-field">
+                  <label htmlFor={`sync-dropbox-code-${provider.id}`}>
+                    {t('sync.dropboxCode')}
+                  </label>
+                  <input
+                    className="text-input"
+                    id={`sync-dropbox-code-${provider.id}`}
+                    type="text"
+                    value={dropboxCode[provider.id] ?? ''}
+                    autoComplete="off"
+                    onChange={(event) =>
+                      setDropboxCode((current) => ({
+                        ...current,
+                        [provider.id]: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <p className="hint sync-field-hint">{t('sync.dropboxCodeHint')}</p>
+                <div className="sync-card-footer">
+                  <button
+                    type="button"
+                    className="reader-action is-primary"
+                    disabled={
+                      busy !== 'idle' ||
+                      !provider.appKey ||
+                      !provider.appSecret ||
+                      !(dropboxCode[provider.id] ?? '').trim()
+                    }
+                    onClick={() => void onDropboxConnect(provider)}
+                  >
+                    {connectingId === provider.id
+                      ? t('sync.dropboxConnecting')
+                      : t('sync.dropboxConnect')}
+                  </button>
+                </div>
+                {provider.hasRefreshToken ? (
+                  <p className="sync-test-result is-ok" role="status">
+                    {t('sync.dropboxConnected')}
+                  </p>
+                ) : null}
+              </>
+            ) : null}
+
             {provider.kind === 'local-folder' ? (
               <>
                 <div className="setting-row">
@@ -364,6 +483,9 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
           </button>
           <button type="button" className="reader-action" onClick={() => addProvider('s3')}>
             {t('sync.addS3')}
+          </button>
+          <button type="button" className="reader-action" onClick={() => addProvider('dropbox')}>
+            {t('sync.addDropbox')}
           </button>
           {isLocalFolderAvailable() ? (
             <button

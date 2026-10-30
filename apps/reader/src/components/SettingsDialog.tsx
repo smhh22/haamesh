@@ -23,7 +23,9 @@ export const SettingsDialog = ({ open, onClose, onOpenShortcuts }: SettingsDialo
   const setLocale = useUiStore((state) => state.setLocale);
   const [version, setVersion] = useState('');
   const [updateMessage, setUpdateMessage] = useState('');
+  const [pendingUpdate, setPendingUpdate] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [installing, setInstalling] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   useDialogFocus(open, dialogRef);
 
@@ -60,20 +62,29 @@ export const SettingsDialog = ({ open, onClose, onOpenShortcuts }: SettingsDialo
   const checkUpdates = async () => {
     setChecking(true);
     setUpdateMessage('');
+    setPendingUpdate(null);
     const result = await checkForUpdate();
     if (result.status === 'error') {
       setUpdateMessage(t('settings.checkFailed'));
     } else if (result.status === 'current') {
       setUpdateMessage(t('settings.upToDate'));
     } else {
-      setUpdateMessage(t('settings.updateAvailable', { version: result.version }));
-      try {
-        await installUpdate(result.version);
-      } catch (error) {
-        setUpdateMessage(error instanceof Error ? error.message : String(error));
-      }
+      setPendingUpdate(result.version);
     }
     setChecking(false);
+  };
+
+  // A manual check reports availability first; installing is a second click.
+  const installPending = async () => {
+    if (!pendingUpdate) return;
+    setInstalling(true);
+    setUpdateMessage('');
+    try {
+      await installUpdate(pendingUpdate);
+    } catch (error) {
+      setUpdateMessage(error instanceof Error ? error.message : String(error));
+      setInstalling(false);
+    }
   };
 
   return (
@@ -146,6 +157,19 @@ export const SettingsDialog = ({ open, onClose, onOpenShortcuts }: SettingsDialo
               {checking ? t('sync.working') : t('settings.checkUpdates')}
             </button>
           </div>
+          {pendingUpdate ? (
+            <div className="setting-row">
+              <span>{t('settings.updateAvailable', { version: pendingUpdate })}</span>
+              <button
+                type="button"
+                className="reader-action is-primary"
+                disabled={installing}
+                onClick={() => void installPending()}
+              >
+                {installing ? t('update.installing') : t('update.install')}
+              </button>
+            </div>
+          ) : null}
           {updateMessage ? <p className="hint">{updateMessage}</p> : null}
         </section>
 

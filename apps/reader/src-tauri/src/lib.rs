@@ -571,7 +571,9 @@ async fn http_request(
     // a hostile or broken endpoint from hanging or exhausting memory.
     const MAX_RESPONSE_BYTES: u64 = 1024 * 1024 * 1024;
     let mut builder = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
+        // Book transfers can be large and links slow; 10 minutes bounds a
+        // hung request without cutting off a legitimate upload/download.
+        .timeout(std::time::Duration::from_secs(600))
         .redirect(reqwest::redirect::Policy::limited(5));
     if let Some(proxy_url) = proxy.filter(|value| !value.is_empty()) {
         builder =

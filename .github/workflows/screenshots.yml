@@ -1,0 +1,69 @@
+name: Screenshots
+
+# Keep the README screenshots in step with the shipped UI: after every
+# successful release, regenerate them from main and open an auto-merge PR.
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  screenshots:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          submodules: recursive
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Regenerate screenshots
+        run: |
+          pnpm dev --port 5173 > /tmp/vite.log 2>&1 &
+          npx wait-on http://localhost:5173 --timeout 60000
+          node scripts/update-screenshots.mjs
+
+      - name: Open a PR when the screenshots changed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet .github/assets; then
+            echo "Screenshots unchanged; nothing to commit."
+            exit 0
+          fi
+          branch="chore/screenshots-$(date +%Y%m%d%H%M%S)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add .github/assets
+          git commit -m "docs: refresh README screenshots"
+          git push -u origin "$branch"
+          gh pr create --fill --title "docs: refresh README screenshots" \
+            --body "Automatic refresh after the latest release (scripts/update-screenshots.mjs)."
+          gh pr merge --auto --squash

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 
 interface ShortcutsDialogProps {
   open: boolean;
@@ -24,6 +25,7 @@ const ShortcutRow = ({ keys, label }: { keys: string[]; label: string }) => (
 export const ShortcutsDialog = ({ open, onClose }: ShortcutsDialogProps) => {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  useDialogFocus(open, dialogRef);
 
   useEffect(() => {
     if (!open) return;

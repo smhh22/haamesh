@@ -79,6 +79,26 @@ test('opens settings from the library, applies dark mode, and survives RTL', asy
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
+test('traps focus in dialogs and restores it to the opener', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Hāmesh' })).toBeVisible();
+  const opener = page.getByRole('button', { name: 'Settings' });
+  await opener.click();
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+  await expect(dialog).toBeVisible();
+
+  const focusInDialog = () =>
+    page.evaluate(() => Boolean(document.activeElement?.closest('[role="dialog"]')));
+  await expect.poll(focusInDialog).toBe(true);
+
+  for (let index = 0; index < 40; index += 1) await page.keyboard.press('Tab');
+  await expect.poll(focusInDialog).toBe(true);
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(opener).toBeFocused();
+});
+
 test('guides sync setup from an empty state', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).click();

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useDialogFocus } from '../hooks/useDialogFocus';
 import { checkForUpdate, installUpdate, supportsInAppUpdate } from '../services/updater';
 import { type UiTheme, useUiStore } from '../stores/uiStore';
 import { SyncSettings } from './SyncSettings';
@@ -24,6 +25,7 @@ export const SettingsDialog = ({ open, onClose, onOpenShortcuts }: SettingsDialo
   const [updateMessage, setUpdateMessage] = useState('');
   const [checking, setChecking] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  useDialogFocus(open, dialogRef);
 
   useEffect(() => {
     if (!open) return;

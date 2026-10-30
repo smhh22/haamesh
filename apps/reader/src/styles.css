@@ -302,6 +302,16 @@ h1 {
   background: var(--hamesh-color-canvas);
 }
 
+/* Night dimming: a non-interactive black overlay; opacity comes from the
+   brightness setting on the element itself. */
+.reader-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: #000;
+}
+
 .reader-shell[data-theme="sepia"] {
   --hamesh-color-canvas: #f4ecd8;
   --hamesh-color-surface: #fff8e8;
@@ -605,6 +615,16 @@ textarea::placeholder {
 .text-input:focus-visible {
   outline: 2px solid var(--hamesh-color-accent);
   outline-offset: 1px;
+}
+
+.setting-controls input[type="range"] {
+  inline-size: 8rem;
+  accent-color: var(--hamesh-color-accent);
+}
+
+.setting-controls .text-input {
+  inline-size: auto;
+  min-inline-size: 9rem;
 }
 
 .selection-popover {

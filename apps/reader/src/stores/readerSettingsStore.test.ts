@@ -4,6 +4,11 @@ import { migrateReaderSettings, useReaderSettings } from './readerSettingsStore'
 beforeEach(() => {
   useReaderSettings.setState({
     fontSize: 100,
+    fontFamily: 'vazirmatn',
+    lineHeight: 1.9,
+    margin: 16,
+    brightness: 100,
+    hyphenate: false,
     theme: 'auto',
     justify: true,
     flow: 'paginated',
@@ -29,6 +34,30 @@ describe('readerSettingsStore', () => {
     setFlow('scrolled');
     expect(useReaderSettings.getState().flow).toBe('scrolled');
   });
+
+  it('clamps line height, margin, and brightness', () => {
+    const { setLineHeight, setMargin, setBrightness } = useReaderSettings.getState();
+    setLineHeight(9);
+    expect(useReaderSettings.getState().lineHeight).toBe(2.4);
+    setLineHeight(0.2);
+    expect(useReaderSettings.getState().lineHeight).toBe(1.4);
+    setMargin(-20);
+    expect(useReaderSettings.getState().margin).toBe(0);
+    setMargin(400);
+    expect(useReaderSettings.getState().margin).toBe(64);
+    setBrightness(5);
+    expect(useReaderSettings.getState().brightness).toBe(40);
+    setBrightness(300);
+    expect(useReaderSettings.getState().brightness).toBe(100);
+  });
+
+  it('switches the font family and toggles hyphenation', () => {
+    const { setFontFamily, toggleHyphenate } = useReaderSettings.getState();
+    setFontFamily('naskh');
+    expect(useReaderSettings.getState().fontFamily).toBe('naskh');
+    toggleHyphenate();
+    expect(useReaderSettings.getState().hyphenate).toBe(true);
+  });
 });
 
 describe('migrateReaderSettings', () => {
@@ -42,6 +71,7 @@ describe('migrateReaderSettings', () => {
   it('keeps themes that were explicitly chosen or migrated already', () => {
     expect(migrateReaderSettings({ theme: 'dark' }, 1)).toMatchObject({ theme: 'dark' });
     expect(migrateReaderSettings({ theme: 'sepia' }, 1)).toMatchObject({ theme: 'sepia' });
+    // v2+ users may have deliberately chosen light; leave it alone.
     expect(migrateReaderSettings({ theme: 'light' }, 2)).toMatchObject({ theme: 'light' });
   });
 

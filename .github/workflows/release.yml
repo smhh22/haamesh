@@ -106,3 +106,31 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: gh release edit "$RELEASE_TAG" --draft=false --latest
+
+  verify:
+    needs: publish
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+    steps:
+      - name: Check the published manifest and installers
+        run: |
+          set -euo pipefail
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}"
+          version="${RELEASE_TAG#v}"
+          curl -fsSL "${base}/latest.json" -o latest.json
+          python3 - "$version" <<'PY'
+          import json
+          import sys
+
+          version = sys.argv[1]
+          data = json.load(open("latest.json"))
+          assert data.get("version") == version, f"manifest version {data.get('version')} != {version}"
+          platforms = set(data.get("platforms", {}))
+          required = {"linux-x86_64", "linux-x86_64-deb", "windows-x86_64", "windows-x86_64-msi"}
+          missing = required - platforms
+          assert not missing, f"missing platforms: {sorted(missing)}"
+          print(f"verified {version}: {len(platforms)} platform entries")
+          PY
+          curl -fsIL "${base}/Hamesh_${version}_amd64.deb" -o /dev/null
+          curl -fsIL "${base}/Hamesh_${version}_x64-setup.exe" -o /dev/null

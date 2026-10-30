@@ -93,11 +93,17 @@ export const testSyncConnection = async (
   }
 };
 
+/** Interval for background sync rounds while the app stays open. */
+const AUTO_SYNC_INTERVAL_MS = 5 * 60_000;
+let autoSyncInFlight = false;
+
 /** Fire-and-forget sync when a provider is configured; errors are swallowed. */
 const autoSync = async (): Promise<void> => {
+  if (autoSyncInFlight) return;
   const config = loadSyncConfig();
   if (config.provider === 'none') return;
   if (config.provider === 'webdav' && !config.baseUrl) return;
+  autoSyncInFlight = true;
   try {
     if (config.provider === 'local-folder' && config.localFolder) {
       await restoreSyncRoot(config.localFolder);
@@ -105,15 +111,22 @@ const autoSync = async (): Promise<void> => {
     await runSync(config);
   } catch {
     // Auto-sync is best-effort; the manual button surfaces real errors.
+  } finally {
+    autoSyncInFlight = false;
   }
 };
 
 /**
- * ADR-0006: convergence happens on open, close, and manual sync. Close-time
- * sync is a best-effort pagehide hook because beforeunload cannot await.
+ * ADR-0006 convergence points: app open, page-hide (best-effort; the webview
+ * can be torn down before a request completes — local SQLite keeps the data
+ * and the next round catches up), a 5-minute timer while the app stays open
+ * and visible, and the manual button.
  */
 export const initAutoSync = (): (() => void) => {
   void autoSync();
+  const interval = setInterval(() => {
+    if (document.visibilityState === 'visible') void autoSync();
+  }, AUTO_SYNC_INTERVAL_MS);
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
   const onHide = () => {
     if (document.visibilityState !== 'hidden') return;
@@ -123,6 +136,7 @@ export const initAutoSync = (): (() => void) => {
   document.addEventListener('visibilitychange', onHide);
   window.addEventListener('pagehide', () => void autoSync());
   return () => {
+    clearInterval(interval);
     document.removeEventListener('visibilitychange', onHide);
     if (hideTimer) clearTimeout(hideTimer);
   };

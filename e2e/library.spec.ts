@@ -79,6 +79,22 @@ test('opens settings from the library, applies dark mode, and survives RTL', asy
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
+test('guides sync setup from an empty state', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+
+  await expect(dialog.getByText('No storage connected')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Add WebDAV' }).click();
+  await expect(dialog.getByText('Needs setup')).toBeVisible();
+
+  await dialog.getByLabel('Server URL').fill('https://dav.example.com');
+  await expect(dialog.getByText('Ready')).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Remove' }).click();
+  await expect(dialog.getByText('No storage connected')).toBeVisible();
+});
+
 test('persists the library across a reload', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(fixture);

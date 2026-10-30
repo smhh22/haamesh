@@ -1036,3 +1036,8 @@ kbd {
     margin-inline-start: auto;
   }
 }
+
+/* Tauri's Android WebView is edge-to-edge but reports no safe-area inset. */
+:root[data-platform="android"] .reader-header {
+  padding-block-start: calc(var(--hamesh-space-2) + 1.5rem);
+}

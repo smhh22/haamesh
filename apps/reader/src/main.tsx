@@ -17,6 +17,12 @@ if (!container) {
   throw new Error('Root element not found');
 }
 
+// The Android shell draws edge to edge, but its WebView reports zero safe-area
+// insets, so the reader header needs a platform-level top inset.
+if ('__TAURI_INTERNALS__' in window && /Android/i.test(navigator.userAgent)) {
+  document.documentElement.dataset.platform = 'android';
+}
+
 void (async () => {
   try {
     await initLibraryPersistence();

@@ -127,6 +127,17 @@ export const SyncSettings = () => {
                 />
               </div>
               <div className="setting-row">
+                <label htmlFor={`sync-proxy-${provider.id}`}>{t('sync.proxy')}</label>
+                <input
+                  id={`sync-proxy-${provider.id}`}
+                  type="text"
+                  value={provider.proxy}
+                  placeholder="socks5h://127.0.0.1:2080"
+                  autoComplete="off"
+                  onChange={(event) => patchProvider(provider.id, { proxy: event.target.value })}
+                />
+              </div>
+              <div className="setting-row">
                 <label htmlFor={`sync-pass-${provider.id}`}>{t('sync.password')}</label>
                 <input
                   id={`sync-pass-${provider.id}`}

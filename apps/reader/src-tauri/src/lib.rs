@@ -374,6 +374,64 @@ async fn install_deb_update(url: String, version: String) -> Result<(), String> 
     Ok(())
 }
 
+/// Response envelope for the Rust-side HTTP bridge.
+#[derive(serde::Serialize)]
+struct HttpResult {
+    status: u16,
+    headers: Vec<(String, String)>,
+    body: Vec<u8>,
+}
+
+/// Perform an HTTP(S) request for the sync providers, optionally through an
+/// HTTP or SOCKS5 proxy (sanctioned networks). Restricted to http/https so the
+/// bridge cannot be used for other schemes.
+#[tauri::command]
+async fn http_request(
+    method: String,
+    url: String,
+    headers: std::collections::HashMap<String, String>,
+    body: Option<Vec<u8>>,
+    proxy: Option<String>,
+) -> Result<HttpResult, String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("only http(s) URLs are supported".into());
+    }
+    let mut builder = reqwest::Client::builder();
+    if let Some(proxy_url) = proxy.filter(|value| !value.is_empty()) {
+        builder = builder.proxy(reqwest::Proxy::all(&proxy_url).map_err(|error| error.to_string())?);
+    }
+    let client = builder.build().map_err(|error| error.to_string())?;
+
+    let request_method =
+        reqwest::Method::from_bytes(method.as_bytes()).map_err(|error| error.to_string())?;
+    let mut request = client.request(request_method, &url);
+    for (name, value) in headers {
+        request = request.header(name, value);
+    }
+    if let Some(bytes) = body {
+        request = request.body(bytes);
+    }
+    let response = request.send().await.map_err(|error| error.to_string())?;
+
+    let status = response.status().as_u16();
+    let response_headers = response
+        .headers()
+        .iter()
+        .map(|(name, value)| {
+            (
+                name.as_str().to_string(),
+                value.to_str().unwrap_or_default().to_string(),
+            )
+        })
+        .collect();
+    let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+    Ok(HttpResult {
+        status,
+        headers: response_headers,
+        body: bytes.to_vec(),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -401,7 +459,8 @@ pub fn run() {
             keychain_get,
             keychain_delete,
             install_kind,
-            install_deb_update
+            install_deb_update,
+            http_request
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;

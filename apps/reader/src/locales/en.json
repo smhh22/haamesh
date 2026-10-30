@@ -121,7 +121,8 @@
     "passwordSaved": "Saved in your system keychain",
     "remove": "Remove",
     "addWebdav": "Add WebDAV",
-    "addLocalFolder": "Add local folder"
+    "addLocalFolder": "Add local folder",
+    "proxy": "Proxy (optional)"
   },
   "update": {
     "available": "Hāmesh {{version}} is available.",

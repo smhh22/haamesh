@@ -63,7 +63,10 @@ const UpdatesSection = () => {
   const { t } = useTranslation();
   const [version, setVersion] = useState('');
   const [updateMessage, setUpdateMessage] = useState('');
-  const [pendingUpdate, setPendingUpdate] = useState<string | null>(null);
+  const [pendingUpdate, setPendingUpdate] = useState<{
+    version: string;
+    notes: string | null;
+  } | null>(null);
   const [checking, setChecking] = useState(false);
   const [installing, setInstalling] = useState(false);
 
@@ -85,7 +88,7 @@ const UpdatesSection = () => {
     } else if (result.status === 'current') {
       setUpdateMessage(t('settings.upToDate'));
     } else {
-      setPendingUpdate(result.version);
+      setPendingUpdate({ version: result.version, notes: result.notes });
     }
     setChecking(false);
   };
@@ -96,7 +99,7 @@ const UpdatesSection = () => {
     setInstalling(true);
     setUpdateMessage('');
     try {
-      await installUpdate(pendingUpdate);
+      await installUpdate(pendingUpdate.version);
     } catch (error) {
       setUpdateMessage(error instanceof Error ? error.message : String(error));
       setInstalling(false);
@@ -120,10 +123,19 @@ const UpdatesSection = () => {
       </div>
       {pendingUpdate ? (
         <div className="setting-row">
-          <span>{t('settings.updateAvailable', { version: pendingUpdate })}</span>
+          <span className="update-summary">
+            {t('settings.updateAvailable', { version: pendingUpdate.version })}
+            {pendingUpdate.notes ? (
+              <span className="update-notes" id="settings-update-notes" role="tooltip">
+                <strong>{t('update.notes')}</strong>
+                <span className="update-notes-body">{pendingUpdate.notes}</span>
+              </span>
+            ) : null}
+          </span>
           <button
             type="button"
-            className="reader-action is-primary"
+            className="reader-action is-primary update-install"
+            aria-describedby={pendingUpdate.notes ? 'settings-update-notes' : undefined}
             disabled={installing}
             onClick={() => void installPending()}
           >

@@ -896,6 +896,44 @@ blockquote.note-text {
   opacity: 0.85;
 }
 
+/* Release notes preview: shown on hover or keyboard focus of the update
+   summary, so people can read what they are installing without a click. */
+.update-summary {
+  position: relative;
+  display: inline-flex;
+}
+
+.update-notes {
+  position: absolute;
+  inset-block-start: calc(100% + var(--hamesh-space-2));
+  inset-inline-start: 0;
+  z-index: 60;
+  display: none;
+  inline-size: min(24rem, 80vw);
+  max-block-size: 15rem;
+  overflow: auto;
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: calc(var(--hamesh-radius) * 0.6);
+  background: var(--hamesh-color-surface);
+  color: var(--hamesh-color-ink);
+  padding: var(--hamesh-space-2) var(--hamesh-space-3);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 18%);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.update-summary:hover .update-notes,
+.update-install:focus-visible ~ .update-notes,
+.setting-row:has(.update-install:focus-visible) .update-notes,
+.update-banner:has(.update-install:focus-visible) .update-notes {
+  display: grid;
+  gap: var(--hamesh-space-1);
+}
+
+.update-notes-body {
+  white-space: pre-wrap;
+}
+
 .update-banner {
   display: flex;
   flex-wrap: wrap;

@@ -17,18 +17,42 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+    outputs:
+      body: ${{ steps.body.outputs.body }}
     steps:
-      - name: Create the draft release once
+      # Full history so the notes can be computed between tags. The script
+      # comes from the workflow ref (main for a dispatch, the tag for a push).
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build the release notes from commits
+        id: body
+        run: |
+          set -euo pipefail
+          previous=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -v "^${RELEASE_TAG}$" | head -n1 || true)
+          if [ -n "$previous" ]; then
+            node scripts/release-notes.mjs "$previous" "$RELEASE_TAG" > "$RUNNER_TEMP/notes.md"
+          else
+            echo "First release." > "$RUNNER_TEMP/notes.md"
+          fi
+          {
+            echo "body<<__NOTES__"
+            cat "$RUNNER_TEMP/notes.md"
+            echo "__NOTES__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create or refresh the draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "Release $RELEASE_TAG already exists."
+            gh release edit "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/notes.md"
           else
             gh release create "$RELEASE_TAG" --draft \
               --title "Hāmesh $RELEASE_TAG" \
-              --notes "Installers for Hāmesh, a local-first ebook reader. See the repository README for details."
+              --notes-file "$RUNNER_TEMP/notes.md"
           fi
 
   build:
@@ -90,7 +114,7 @@ jobs:
         with:
           tagName: ${{ env.RELEASE_TAG }}
           releaseName: "Hāmesh ${{ env.RELEASE_TAG }}"
-          releaseBody: "Installers for Hāmesh, a local-first ebook reader. See the repository README for details."
+          releaseBody: ${{ needs.prepare.outputs.body }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
@@ -207,6 +231,7 @@ jobs:
           version = sys.argv[1]
           data = json.load(open("latest.json"))
           assert data.get("version") == version, f"manifest version {data.get('version')} != {version}"
+          assert data.get("notes"), "latest.json has no release notes"
           platforms = set(data.get("platforms", {}))
           required = {"linux-x86_64", "linux-x86_64-deb", "windows-x86_64", "windows-x86_64-msi"}
           missing = required - platforms

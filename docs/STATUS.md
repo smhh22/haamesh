@@ -150,8 +150,9 @@ Last updated: 2026-10-30, 11:40 (morning review with user — read with `AGENTS.
    SearchPanel, SettingsPanel) plus SelectionPopover are presentational
    components under `components/reader/`; ReaderView is ~740 lines of
    lifecycle + wiring, e2e-guarded.
-4. PDF annotation support (deliberately deferred); extraction for sync-
-   downloaded books (wire storeBookTexts into the sync path);
+4. PDF annotation support (deliberately deferred); ~~extraction for
+   sync-downloaded books~~ FIXED (`6d09b9f`: post-sync reconciliation with
+   `texts.has()`);
    RTL page-progression detection for Persian PDFs.
 5. Windows smoke test on real hardware (friend with Windows).
 6. Phase 5: Android, stats events, messaging backup channel.

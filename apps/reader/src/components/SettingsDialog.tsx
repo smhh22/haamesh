@@ -3,24 +3,25 @@ import { useTranslation } from 'react-i18next';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import { checkForUpdate, installUpdate, supportsInAppUpdate } from '../services/updater';
 import { type UiTheme, useUiStore } from '../stores/uiStore';
+import { ShortcutsList } from './ShortcutsList';
 import { SyncSettings } from './SyncSettings';
 
 interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
-  onOpenShortcuts: () => void;
 }
 
-type SettingsSection = 'general' | 'sync' | 'updates' | 'about';
+type SettingsSection = 'general' | 'shortcuts' | 'sync' | 'updates' | 'about';
 
 const SECTIONS: ReadonlyArray<{ id: SettingsSection; labelKey: string }> = [
   { id: 'general', labelKey: 'settings.general' },
+  { id: 'shortcuts', labelKey: 'shortcuts.title' },
   { id: 'sync', labelKey: 'sync.title' },
   { id: 'updates', labelKey: 'settings.updates' },
   { id: 'about', labelKey: 'settings.about' },
 ];
 
-const GeneralSection = ({ onOpenShortcuts }: { onOpenShortcuts: () => void }) => {
+const GeneralSection = () => {
   const { t } = useTranslation();
   const theme = useUiStore((state) => state.theme);
   const setTheme = useUiStore((state) => state.setTheme);
@@ -52,12 +53,6 @@ const GeneralSection = ({ onOpenShortcuts }: { onOpenShortcuts: () => void }) =>
           onClick={() => setLocale(locale === 'fa' ? 'en' : 'fa')}
         >
           {locale === 'fa' ? 'English' : 'فارسی'}
-        </button>
-      </div>
-      <div className="setting-row">
-        <span>{t('shortcuts.title')}</span>
-        <button type="button" className="reader-action" onClick={onOpenShortcuts}>
-          {t('settings.show')}
         </button>
       </div>
     </>
@@ -150,7 +145,7 @@ const AboutSection = () => {
  * App-level settings with sidebar navigation (general, sync, updates, about).
  * Reachable from the library header; Esc and the backdrop close it.
  */
-export const SettingsDialog = ({ open, onClose, onOpenShortcuts }: SettingsDialogProps) => {
+export const SettingsDialog = ({ open, onClose }: SettingsDialogProps) => {
   const { t } = useTranslation();
   const [active, setActive] = useState<SettingsSection>('general');
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -214,7 +209,8 @@ export const SettingsDialog = ({ open, onClose, onOpenShortcuts }: SettingsDialo
           </nav>
 
           <section className="settings-content" aria-label={title}>
-            {active === 'general' ? <GeneralSection onOpenShortcuts={onOpenShortcuts} /> : null}
+            {active === 'general' ? <GeneralSection /> : null}
+            {active === 'shortcuts' ? <ShortcutsList /> : null}
             {active === 'sync' ? <SyncSettings showHeading={false} /> : null}
             {active === 'updates' ? <UpdatesSection /> : null}
             {active === 'about' ? <AboutSection /> : null}

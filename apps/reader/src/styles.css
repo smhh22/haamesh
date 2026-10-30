@@ -973,25 +973,51 @@ blockquote.note-text {
   max-inline-size: 34rem;
 }
 
+.shortcuts-dialog-body {
+  padding: var(--hamesh-space-4);
+}
+
+/* Grouped shortcut cards: a title, then key caps and their description in a
+   two-column grid so keys line up down each group. */
+.shortcut-groups {
+  display: grid;
+  gap: var(--hamesh-space-3);
+}
+
+.shortcut-group {
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: calc(var(--hamesh-radius) * 0.75);
+  background: var(--hamesh-color-canvas);
+  padding: var(--hamesh-space-3);
+}
+
+.shortcut-group h3 {
+  margin-block: 0 var(--hamesh-space-2);
+  margin-inline: 0;
+  color: var(--hamesh-color-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .shortcut-list {
+  display: grid;
+  gap: var(--hamesh-space-1);
   margin: 0;
 }
 
 .shortcut-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--hamesh-space-2);
+  display: grid;
+  grid-template-columns: minmax(5rem, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--hamesh-space-3);
   padding-block: var(--hamesh-space-1);
-  border-block-start: 1px solid var(--hamesh-color-border);
-}
-
-.shortcut-row:first-child {
-  border-block-start: 0;
 }
 
 .shortcut-row dt {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--hamesh-space-1);
   margin: 0;
 }
@@ -999,16 +1025,21 @@ blockquote.note-text {
 .shortcut-row dd {
   margin: 0;
   color: var(--hamesh-color-muted);
-  text-align: end;
+  font-size: 0.9rem;
+  text-align: start;
 }
 
 kbd {
+  min-inline-size: 1.5rem;
   border: 1px solid var(--hamesh-color-border);
-  border-radius: 4px;
-  background: var(--hamesh-color-canvas);
-  padding-inline: var(--hamesh-space-1);
+  border-block-end-width: 2px;
+  border-radius: 6px;
+  background: var(--hamesh-color-surface);
+  padding-block: 0.05rem;
+  padding-inline: var(--hamesh-space-2);
   font-family: inherit;
   font-size: 0.8rem;
+  text-align: center;
   direction: ltr;
 }
 

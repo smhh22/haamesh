@@ -9,6 +9,22 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "Noto Naskh Arabic";
+  src: url("/fonts/NotoNaskhArabic-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Literata";
+  src: url("/fonts/Literata-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --hamesh-font-ui: "Vazirmatn", system-ui, -apple-system, "Segoe UI", sans-serif;
   --hamesh-font-book: "Vazirmatn", system-ui, serif;

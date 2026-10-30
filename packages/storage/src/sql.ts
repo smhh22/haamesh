@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS notes (
 );
 CREATE INDEX IF NOT EXISTS notes_book ON notes(book_id);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-PRAGMA user_version = 3;
+PRAGMA user_version = 4;
 `;
 
 const BOOK_TEXTS_TABLE = `CREATE TABLE IF NOT EXISTS book_texts (
@@ -67,6 +67,15 @@ const BOOK_TEXTS_TABLE = `CREATE TABLE IF NOT EXISTS book_texts (
   section INTEGER NOT NULL,
   content TEXT NOT NULL,
   PRIMARY KEY (book_id, section)
+);`;
+
+// ADR-0011: per-field clocks. Record-level clocks stay for legacy rows,
+// bootstrap, and remove-wins tombstones.
+const SYNC_FIELD_CLOCKS_TABLE = `CREATE TABLE IF NOT EXISTS sync_field_clocks (
+  record_key TEXT NOT NULL,
+  field TEXT NOT NULL,
+  hlc TEXT NOT NULL,
+  PRIMARY KEY (record_key, field)
 );`;
 
 const SYNC_CLOCKS_TABLE = `CREATE TABLE IF NOT EXISTS sync_clocks (
@@ -87,6 +96,11 @@ export const migrate = async (db: SqlDatabase): Promise<void> => {
   if (version < 3) {
     await db.exec(BOOK_TEXTS_TABLE);
     await db.exec('PRAGMA user_version = 3');
+  }
+  // v4 adds per-field sync clocks (ADR-0011).
+  if (version < 4) {
+    await db.exec(SYNC_FIELD_CLOCKS_TABLE);
+    await db.exec('PRAGMA user_version = 4');
   }
 };
 
@@ -367,8 +381,12 @@ export const createContentTextRepository = (db: SqlDatabase): ContentTextReposit
  * are gone.
  */
 export interface SyncClockRepository {
+  /** Record-level clocks: legacy rows, bootstrap, and `:deleted` tombstones. */
   list(): Promise<Record<string, string>>;
   set(entries: Array<readonly [string, string]>): Promise<void>;
+  /** Per-field clocks (ADR-0011): record key -> field -> packed HLC. */
+  listFields(): Promise<Record<string, Record<string, string>>>;
+  setFields(entries: Array<readonly [string, string, string]>): Promise<void>;
 }
 
 export const createSyncClockRepository = (db: SqlDatabase): SyncClockRepository => ({
@@ -381,6 +399,26 @@ export const createSyncClockRepository = (db: SqlDatabase): SyncClockRepository 
       await db.run(
         'INSERT INTO sync_clocks (key, hlc) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET hlc = excluded.hlc',
         [key, hlc],
+      );
+    }
+  },
+  async listFields() {
+    const rows = await db.all<{ record_key: string; field: string; hlc: string }>(
+      'SELECT record_key, field, hlc FROM sync_field_clocks',
+    );
+    const out: Record<string, Record<string, string>> = {};
+    for (const row of rows) {
+      const bucket = out[row.record_key] ?? {};
+      bucket[row.field] = row.hlc;
+      out[row.record_key] = bucket;
+    }
+    return out;
+  },
+  async setFields(entries) {
+    for (const [key, field, hlc] of entries) {
+      await db.run(
+        'INSERT INTO sync_field_clocks (record_key, field, hlc) VALUES (?, ?, ?) ON CONFLICT(record_key, field) DO UPDATE SET hlc = excluded.hlc',
+        [key, field, hlc],
       );
     }
   },

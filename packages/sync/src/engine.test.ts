@@ -19,6 +19,7 @@ const createMemoryStore = (deviceId: string, now: () => number): MemoryStore => 
   const clock = new HybridLogicalClock(deviceId, now);
   const records = new Map<string, SyncRecord>();
   const clocks = new Map<string, string>();
+  const fieldClocks = new Map<string, Map<string, string>>();
   const key = (kind: string, id: string) => `${kind}:${id}`;
   const build: MemoryStore = {
     clock,
@@ -39,10 +40,22 @@ const createMemoryStore = (deviceId: string, now: () => number): MemoryStore => 
       }
     },
     async clocks() {
-      return Object.fromEntries(clocks);
+      return {
+        records: Object.fromEntries(clocks),
+        fields: Object.fromEntries(
+          [...fieldClocks.entries()].map(([k, map]) => [k, Object.fromEntries(map)]),
+        ),
+      };
     },
     async setClocks(entries: Array<readonly [string, string]>) {
       for (const [k, t] of entries) clocks.set(k, t);
+    },
+    async setFieldClocks(entries: Array<readonly [string, string, string]>) {
+      for (const [k, field, t] of entries) {
+        const bucket = fieldClocks.get(k) ?? new Map<string, string>();
+        bucket.set(field, t);
+        fieldClocks.set(k, bucket);
+      }
     },
     async bookFile(sha256: string) {
       const record = [...records.values()].find(
@@ -56,10 +69,21 @@ const createMemoryStore = (deviceId: string, now: () => number): MemoryStore => 
       blobs.set(sha256, data);
       void ext;
     },
-    /** Local write: replaces the record and stamps its clock. */
+    /** Local write: merges the given fields and stamps exactly those (ADR-0011). */
     async localEdit(record: SyncRecord) {
-      records.set(`${record.kind}:${record.id}`, { ...record, fields: { ...record.fields } });
-      await build.setClocks([[`${record.kind}:${record.id}`, clock.now()]]);
+      const key = `${record.kind}:${record.id}`;
+      const existing = records.get(key);
+      records.set(key, {
+        ...record,
+        fields: { ...existing?.fields, ...record.fields },
+      });
+      const stamps: Array<readonly [string, string, string]> = Object.keys(record.fields).map(
+        (field) => [key, field, clock.now()] as const,
+      );
+      await build.setFieldClocks(stamps);
+      if (record.deleted) {
+        await build.setClocks([[`${key}:deleted`, clock.now()]]);
+      }
     },
   };
   return build;
@@ -152,6 +176,68 @@ describe('sync engine', () => {
     const titleB = storeB.records.get('book:1')?.fields.title;
     expect(titleA).toBe(titleB);
     expect(['edited-on-a', 'edited-on-b']).toContain(titleA);
+  });
+
+  it('keeps concurrent edits to different fields of the same book', async () => {
+    const provider = createMemoryProvider();
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    const storeB = createMemoryStore('device-b', now);
+
+    await storeA.localEdit(bookRecord('1', 'Original', 1000));
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+
+    wall = 2000;
+    // Device A renames; device B edits a different field of the same book.
+    await storeA.localEdit({
+      id: '1',
+      kind: 'book',
+      fields: { title: 'Renamed' },
+      deleted: false,
+      updatedAt: 2000,
+    });
+    await storeB.localEdit({
+      id: '1',
+      kind: 'book',
+      fields: { series: 'Series B' },
+      deleted: false,
+      updatedAt: 2000,
+    });
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+
+    for (const store of [storeA, storeB]) {
+      expect(store.records.get('book:1')?.fields.title).toBe('Renamed');
+      expect(store.records.get('book:1')?.fields.series).toBe('Series B');
+    }
   });
 
   it('propagates reading state as book fields', async () => {

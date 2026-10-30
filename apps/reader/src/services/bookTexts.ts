@@ -3,6 +3,7 @@
  * at import time, searched with the shared Persian-aware normalizer.
  */
 import { extractEpubText } from '@hamesh/engine';
+import { createDataStore } from './dataStore';
 import { getActiveStorage } from './libraryPersistence';
 
 export interface ContentMatch {
@@ -36,4 +37,34 @@ export const searchBookContent = async (query: string, limit = 12): Promise<Cont
   const storage = getActiveStorage();
   if (!storage) return [];
   return storage.storage.texts.search(query, limit);
+};
+
+/**
+ * Reconciliation after a sync round downloaded books: extract texts for EPUBs
+ * that have a local file but no stored text yet. Best-effort; never throws.
+ */
+export const extractMissingBookTexts = async (): Promise<number> => {
+  const storage = getActiveStorage();
+  if (!storage) return 0;
+  const dataStore = await createDataStore();
+  if (!dataStore) return 0;
+  let extracted = 0;
+  try {
+    const books = await storage.storage.books.list();
+    for (const book of books) {
+      if (book.format !== 'epub') continue;
+      if (await storage.storage.texts.has(book.id)) continue;
+      const bytes = await dataStore.read(`books/${book.hash}.${book.format}`);
+      if (!bytes) continue;
+      const copy = new Uint8Array(new ArrayBuffer(bytes.byteLength));
+      copy.set(bytes);
+      const blob = new Blob([copy], { type: 'application/epub+zip' });
+      const { sections } = await extractEpubText(blob);
+      await storage.storage.texts.replace(book.id, sections);
+      extracted += 1;
+    }
+  } catch (error) {
+    console.warn('Book text reconciliation failed', error);
+  }
+  return extracted;
 };

@@ -306,6 +306,8 @@ export const createSqlStorage = (db: SqlDatabase): Storage => ({
 export interface ContentTextRepository {
   replace(bookId: string, sections: string[]): Promise<void>;
   remove(bookId: string): Promise<void>;
+  /** True when extracted text exists for the book (used by sync reconciliation). */
+  has(bookId: string): Promise<boolean>;
   search(
     query: string,
     limit?: number,
@@ -358,6 +360,14 @@ export const createContentTextRepository = (db: SqlDatabase): ContentTextReposit
 
   async remove(bookId) {
     await db.run('DELETE FROM book_texts WHERE book_id = ?', [bookId]);
+  },
+
+  async has(bookId: string) {
+    const rows = await db.all<{ present: number }>(
+      'SELECT 1 AS present FROM book_texts WHERE book_id = ? LIMIT 1',
+      [bookId],
+    );
+    return rows.length > 0;
   },
 
   async search(query, limit = 20) {

@@ -28,8 +28,11 @@ jobs:
         with:
           filters: |
             web:
-              - 'apps/reader/**'
-              - '!apps/reader/src-tauri/**'
+              - 'apps/reader/src/**'
+              - 'apps/reader/index.html'
+              - 'apps/reader/vite.config.ts'
+              - 'apps/reader/package.json'
+              - 'apps/reader/scripts/**'
               - 'packages/**'
               - 'e2e/**'
               - 'scripts/**'

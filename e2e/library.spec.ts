@@ -95,6 +95,21 @@ test('guides sync setup from an empty state', async ({ page }) => {
   await expect(dialog.getByText('No storage connected')).toBeVisible();
 });
 
+test('configures an S3-compatible provider', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+
+  await dialog.getByRole('button', { name: 'Add S3 storage' }).click();
+  await expect(dialog.getByText('Needs setup')).toBeVisible();
+
+  await dialog.getByLabel('Endpoint').fill('https://s3.example.com');
+  await dialog.getByLabel('Bucket').fill('hamesh');
+  await dialog.getByLabel('Access key ID').fill('AKIDEXAMPLE');
+  await dialog.getByLabel('Secret access key').fill('secret');
+  await expect(dialog.getByText('Ready')).toBeVisible();
+});
+
 test('persists the library across a reload', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(fixture);

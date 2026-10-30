@@ -46,6 +46,8 @@ export interface SyncProviderConfig {
   /** Runtime only; persisted to the OS keychain like WebDAV passwords. */
   secretAccessKey: string;
   hasSecretKey: boolean;
+  /** Named setup preset (e.g. 'syncthing'), empty for a plain provider. */
+  preset: string;
   /** Dropbox (a user-owned scoped app; no vendor backend) */
   appKey: string;
   appSecret: string;
@@ -81,7 +83,10 @@ const providerLabel = (kind: ProviderKind): string => {
   }
 };
 
-export const newProvider = (kind: ProviderKind): SyncProviderConfig => ({
+export const newProvider = (
+  kind: ProviderKind,
+  overrides: Partial<SyncProviderConfig> = {},
+): SyncProviderConfig => ({
   id: crypto.randomUUID(),
   kind,
   label: providerLabel(kind),
@@ -97,13 +102,44 @@ export const newProvider = (kind: ProviderKind): SyncProviderConfig => ({
   accessKeyId: '',
   secretAccessKey: '',
   hasSecretKey: false,
+  preset: '',
   appKey: '',
   appSecret: '',
   hasAppSecret: false,
   refreshToken: '',
   hasRefreshToken: false,
   proxy: '',
+  ...overrides,
 });
+
+/**
+ * WebDAV setups that only need a URL pattern: users still fill their own
+ * server/user, but the shape is right. Syncthing is the local-folder preset:
+ * Syncthing syncs a folder on disk, and Hāmesh syncs inside that folder.
+ */
+export interface WebdavPreset {
+  id: string;
+  label: string;
+  baseUrl: string;
+}
+
+export const WEBDAV_PRESETS: readonly WebdavPreset[] = [
+  {
+    id: 'nextcloud',
+    label: 'Nextcloud',
+    baseUrl: 'https://your-server/remote.php/dav/files/username/',
+  },
+  {
+    id: 'owncloud',
+    label: 'ownCloud',
+    baseUrl: 'https://your-server/remote.php/dav/files/username/',
+  },
+  { id: 'koofr', label: 'Koofr', baseUrl: 'https://app.koofr.net/dav/Koofr' },
+  { id: 'pcloud', label: 'pCloud', baseUrl: 'https://webdav.pcloud.com' },
+  { id: 'infinicloud', label: 'InfiniCLOUD', baseUrl: 'https://your-server.teracloud.jp/dav/' },
+];
+
+export const SYNCTHING_PRESET = 'syncthing';
 
 const passwordKey = (providerId: string): string => `sync.webdav.password.${providerId}`;
 const secretKey = (providerId: string): string => `sync.s3.secret.${providerId}`;
@@ -140,6 +176,7 @@ const migrateLegacy = (legacy: LegacyConfig): SyncConfig => {
         accessKeyId: '',
         secretAccessKey: '',
         hasSecretKey: false,
+        preset: '',
         appKey: '',
         appSecret: '',
         hasAppSecret: false,

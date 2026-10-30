@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isProviderConfigured, newProvider } from './syncService';
+import { isProviderConfigured, newProvider, SYNCTHING_PRESET, WEBDAV_PRESETS } from './syncService';
 
 describe('isProviderConfigured', () => {
   it('requires the minimum details for each provider kind', () => {
@@ -54,5 +54,20 @@ describe('isProviderConfigured', () => {
         secretAccessKey: 'secret',
       }),
     ).toBe(true);
+  });
+});
+
+describe('provider presets', () => {
+  it('applies overrides for the Syncthing preset', () => {
+    const provider = newProvider('local-folder', { preset: SYNCTHING_PRESET });
+    expect(provider.kind).toBe('local-folder');
+    expect(provider.preset).toBe('syncthing');
+  });
+
+  it('carries a URL pattern for every WebDAV preset', () => {
+    expect(WEBDAV_PRESETS.length).toBeGreaterThan(0);
+    for (const preset of WEBDAV_PRESETS) {
+      expect(preset.baseUrl.startsWith('https://')).toBe(true);
+    }
   });
 });

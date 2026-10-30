@@ -14,6 +14,17 @@ val tauriProperties = Properties().apply {
     }
 }
 
+// Release signing lives outside the repo: point HAMESH_KEYSTORE_PROPERTIES at a
+// properties file with storeFile/storePassword/keyAlias/keyPassword.
+val keystoreProperties = Properties().apply {
+    val propFile = System.getenv("HAMESH_KEYSTORE_PROPERTIES")
+        ?.let { file(it) }
+        ?: file("keystore.properties")
+    if (propFile.exists()) {
+        propFile.inputStream().use { load(it) }
+    }
+}
+
 android {
     compileSdk = 37
     namespace = "app.hamesh.reader"
@@ -24,6 +35,16 @@ android {
         targetSdk = 37
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+    }
+    signingConfigs {
+        create("release") {
+            if (keystoreProperties.getProperty("storeFile") != null) {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
     }
     buildTypes {
         getByName("debug") {
@@ -42,6 +63,9 @@ android {
         getByName("release") {
             optimization {
                enable = true
+            }
+            if (keystoreProperties.getProperty("storeFile") != null) {
+                signingConfig = signingConfigs.getByName("release")
             }
             proguardFiles(
                 *fileTree(".") {

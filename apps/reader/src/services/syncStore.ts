@@ -122,7 +122,11 @@ export const createSqlSyncStore = (
           typeof fields.sha256 === 'string'
             ? fields.sha256
             : (existing?.hash ?? `sync-${record.id}`);
-        const format = fields.ext === 'pdf' ? 'pdf' : 'epub';
+        // A partial diff may carry only some fields; unknown ones fall back to
+        // the existing row instead of defaulting (which would flip direction
+        // or turn a PDF into an EPUB).
+        const format =
+          fields.ext === 'pdf' || fields.ext === 'epub' ? fields.ext : (existing?.format ?? 'epub');
         const book: BookRecord = {
           id: record.id,
           hash,
@@ -140,7 +144,10 @@ export const createSqlSyncStore = (
             typeof fields.identifiers === 'object' && fields.identifiers !== null
               ? (fields.identifiers as Record<string, string>)
               : (existing?.identifiers ?? {}),
-          direction: fields.direction === 'rtl' ? 'rtl' : 'ltr',
+          direction:
+            fields.direction === 'rtl' || fields.direction === 'ltr'
+              ? fields.direction
+              : (existing?.direction ?? 'ltr'),
           category:
             typeof fields.category === 'string' ? fields.category : (existing?.category ?? null),
           tags: Array.isArray(fields.tags)
@@ -170,13 +177,18 @@ export const createSqlSyncStore = (
       if (record.kind === 'reading') {
         if (record.deleted) return;
         const fields = record.fields as Record<string, unknown>;
+        // Reading diffs are per-field too; missing fields keep the local value.
+        const prior = (await storage.reading.list()).find((item) => item.bookId === record.id);
         await storage.reading.save({
           bookId: record.id,
-          locator: isLocator(fields.locator) ? fields.locator : null,
-          fraction: typeof fields.fraction === 'number' ? fields.fraction : 0,
-          status: (fields.status === 'finished' || fields.status === 'unread'
-            ? fields.status
-            : 'reading') as ReadingStatus,
+          locator: isLocator(fields.locator) ? fields.locator : (prior?.locator ?? null),
+          fraction: typeof fields.fraction === 'number' ? fields.fraction : (prior?.fraction ?? 0),
+          status:
+            fields.status === 'finished' ||
+            fields.status === 'unread' ||
+            fields.status === 'reading'
+              ? (fields.status as ReadingStatus)
+              : (prior?.status ?? 'reading'),
           updatedAt: now,
         });
         return;

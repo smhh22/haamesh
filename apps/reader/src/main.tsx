@@ -28,7 +28,8 @@ void (async () => {
     await initLibraryPersistence();
     await importInitialFile();
     initUiTheme();
-    void initSyncSecurity();
+    // Migrate legacy plaintext secrets before any sync can read them.
+    await initSyncSecurity();
     initAutoSync();
   } catch (error) {
     console.error('Failed to load the persisted library', error);

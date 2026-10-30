@@ -7,6 +7,7 @@ import {
   isProviderConfigured,
   loadSyncConfig,
   newProvider,
+  removeProviderSecrets,
   runSync,
   type SyncConfig,
   type SyncProviderConfig,
@@ -49,6 +50,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
   };
 
   const removeProvider = (id: string) => {
+    removeProviderSecrets(id);
     commit({ providers: config.providers.filter((provider) => provider.id !== id) });
   };
 

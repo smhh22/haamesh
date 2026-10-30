@@ -46,6 +46,9 @@ const createFakeStorage = (repos: FakeRepos, clockMap: Map<string, string>): Act
     async set(entries) {
       for (const [key, hlc] of entries) clockMap.set(key, hlc);
     },
+    async remove(keys) {
+      for (const key of keys) clockMap.delete(key);
+    },
     async listFields() {
       const out: Record<string, Record<string, string>> = {};
       for (const [compound, hlc] of fieldClockMap) {
@@ -203,6 +206,58 @@ describe('sql sync store adapter', () => {
     expect(book?.authors).toEqual(['Author']);
     expect(book?.language).toBe('fa');
     expect(book?.filePath).toBe('books/sha-b1.epub');
+  });
+
+  it('keeps direction and format when a partial field diff arrives', async () => {
+    const repos: FakeRepos = {
+      books: new Map([['b1', { ...baseBook(), format: 'pdf', direction: 'rtl' }]]),
+      reading: new Map(),
+      notes: new Map(),
+    };
+    const store = createSqlSyncStore(createFakeStorage(repos, new Map()), createFakeDataStore());
+    // A category-only diff carries neither `ext` nor `direction`.
+    await store.apply({
+      id: 'b1',
+      kind: 'book',
+      fields: { category: 'Studies' },
+      deleted: false,
+      updatedAt: 0,
+    });
+    const book = repos.books.get('b1');
+    expect(book?.category).toBe('Studies');
+    expect(book?.format).toBe('pdf');
+    expect(book?.direction).toBe('rtl');
+  });
+
+  it('keeps reading state fields that a partial diff omits', async () => {
+    const repos: FakeRepos = {
+      books: new Map([['b1', baseBook()]]),
+      reading: new Map([
+        [
+          'b1',
+          {
+            bookId: 'b1',
+            locator: { kind: 'cfi', cfi: 'epubcfi(/6/4)', fraction: 0.5 },
+            fraction: 0.5,
+            status: 'finished',
+            updatedAt: 1100,
+          },
+        ],
+      ]),
+      notes: new Map(),
+    };
+    const store = createSqlSyncStore(createFakeStorage(repos, new Map()), createFakeDataStore());
+    await store.apply({
+      id: 'b1',
+      kind: 'reading',
+      fields: { fraction: 0.7 },
+      deleted: false,
+      updatedAt: 0,
+    });
+    const reading = repos.reading.get('b1');
+    expect(reading?.fraction).toBe(0.7);
+    expect(reading?.status).toBe('finished');
+    expect(reading?.locator?.kind).toBe('cfi');
   });
 
   it('creates a book record from remote fields when it does not exist locally', async () => {

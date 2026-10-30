@@ -14,19 +14,27 @@ const invokeFs = async <T>(command: string, args: Record<string, unknown>): Prom
 export const isLocalFolderAvailable = (): boolean => isTauriRuntime();
 
 /** Native folder picker; stores the chosen root in the Rust side. */
+/**
+ * Pick the sync folder with the native dialog. The path is chosen and
+ * stored in Rust, so the webview never supplies a filesystem root.
+ */
 export const pickSyncFolder = async (): Promise<string | null> => {
   if (!isTauriRuntime()) return null;
-  const { open } = await import('@tauri-apps/plugin-dialog');
-  const picked = await open({ directory: true, multiple: false, title: 'Choose sync folder' });
-  if (typeof picked !== 'string') return null;
-  return invokeFs<string>('sync_set_root', { path: picked });
+  return invokeFs<string | null>('sync_pick_root', {});
 };
 
-/** Re-establish the saved root after a restart (needed before fs commands). */
+/**
+ * Re-establish the saved root after a restart (needed before fs commands).
+ * The root is restored from Rust-side storage; older builds that only saved
+ * the path in webview config adopt it once.
+ */
 export const restoreSyncRoot = async (path: string): Promise<string | null> => {
-  if (!isTauriRuntime() || !path) return null;
+  if (!isTauriRuntime()) return null;
   try {
-    return await invokeFs<string>('sync_set_root', { path });
+    const restored = await invokeFs<string | null>('sync_restore_root', {});
+    if (restored) return restored;
+    if (!path) return null;
+    return await invokeFs<string | null>('sync_adopt_root', { path });
   } catch {
     return null;
   }

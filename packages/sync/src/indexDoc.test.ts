@@ -179,3 +179,18 @@ describe('diffPull', () => {
     expect(fc.assert(prop, { numRuns: 200 })).toBeUndefined();
   });
 });
+
+describe('unknown key preservation', () => {
+  it('keeps unknown top-level keys through decode and encode', () => {
+    const raw = {
+      schemaVersion: SCHEMA_VERSION,
+      devices: {},
+      books: {},
+      notes: {},
+      futureFeature: { enabled: true },
+    };
+    const doc = decodeIndexDoc(raw);
+    const roundTripped = JSON.parse(encodeIndexDoc(doc)) as Record<string, unknown>;
+    expect(roundTripped.futureFeature).toEqual({ enabled: true });
+  });
+});

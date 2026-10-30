@@ -17,6 +17,10 @@ import {
 } from './indexDoc';
 import type { StorageProvider } from './provider';
 import { ProviderError } from './provider';
+import { sha256Hex } from './providers/awsV4';
+
+/** Downloads larger than this are rejected before they reach storage. */
+const MAX_BLOB_BYTES = 1024 * 1024 * 1024;
 
 export type SyncKind = 'book' | 'reading' | 'note';
 
@@ -110,18 +114,25 @@ export const buildLocalDoc = (
     doc.books[id] = fresh;
     return fresh;
   };
-  /** ADR-0011 resolution: field clock -> record clock -> legacy updatedAt. */
-  const stampFor = (record: SyncRecord, docField: string): string =>
-    clocks.fields[recordKey(record)]?.[docField] ??
+  /** ADR-0011 resolution: field clock -> record clock -> legacy updatedAt.
+   * Reading fields are written under the book's key (book:<id>), not the
+   * reading record key, so the caller can pass the key explicitly. */
+  const stampFor = (
+    record: SyncRecord,
+    docField: string,
+    clockKey: string = recordKey(record),
+  ): string =>
+    clocks.fields[clockKey]?.[docField] ??
     clocks.records[recordKey(record)] ??
     legacyTimestamp(record, deviceId);
 
   for (const record of records) {
     if (record.kind === 'reading') {
       const book = ensureBook(record.id);
+      const clockKey = `book:${record.id}`;
       for (const [field, value] of Object.entries(record.fields)) {
         const docField = `${READING_PREFIX}${field}`;
-        book.fields[docField] = { v: value, t: stampFor(record, docField) };
+        book.fields[docField] = { v: value, t: stampFor(record, docField, clockKey) };
       }
       continue;
     }
@@ -185,13 +196,18 @@ export const createSyncEngine = (options: SyncOptions) => {
         // Etag first: if another writer lands between HEAD and GET, the
         // commit's If-Match fails and we retry — reading the etag after the
         // body could adopt the concurrent writer's etag and clobber it.
-        const indexEtag = (await provider.head(INDEX_PATH))?.etag ?? null;
+        const rawEtag = (await provider.head(INDEX_PATH))?.etag ?? null;
         let remote = emptyIndexDoc();
         const remoteRaw = await provider.readText(INDEX_PATH).catch((error: unknown) => {
           if (error instanceof ProviderError && error.code === 'NOT_FOUND') return null;
           throw error;
         });
         if (remoteRaw !== null) remote = decodeIndexDoc(JSON.parse(remoteRaw));
+        const indexExists = remoteRaw !== null;
+        // Weak validators cannot satisfy If-Match; when the object exists but
+        // has no usable validator, fall back to an unconditional commit
+        // instead of a create-only write that would conflict forever.
+        const indexEtag = rawEtag && !rawEtag.startsWith('W/') ? rawEtag : null;
 
         // 1. Pull remote-wins fields into the local store.
         const pullBooks = diffPull(localDoc.books, remote.books);
@@ -256,7 +272,10 @@ export const createSyncEngine = (options: SyncOptions) => {
           if (entry.deletedAt) continue;
           const sha256 = entry.fields.sha256?.v;
           const ext = entry.fields.ext?.v;
-          if (typeof sha256 !== 'string' || typeof ext !== 'string') continue;
+          // The index is untrusted remote data: only hash-shaped ids and known
+          // formats may be used to build paths.
+          if (typeof sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(sha256)) continue;
+          if (ext !== 'epub' && ext !== 'pdf') continue;
           const blobPath = bookBlobPath(sha256, ext);
           const remoteBlob = await provider.head(blobPath);
           const localBlob = await store.bookFile(sha256);
@@ -272,6 +291,17 @@ export const createSyncEngine = (options: SyncOptions) => {
           } else if (remoteBlob && !localBlob) {
             const data = await provider.readBinary(blobPath);
             if (data) {
+              if (data.byteLength > MAX_BLOB_BYTES) {
+                report.ok = false;
+                report.error = `blob too large: ${sha256}`;
+                continue;
+              }
+              const digest = await sha256Hex(new Uint8Array(data));
+              if (digest !== sha256) {
+                report.ok = false;
+                report.error = `blob hash mismatch: ${sha256}`;
+                continue;
+              }
               await store.saveBookFile(sha256, ext, new Uint8Array(data));
               report.downloadedBlobs += 1;
             }
@@ -285,7 +315,7 @@ export const createSyncEngine = (options: SyncOptions) => {
           [deviceId]: { lastWrite: { v: clock.now(), t: clock.peek() } },
         };
         const body = encodeIndexDoc({ ...merged, devices });
-        if (provider.writeTextConditional) {
+        if (provider.writeTextConditional && (!indexExists || indexEtag)) {
           const result = await provider.writeTextConditional(INDEX_PATH, body, indexEtag);
           if (result === 'conflict') continue;
         } else {
@@ -306,11 +336,14 @@ export const createSyncEngine = (options: SyncOptions) => {
   return {
     /** Run a full sync round across every enabled provider. */
     sync: async (): Promise<SyncReport> => {
-      const records = await store.list();
-      const clocks = await store.clocks();
-      const localDoc = buildLocalDoc(records, clocks, deviceId);
       const reports: SyncProviderReport[] = [];
       for (const provider of providers) {
+        // Rebuild after each provider: an earlier pull mutates the local store
+        // and the next provider must be merged against that state, not a
+        // stale snapshot (two mirrors could otherwise regress each other).
+        const records = await store.list();
+        const clocks = await store.clocks();
+        const localDoc = buildLocalDoc(records, clocks, deviceId);
         reports.push(await syncWithProvider(provider, localDoc));
       }
       return { ok: reports.every((report) => report.ok), providers: reports };

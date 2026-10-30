@@ -43,6 +43,8 @@ export interface IndexDoc {
   devices: Record<string, DeviceDoc>;
   books: Record<string, RecordDoc>;
   notes: Record<string, RecordDoc>;
+  /** Unknown top-level keys from newer clients; preserved on rewrite. */
+  extra?: Record<string, unknown>;
 }
 
 export const emptyIndexDoc = (): IndexDoc => ({
@@ -106,6 +108,14 @@ export const decodeIndexDoc = (input: unknown): IndexDoc => {
     );
   }
   const doc = emptyIndexDoc();
+  // Unknown top-level keys belong to newer clients; keep them so a rewrite
+  // does not silently drop additive data (AGENTS.md wire invariant).
+  const known = new Set(['schemaVersion', 'devices', 'books', 'notes']);
+  const extra: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!known.has(key)) extra[key] = value;
+  }
+  if (Object.keys(extra).length > 0) doc.extra = extra;
   for (const [key, value] of Object.entries((raw.devices ?? {}) as Record<string, unknown>)) {
     const lastWrite = (value as DeviceDoc | undefined)?.lastWrite;
     doc.devices[key] = { lastWrite: lastWrite && isEnvelope(lastWrite) ? lastWrite : null };
@@ -119,7 +129,11 @@ export const decodeIndexDoc = (input: unknown): IndexDoc => {
   return doc;
 };
 
-export const encodeIndexDoc = (doc: IndexDoc): string => JSON.stringify(doc);
+/** Unknown keys are written back at the top level, never under `extra`. */
+export const encodeIndexDoc = (doc: IndexDoc): string => {
+  const { extra, ...known } = doc;
+  return JSON.stringify(extra ? { ...extra, ...known } : known);
+};
 
 /** Merge two record docs field-wise; tombstones are sticky (remove wins). */
 export const mergeRecordDoc = (a: RecordDoc, b: RecordDoc): RecordDoc => {
@@ -157,12 +171,18 @@ export const mergeIndexDoc = (a: IndexDoc, b: IndexDoc): IndexDoc => {
       lastWrite: mergeEnvelopeOpt(devices[key]?.lastWrite ?? null, device.lastWrite),
     };
   }
-  return {
+  const merged: IndexDoc = {
     schemaVersion: a.schemaVersion,
     devices,
     books: mergeMaps(a.books, b.books),
     notes: mergeMaps(a.notes, b.notes),
   };
+  if (a.extra || b.extra) {
+    // Conflicting unknown values keep a's copy; additive keys from either
+    // side survive.
+    merged.extra = { ...b.extra, ...a.extra };
+  }
+  return merged;
 };
 
 /** Merge N docs in any order (used by the engine and by property tests). */

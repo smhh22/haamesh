@@ -4,16 +4,19 @@
  */
 
 import type { StorageProvider, SyncReport } from '@hamesh/sync';
-import { createSyncEngine, createWebDavProvider } from '@hamesh/sync';
+import { createLocalFolderProvider, createSyncEngine, createWebDavProvider } from '@hamesh/sync';
 import { createDataStore } from './dataStore';
 import { getActiveStorage, getSyncClock } from './libraryPersistence';
+import { createLocalFolderFs, isLocalFolderAvailable, restoreSyncRoot } from './localFolderFs';
 import { createSqlSyncStore, getOrCreateDeviceId } from './syncStore';
 
 export interface SyncConfig {
-  provider: 'none' | 'webdav';
+  provider: 'none' | 'webdav' | 'local-folder';
   baseUrl: string;
   username: string;
   password: string;
+  /** Desktop only: absolute path of the user-chosen sync folder. */
+  localFolder: string;
 }
 
 export interface SyncStatus {
@@ -26,6 +29,7 @@ const DEFAULT_CONFIG: SyncConfig = {
   baseUrl: '',
   username: '',
   password: '',
+  localFolder: '',
 };
 
 const CONFIG_KEY = 'hamesh.sync.config';
@@ -59,6 +63,8 @@ export const syncStatus = (): SyncStatus => loadStatus();
 
 export const providerFromConfig = (config: SyncConfig): StorageProvider | null => {
   switch (config.provider) {
+    case 'local-folder':
+      return isLocalFolderAvailable() ? createLocalFolderProvider(createLocalFolderFs()) : null;
     case 'webdav':
       return config.baseUrl
         ? createWebDavProvider({
@@ -90,8 +96,12 @@ export const testSyncConnection = async (
 /** Fire-and-forget sync when a provider is configured; errors are swallowed. */
 const autoSync = async (): Promise<void> => {
   const config = loadSyncConfig();
-  if (config.provider === 'none' || !config.baseUrl) return;
+  if (config.provider === 'none') return;
+  if (config.provider === 'webdav' && !config.baseUrl) return;
   try {
+    if (config.provider === 'local-folder' && config.localFolder) {
+      await restoreSyncRoot(config.localFolder);
+    }
     await runSync(config);
   } catch {
     // Auto-sync is best-effort; the manual button surfaces real errors.

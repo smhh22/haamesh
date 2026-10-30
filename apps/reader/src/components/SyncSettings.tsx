@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { isLocalFolderAvailable, pickSyncFolder } from '../services/localFolderFs';
 import {
   loadSyncConfig,
   runSync,
@@ -69,8 +70,30 @@ export const SyncSettings = () => {
         >
           <option value="none">{t('sync.providerNone')}</option>
           <option value="webdav">{t('sync.providerWebdav')}</option>
+          {isLocalFolderAvailable() ? (
+            <option value="local-folder">{t('sync.providerLocalFolder')}</option>
+          ) : null}
         </select>
       </div>
+      {config.provider === 'local-folder' ? (
+        <div className="setting-row">
+          <span>{t('sync.folder')}</span>
+          <span className="hint" dir="ltr">
+            {config.localFolder || t('sync.noFolder')}
+          </span>
+          <button
+            type="button"
+            className="reader-action"
+            onClick={() => {
+              void pickSyncFolder().then((path) => {
+                if (path) update({ localFolder: path });
+              });
+            }}
+          >
+            {t('sync.chooseFolder')}
+          </button>
+        </div>
+      ) : null}
       {config.provider === 'webdav' ? (
         <>
           <div className="setting-row">

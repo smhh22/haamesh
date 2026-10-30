@@ -133,6 +133,25 @@ test('configures an S3-compatible provider', async ({ page }) => {
   await expect(dialog.getByText('Ready')).toBeVisible();
 });
 
+test('configures a Dropbox provider with a user-owned app', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+  await dialog.getByRole('button', { name: 'Sync', exact: true }).click();
+
+  await dialog.getByRole('button', { name: 'Add Dropbox' }).click();
+  await expect(dialog.getByText('Needs setup')).toBeVisible();
+
+  await dialog.getByLabel('App key').fill('test-app-key');
+  await dialog.getByLabel('App secret').fill('test-secret');
+  // The consent link is built from the app key; the code connects in-app.
+  await expect(dialog.getByRole('link', { name: 'Open Dropbox' })).toHaveAttribute(
+    'href',
+    /client_id=test-app-key/,
+  );
+  await expect(dialog.getByText('Needs setup')).toBeVisible();
+});
+
 test('persists the library across a reload', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(fixture);

@@ -43,6 +43,11 @@ export type {
   StorageProvider,
 } from './provider';
 export { ProviderError } from './provider';
+export {
+  createDropboxProvider,
+  dropboxAuthorizeUrl,
+  exchangeDropboxCode,
+} from './providers/dropbox';
 export type { FolderFs } from './providers/localFolder';
 export { createLocalFolderProvider } from './providers/localFolder';
 export { createMemoryProvider } from './providers/memory';

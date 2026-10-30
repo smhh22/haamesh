@@ -11,6 +11,18 @@ describe('isProviderConfigured', () => {
     expect(isProviderConfigured(local)).toBe(false);
     expect(isProviderConfigured({ ...local, localFolder: '/tmp/hamesh-sync' })).toBe(true);
 
+    const dropbox = newProvider('dropbox');
+    expect(isProviderConfigured(dropbox)).toBe(false);
+    expect(
+      isProviderConfigured({
+        ...dropbox,
+        appKey: 'key',
+        hasAppSecret: true,
+        hasRefreshToken: true,
+      }),
+    ).toBe(true);
+    expect(isProviderConfigured({ ...dropbox, appKey: 'key', hasAppSecret: true })).toBe(false);
+
     const s3 = newProvider('s3');
     expect(isProviderConfigured(s3)).toBe(false);
     expect(isProviderConfigured({ ...s3, endpoint: 'https://s3.example.com', bucket: 'b' })).toBe(

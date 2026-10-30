@@ -8,10 +8,12 @@
 
 import type { StorageProvider, SyncReport } from '@hamesh/sync';
 import {
+  createDropboxProvider,
   createLocalFolderProvider,
   createS3Provider,
   createSyncEngine,
   createWebDavProvider,
+  exchangeDropboxCode,
 } from '@hamesh/sync';
 import { extractMissingBookTexts } from './bookTexts';
 import { createDataStore, isTauriRuntime } from './dataStore';
@@ -21,7 +23,7 @@ import { getActiveStorage, getSyncClock, reloadLibraryFromStorage } from './libr
 import { createLocalFolderFs, isLocalFolderAvailable, restoreSyncRoot } from './localFolderFs';
 import { createSqlSyncStore, getOrCreateDeviceId } from './syncStore';
 
-export type ProviderKind = 'webdav' | 'local-folder' | 's3';
+export type ProviderKind = 'webdav' | 'local-folder' | 's3' | 'dropbox';
 
 export interface SyncProviderConfig {
   id: string;
@@ -44,6 +46,12 @@ export interface SyncProviderConfig {
   /** Runtime only; persisted to the OS keychain like WebDAV passwords. */
   secretAccessKey: string;
   hasSecretKey: boolean;
+  /** Dropbox (a user-owned scoped app; no vendor backend) */
+  appKey: string;
+  appSecret: string;
+  hasAppSecret: boolean;
+  refreshToken: string;
+  hasRefreshToken: boolean;
   /** Optional HTTP/SOCKS5 proxy for remote providers (empty = direct). */
   proxy: string;
 }
@@ -60,8 +68,18 @@ export interface SyncStatus {
 const CONFIG_KEY = 'hamesh.sync.config';
 const STATUS_KEY = 'hamesh.sync.status';
 
-const providerLabel = (kind: ProviderKind): string =>
-  kind === 'webdav' ? 'WebDAV' : kind === 's3' ? 'S3' : 'Local folder';
+const providerLabel = (kind: ProviderKind): string => {
+  switch (kind) {
+    case 'webdav':
+      return 'WebDAV';
+    case 's3':
+      return 'S3';
+    case 'dropbox':
+      return 'Dropbox';
+    default:
+      return 'Local folder';
+  }
+};
 
 export const newProvider = (kind: ProviderKind): SyncProviderConfig => ({
   id: crypto.randomUUID(),
@@ -79,11 +97,18 @@ export const newProvider = (kind: ProviderKind): SyncProviderConfig => ({
   accessKeyId: '',
   secretAccessKey: '',
   hasSecretKey: false,
+  appKey: '',
+  appSecret: '',
+  hasAppSecret: false,
+  refreshToken: '',
+  hasRefreshToken: false,
   proxy: '',
 });
 
 const passwordKey = (providerId: string): string => `sync.webdav.password.${providerId}`;
 const secretKey = (providerId: string): string => `sync.s3.secret.${providerId}`;
+const appSecretKey = (providerId: string): string => `sync.dropbox.appSecret.${providerId}`;
+const refreshTokenKey = (providerId: string): string => `sync.dropbox.refreshToken.${providerId}`;
 
 /** Legacy single-provider shape (pre-mirroring) — migrated on load. */
 interface LegacyConfig {
@@ -115,6 +140,11 @@ const migrateLegacy = (legacy: LegacyConfig): SyncConfig => {
         accessKeyId: '',
         secretAccessKey: '',
         hasSecretKey: false,
+        appKey: '',
+        appSecret: '',
+        hasAppSecret: false,
+        refreshToken: '',
+        hasRefreshToken: false,
         proxy: '',
       },
     ],
@@ -149,6 +179,25 @@ export const saveSyncConfig = (config: SyncConfig): void => {
   }
   const stored: SyncConfig = {
     providers: config.providers.map((provider) => {
+      if (provider.kind === 'dropbox') {
+        if (provider.appSecret) {
+          void keychainSet(appSecretKey(provider.id), provider.appSecret);
+        } else if (!provider.hasAppSecret) {
+          void keychainDelete(appSecretKey(provider.id));
+        }
+        if (provider.refreshToken) {
+          void keychainSet(refreshTokenKey(provider.id), provider.refreshToken);
+        } else if (!provider.hasRefreshToken) {
+          void keychainDelete(refreshTokenKey(provider.id));
+        }
+        return {
+          ...provider,
+          appSecret: '',
+          hasAppSecret: provider.hasAppSecret || Boolean(provider.appSecret),
+          refreshToken: '',
+          hasRefreshToken: provider.hasRefreshToken || Boolean(provider.refreshToken),
+        };
+      }
       if (provider.kind === 's3') {
         if (provider.secretAccessKey) {
           void keychainSet(secretKey(provider.id), provider.secretAccessKey);
@@ -177,6 +226,18 @@ export const saveSyncConfig = (config: SyncConfig): void => {
 };
 
 const resolveSecrets = async (provider: SyncProviderConfig): Promise<SyncProviderConfig> => {
+  if (provider.kind === 'dropbox') {
+    if (
+      (provider.appSecret || !provider.hasAppSecret) &&
+      (provider.refreshToken || !provider.hasRefreshToken)
+    ) {
+      return provider;
+    }
+    const appSecret = provider.appSecret || ((await keychainGet(appSecretKey(provider.id))) ?? '');
+    const refreshToken =
+      provider.refreshToken || ((await keychainGet(refreshTokenKey(provider.id))) ?? '');
+    return { ...provider, appSecret, refreshToken };
+  }
   if (provider.kind === 's3') {
     if (provider.secretAccessKey || !provider.hasSecretKey) return provider;
     const secret = (await keychainGet(secretKey(provider.id))) ?? '';
@@ -232,6 +293,12 @@ export const isProviderConfigured = (provider: SyncProviderConfig): boolean => {
           provider.accessKeyId &&
           (provider.hasSecretKey || provider.secretAccessKey),
       );
+    case 'dropbox':
+      return Boolean(
+        provider.appKey &&
+          (provider.hasAppSecret || provider.appSecret) &&
+          (provider.hasRefreshToken || provider.refreshToken),
+      );
     default:
       return false;
   }
@@ -248,6 +315,17 @@ export const providerFromConfig = (provider: SyncProviderConfig): StorageProvide
               baseUrl: provider.baseUrl,
               username: provider.username || undefined,
               password: provider.password || undefined,
+            },
+            providerFetch(provider.proxy),
+          )
+        : null;
+    case 'dropbox':
+      return provider.appKey && provider.appSecret && provider.refreshToken
+        ? createDropboxProvider(
+            {
+              appKey: provider.appKey,
+              appSecret: provider.appSecret,
+              refreshToken: provider.refreshToken,
             },
             providerFetch(provider.proxy),
           )
@@ -292,6 +370,23 @@ export type SyncTestResult =
   | { ok: true }
   | { ok: false; code: 'not-configured' }
   | { ok: false; code: 'failed'; detail: string };
+
+/**
+ * Finish a Dropbox connection: exchange the pasted authorization code for a
+ * refresh token using the user's own app credentials. Returns the token; the
+ * caller stores it (keychain on desktop).
+ */
+export const completeDropboxConnect = async (
+  provider: SyncProviderConfig,
+  code: string,
+): Promise<string> => {
+  const secrets = await resolveSecrets(provider);
+  return exchangeDropboxCode(
+    { appKey: secrets.appKey, appSecret: secrets.appSecret },
+    code,
+    providerFetch(secrets.proxy),
+  );
+};
 
 export const testSyncConnection = async (provider: SyncProviderConfig): Promise<SyncTestResult> => {
   if (provider.kind === 'local-folder' && provider.localFolder) {

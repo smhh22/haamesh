@@ -173,7 +173,8 @@
     "available": "Hāmesh {{version}} is available.",
     "install": "Install & restart",
     "installing": "Installing…",
-    "later": "Later"
+    "later": "Later",
+    "notes": "What's new"
   },
   "settings": {
     "title": "Settings",

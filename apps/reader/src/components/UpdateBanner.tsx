@@ -31,11 +31,20 @@ export const UpdateBanner = () => {
 
   return (
     <div className="update-banner" role="status">
-      <span>{t('update.available', { version: update.version })}</span>
+      <span className="update-summary">
+        {t('update.available', { version: update.version })}
+        {update.notes ? (
+          <span className="update-notes" id="banner-update-notes" role="tooltip">
+            <strong>{t('update.notes')}</strong>
+            <span className="update-notes-body">{update.notes}</span>
+          </span>
+        ) : null}
+      </span>
       {supportsInAppUpdate() ? (
         <button
           type="button"
-          className="reader-action"
+          className="reader-action update-install"
+          aria-describedby={update.notes ? 'banner-update-notes' : undefined}
           disabled={busy}
           onClick={() => {
             setBusy(true);

@@ -72,6 +72,17 @@ jobs:
           tagName: ${{ env.RELEASE_TAG }}
           releaseName: "Hāmesh ${{ env.RELEASE_TAG }}"
           releaseBody: "Installers for Hāmesh, a local-first ebook reader. See the repository README for details."
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+    steps:
+      - name: Publish after every installer uploaded
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$RELEASE_TAG" --draft=false --latest

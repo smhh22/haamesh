@@ -13,6 +13,8 @@ const book = (hash: string): BookRecord => ({
   series: null,
   identifiers: {},
   direction: 'ltr',
+  category: null,
+  tags: [],
   filePath: `${hash}.epub`,
   coverPath: null,
   addedAt: 0,

@@ -102,6 +102,12 @@ export const migrate = async (db: SqlDatabase): Promise<void> => {
     await db.exec(SYNC_FIELD_CLOCKS_TABLE);
     await db.exec('PRAGMA user_version = 4');
   }
+  // v5 adds user categories and tags (ADR-0012).
+  if (version < 5) {
+    await db.exec('ALTER TABLE books ADD COLUMN category TEXT');
+    await db.exec("ALTER TABLE books ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'");
+    await db.exec('PRAGMA user_version = 5');
+  }
 };
 
 const parseJson = <T>(value: unknown, fallback: T): T => {
@@ -127,6 +133,8 @@ const mapBook = (row: Record<string, unknown>): BookRecord => ({
   series: row.series == null ? null : String(row.series),
   identifiers: parseJson<Record<string, string>>(row.identifiers_json, {}),
   direction: (row.direction === 'rtl' ? 'rtl' : 'ltr') as Direction,
+  category: row.category == null ? null : String(row.category),
+  tags: parseJson<string[]>(row.tags_json, []).filter((tag) => typeof tag === 'string'),
   filePath: String(row.file_path ?? ''),
   coverPath: null,
   coverMime: row.cover_mime == null ? null : String(row.cover_mime),
@@ -177,13 +185,15 @@ const createBookRepository = (db: SqlDatabase): BookRepository => ({
     await db.run(
       `INSERT INTO books (
         id, hash, format, title, authors_json, language, publisher, series,
-        identifiers_json, direction, file_path, cover_mime, added_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        identifiers_json, direction, category, tags_json, file_path, cover_mime,
+        added_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         hash = excluded.hash, format = excluded.format, title = excluded.title,
         authors_json = excluded.authors_json, language = excluded.language,
         publisher = excluded.publisher, series = excluded.series,
         identifiers_json = excluded.identifiers_json, direction = excluded.direction,
+        category = excluded.category, tags_json = excluded.tags_json,
         file_path = excluded.file_path, cover_mime = excluded.cover_mime,
         added_at = excluded.added_at, updated_at = excluded.updated_at`,
       [
@@ -197,6 +207,8 @@ const createBookRepository = (db: SqlDatabase): BookRepository => ({
         book.series,
         JSON.stringify(book.identifiers),
         book.direction,
+        book.category,
+        JSON.stringify(book.tags),
         book.filePath,
         book.coverMime ?? null,
         book.addedAt,

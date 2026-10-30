@@ -3,6 +3,13 @@ import type { BookRecord } from '@hamesh/storage';
 export type BookSort = 'recent' | 'title' | 'author';
 export type BookView = 'grid' | 'list';
 
+export interface BookFilters {
+  /** undefined = all books, null = uncategorized, string = that category. */
+  category?: string | null;
+  /** A book must carry every selected tag. */
+  tags?: string[];
+}
+
 const normalize = (value: string): string =>
   value.normalize('NFKC').replace(/[يى]/g, 'ی').replace(/ك/g, 'ک').toLocaleLowerCase();
 
@@ -15,15 +22,25 @@ export const filterAndSortBooks = (
   query: string,
   sort: BookSort,
   collator: Intl.Collator = new Intl.Collator(),
+  filters: BookFilters = {},
 ): BookRecord[] => {
   const needle = normalize(query.trim());
+  const selectedTags = filters.tags ?? [];
+  const byCategory =
+    filters.category === undefined
+      ? books
+      : books.filter((book) => (book.category ?? null) === filters.category);
+  const byTags =
+    selectedTags.length === 0
+      ? byCategory
+      : byCategory.filter((book) => selectedTags.every((tag) => book.tags.includes(tag)));
   const filtered = needle
-    ? books.filter((book) =>
-        [book.title, ...book.authors, book.series ?? ''].some((value) =>
-          normalize(value).includes(needle),
+    ? byTags.filter((book) =>
+        [book.title, ...book.authors, book.series ?? '', book.category ?? '', ...book.tags].some(
+          (value) => normalize(value).includes(needle),
         ),
       )
-    : books;
+    : byTags;
 
   const sorted = [...filtered];
   if (sort === 'title') {

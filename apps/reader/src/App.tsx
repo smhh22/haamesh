@@ -12,6 +12,7 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { BookOrganizationDialog } from './components/BookOrganizationDialog';
 import { ReaderView } from './components/ReaderView';
 import { SettingsDialog } from './components/SettingsDialog';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
@@ -28,6 +29,7 @@ import { importBookFile } from './services/importBook';
 import {
   deletePersistedBook,
   persistBook,
+  persistBookOrganization,
   persistReadingState,
 } from './services/libraryPersistence';
 import { useLibraryStore } from './stores/libraryStore';
@@ -59,6 +61,9 @@ export const App = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [errorCode, setErrorCode] = useState<ImportErrorCode | 'UNKNOWN' | null>(null);
   const [query, setQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string | null | undefined>(undefined);
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [sort, setSort] = useState<BookSort>('recent');
   const [viewMode, setViewMode] = useState<BookView>('grid');
   const [contentMatches, setContentMatches] = useState<ContentMatch[]>([]);
@@ -70,6 +75,28 @@ export const App = () => {
     start: ReadingState | null;
   } | null>(null);
   const books = useLibraryStore((state) => state.books);
+  const updateBook = useLibraryStore((state) => state.updateBook);
+  const categories = useMemo(
+    () =>
+      [
+        ...new Set(
+          books.map((book) => book.category).filter((value): value is string => Boolean(value)),
+        ),
+      ].sort((a, b) => new Intl.Collator(locale).compare(a, b)),
+    [books, locale],
+  );
+  const tags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const book of books) {
+      for (const tag of book.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || new Intl.Collator(locale).compare(a[0], b[0]))
+      .map(([tag]) => tag);
+  }, [books, locale]);
+  const editingBook = editingBookId
+    ? (books.find((book) => book.id === editingBookId) ?? null)
+    : null;
   const addBook = useLibraryStore((state) => state.addBook);
   const removeBook = useLibraryStore((state) => state.removeBook);
   const saveReadingState = useReadingStore((state) => state.save);
@@ -81,8 +108,9 @@ export const App = () => {
         query,
         sort,
         new Intl.Collator(locale, { sensitivity: 'base', numeric: true }),
+        { category: categoryFilter, tags: tagFilter },
       ),
-    [books, query, sort, locale],
+    [books, query, sort, locale, categoryFilter, tagFilter],
   );
   const direction = directionFor(locale);
 
@@ -160,6 +188,15 @@ export const App = () => {
   const handleDragOver = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
     setIsDragging(true);
+  };
+
+  const saveOrganization = (
+    book: BookRecord,
+    organization: { category: string | null; tags: string[] },
+  ) => {
+    updateBook(book.id, organization);
+    setEditingBookId(null);
+    void persistBookOrganization(book, organization);
   };
 
   const removeBookAndFile = (book: BookRecord) => {
@@ -306,6 +343,54 @@ export const App = () => {
             </button>
           </div>
 
+          {books.length > 0 ? (
+            <div className="library-filters">
+              <label className="filter-label" htmlFor="category-filter">
+                {t('library.categories')}
+              </label>
+              <select
+                id="category-filter"
+                className="sort-select"
+                value={categoryFilter === undefined ? '__all__' : (categoryFilter ?? '__none__')}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setCategoryFilter(
+                    value === '__all__' ? undefined : value === '__none__' ? null : value,
+                  );
+                }}
+              >
+                <option value="__all__">{t('library.allCategories')}</option>
+                <option value="__none__">{t('library.uncategorized')}</option>
+                {categories.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              {tags.length > 0 ? (
+                <fieldset className="tag-filter" aria-label={t('library.tags')}>
+                  {tags.slice(0, 12).map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      className={tagFilter.includes(tag) ? 'tag-chip is-selected' : 'tag-chip'}
+                      aria-pressed={tagFilter.includes(tag)}
+                      onClick={() =>
+                        setTagFilter((current) =>
+                          current.includes(tag)
+                            ? current.filter((value) => value !== tag)
+                            : [...current, tag],
+                        )
+                      }
+                    >
+                      #{tag}
+                    </button>
+                  ))}
+                </fieldset>
+              ) : null}
+            </div>
+          ) : null}
+
           {isImporting ? (
             <p className="hint" role="status">
               {t('library.importing')}
@@ -361,6 +446,13 @@ export const App = () => {
                       <button
                         type="button"
                         className="text-button"
+                        onClick={() => setEditingBookId(book.id)}
+                      >
+                        {t('library.edit')}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-button"
                         onClick={() => removeBookAndFile(book)}
                       >
                         {t('library.remove')}
@@ -395,6 +487,14 @@ export const App = () => {
           ) : null}
         </section>
 
+        <BookOrganizationDialog
+          book={editingBook}
+          categories={categories}
+          onSave={(organization) => {
+            if (editingBook) saveOrganization(editingBook, organization);
+          }}
+          onClose={() => setEditingBookId(null)}
+        />
         <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       </main>

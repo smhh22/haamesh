@@ -236,6 +236,18 @@ test('navigates the TOC and changes reader settings', async ({ page }) => {
   await expect(shell).toHaveAttribute('data-theme', 'dark');
   await page.getByRole('button', { name: 'Scrolled' }).click();
   await expect(shell).toHaveAttribute('data-flow', 'scrolled');
+
+  // Typography controls update the reader styles live.
+  await page.getByLabel('Font', { exact: true }).selectOption('literata');
+  await expect(shell).toHaveAttribute('data-font-family', 'literata');
+  await page.getByLabel('Line height').fill('2.1');
+  await expect(shell).toHaveAttribute('data-line-height', '2.1');
+  await page.getByLabel('Page margin').fill('32');
+  await expect(shell).toHaveAttribute('data-margin', '32');
+  await page.getByLabel('Brightness').fill('70');
+  await expect(shell).toHaveAttribute('data-brightness', '70');
+  await page.getByRole('button', { name: 'Hyphenation' }).click();
+  await expect(shell).toHaveAttribute('data-hyphenate', 'true');
 });
 
 const openReader = async (page: import('@playwright/test').Page) => {

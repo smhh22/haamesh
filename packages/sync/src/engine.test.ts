@@ -497,4 +497,43 @@ describe('sync engine', () => {
     expect(second.providers[0]?.pulledRecords).toBe(0);
     expect(second.providers[0]?.uploadedBlobs).toBe(0);
   });
+
+  it('keeps books added concurrently on both replicas', async () => {
+    const provider = createMemoryProvider();
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    const storeB = createMemoryStore('device-b', now);
+    await storeA.localEdit(bookRecord('a', 'From A', 1000));
+    await storeB.localEdit(bookRecord('b', 'From B', 1000));
+
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    wall = 2000;
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+    wall = 3000;
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+
+    const titles = (store: MemoryStore) =>
+      [...store.records.values()]
+        .filter((record) => record.kind === 'book' && !record.deleted)
+        .map((record) => String(record.fields.title))
+        .sort();
+    expect(titles(storeA)).toEqual(['From A', 'From B']);
+    expect(titles(storeB)).toEqual(['From A', 'From B']);
+  });
 });

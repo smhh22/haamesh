@@ -196,9 +196,11 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           version="${RELEASE_TAG#v}"
-          gh release upload "$RELEASE_TAG" \
-            "apps/reader/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk#Hamesh_${version}_universal.apk" \
-            --clobber
+          # gh on the runners does not support the file#name rename syntax;
+          # copy to the release name first.
+          cp apps/reader/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk \
+            "$RUNNER_TEMP/Hamesh_${version}_universal.apk"
+          gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/Hamesh_${version}_universal.apk" --clobber
 
   publish:
     needs: [build, android]

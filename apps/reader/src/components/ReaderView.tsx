@@ -1,7 +1,6 @@
 import type { Locator, TocItem } from '@hamesh/core';
 import { pageTurnForKey, sanitizeEpubHtml } from '@hamesh/engine';
 import type { BookNoteRecord, BookRecord } from '@hamesh/storage';
-import { useDirection } from '@hamesh/ui';
 import { Overlayer } from 'foliate-js/overlayer.js';
 import { type FoliateBook, makeBook } from 'foliate-js/view.js';
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
@@ -78,7 +77,6 @@ export const ReaderView = ({
   onClose,
 }: ReaderViewProps) => {
   const { t, i18n } = useTranslation();
-  const direction = useDirection();
   const settings = useReaderSettings();
   const allNotes = useNotesStore((state) => state.notes);
   const addNote = useNotesStore((state) => state.add);
@@ -216,6 +214,11 @@ export const ReaderView = ({
       const doc = detail?.doc;
       if (!doc) return;
 
+      // Books without their own dir attribute paginate by our resolved
+      // direction; this runs before the renderer measures layout.
+      if (!doc.documentElement.hasAttribute('dir')) {
+        doc.documentElement.dir = book.direction;
+      }
       applyReaderStyle(doc, settingsCssRef.current);
       for (const note of notesRef.current) applyNote(note);
 
@@ -334,10 +337,21 @@ export const ReaderView = ({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (panel) {
+          setPanel(null);
+          viewRef.current?.clearSearch();
+          event.preventDefault();
+        } else {
+          onClose();
+        }
+        return;
+      }
+
       const target = event.target as HTMLElement | null;
       if (target?.closest('input, select, textarea, button, [role="dialog"]')) return;
 
-      const turn = pageTurnForKey(event.key, direction);
+      const turn = pageTurnForKey(event.key, book.direction);
       if (!turn) return;
       event.preventDefault();
       const view = viewRef.current;
@@ -346,7 +360,7 @@ export const ReaderView = ({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [direction]);
+  }, [panel, onClose]);
 
   const turn = (action: 'next' | 'prev') => {
     const view = viewRef.current;

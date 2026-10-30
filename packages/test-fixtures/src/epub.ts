@@ -5,6 +5,8 @@ export interface TestEpubOptions {
   author?: string;
   language?: string;
   pageProgression?: 'ltr' | 'rtl';
+  /** Omit dir from the XHTML: simulates real-world books without a base direction. */
+  omitDir?: boolean;
 }
 
 const ONE_PIXEL_PNG = Uint8Array.from(
@@ -69,8 +71,9 @@ export const createTestEpub = (options: TestEpubOptions = {}): Uint8Array<ArrayB
       `<p>این پاراگراف شمارهٔ ${index + 1} برای آزمون صفحه‌بندی است. ${'متن نمونه برای خواندن. '.repeat(12)}</p>`,
   ).join('\n');
 
+  const dirAttribute = options.omitDir ? '' : ` dir="${progression}"`;
   const chapter = `<?xml version="1.0" encoding="UTF-8"?>
-<html xmlns="http://www.w3.org/1999/xhtml" dir="${progression}" lang="${language}">
+<html xmlns="http://www.w3.org/1999/xhtml"${dirAttribute} lang="${language}">
   <head><title>فصل یک</title></head>
   <body>${paragraphs}</body>
 </html>`;

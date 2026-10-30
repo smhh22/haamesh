@@ -25,7 +25,6 @@
     "listView": "نمایش فهرستی",
     "gridView": "نمایش شبکه‌ای",
     "noResults": "کتابی با این جست‌وجو پیدا نشد.",
-    "bidiSample": "این کتابخانه با چیدمان منطقی ساخته شده است — this layout uses logical properties.",
     "errors": {
       "INVALID_FILE": "فایل خالی یا ناخواناست.",
       "UNSUPPORTED_FORMAT": "در این نسخه فقط EPUB یا PDF پشتیبانی می‌شود.",

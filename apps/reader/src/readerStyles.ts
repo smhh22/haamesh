@@ -1,8 +1,8 @@
-import type { ReaderTheme } from './stores/readerSettingsStore';
+import type { ResolvedReaderTheme } from './stores/readerSettingsStore';
 
 export interface ReaderStyleInput {
   fontSize: number;
-  theme: ReaderTheme;
+  theme: ResolvedReaderTheme;
   justify: boolean;
 }
 
@@ -10,7 +10,10 @@ const THEMES = {
   light: { background: '#fffdf8', text: '#24211c', link: '#2f6f5e' },
   sepia: { background: '#f4ecd8', text: '#3a3125', link: '#7a5a2f' },
   dark: { background: '#14161a', text: '#e9e4d9', link: '#7fc7b0' },
-} as const satisfies Record<ReaderTheme, { background: string; text: string; link: string }>;
+} as const satisfies Record<
+  ResolvedReaderTheme,
+  { background: string; text: string; link: string }
+>;
 
 /**
  * Styles injected into every EPUB document. Font size scales the root, themes

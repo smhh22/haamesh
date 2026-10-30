@@ -87,7 +87,7 @@ export const SettingsPanel = ({ settings, isPdf, onClose }: SettingsPanelProps) 
           <div className="setting-row">
             <span>{t('reader.theme')}</span>
             <div className="setting-controls">
-              {(['light', 'sepia', 'dark'] as const).map((theme) => (
+              {(['auto', 'light', 'sepia', 'dark'] as const).map((theme) => (
                 <button
                   key={theme}
                   type="button"

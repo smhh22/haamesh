@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useReaderSettings } from './readerSettingsStore';
+import { migrateReaderSettings, useReaderSettings } from './readerSettingsStore';
 
 beforeEach(() => {
   useReaderSettings.setState({
     fontSize: 100,
-    theme: 'light',
+    theme: 'auto',
     justify: true,
     flow: 'paginated',
     pdfZoom: 'fit-page',
@@ -28,5 +28,25 @@ describe('readerSettingsStore', () => {
     expect(useReaderSettings.getState().theme).toBe('dark');
     setFlow('scrolled');
     expect(useReaderSettings.getState().flow).toBe('scrolled');
+  });
+});
+
+describe('migrateReaderSettings', () => {
+  it('maps the old light default to auto on the v1 store', () => {
+    expect(migrateReaderSettings({ theme: 'light', fontSize: 110 }, 1)).toMatchObject({
+      theme: 'auto',
+      fontSize: 110,
+    });
+  });
+
+  it('keeps themes that were explicitly chosen or migrated already', () => {
+    expect(migrateReaderSettings({ theme: 'dark' }, 1)).toMatchObject({ theme: 'dark' });
+    expect(migrateReaderSettings({ theme: 'sepia' }, 1)).toMatchObject({ theme: 'sepia' });
+    expect(migrateReaderSettings({ theme: 'light' }, 2)).toMatchObject({ theme: 'light' });
+  });
+
+  it('tolerates malformed persisted state', () => {
+    expect(migrateReaderSettings(null, 1)).toBeUndefined();
+    expect(migrateReaderSettings('junk', 1)).toBeUndefined();
   });
 });

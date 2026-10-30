@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 
 export type UiTheme = 'system' | 'light' | 'dark';
@@ -74,4 +75,20 @@ export const initUiTheme = (): void => {
       if (useUiStore.getState().theme === 'system') applyTheme('system');
     });
   }
+};
+
+/** The app theme as it is actually rendered, reactive to system changes. */
+export const useResolvedUiTheme = (): 'light' | 'dark' => {
+  const theme = useUiStore((state) => state.theme);
+  const [systemDark, setSystemDark] = useState(
+    () => typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches,
+  );
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return;
+    const query = matchMedia('(prefers-color-scheme: dark)');
+    const onChange = (event: MediaQueryListEvent) => setSystemDark(event.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+  return theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
 };

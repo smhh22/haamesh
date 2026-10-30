@@ -534,6 +534,31 @@ test('turns pages with Space in the reader', async ({ page }) => {
   await expect.poll(async () => progress.textContent()).toBe(initial ?? '');
 });
 
+test('turns pages with Space while the book content has focus', async ({ page }) => {
+  await openReader(page);
+  // Clicking the page moves keyboard focus into the paginator iframe.
+  await page.locator('.reader-stage').click({ position: { x: 260, y: 260 } });
+  const progress = page.locator('.reader-progress');
+  const initial = await progress.textContent();
+  await page.keyboard.press('Space');
+  await expect.poll(async () => progress.textContent()).not.toBe(initial);
+});
+
+test('the reader follows the app dark mode by default', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page
+    .getByRole('dialog', { name: 'Settings' })
+    .getByRole('button', { name: 'Dark' })
+    .click();
+  await page.keyboard.press('Escape');
+  await page.locator('input[type="file"]').setInputFiles(fixture);
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-theme', 'dark', {
+    timeout: 15_000,
+  });
+});
+
 test('closes the shortcut map in the reader without leaving the book', async ({ page }) => {
   await openReader(page);
   await page.keyboard.press('?');

@@ -27,3 +27,6 @@ AGENTS.md
 keystore.properties
 *.keystore
 *.jks
+
+# Local workspace notes
+docs/

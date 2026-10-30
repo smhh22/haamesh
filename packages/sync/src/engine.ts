@@ -160,6 +160,8 @@ const splitBookFields = (
 export const createSyncEngine = (options: SyncOptions) => {
   const { deviceId, clock, store, providers } = options;
 
+  const INDEX_WRITE_ATTEMPTS = 3;
+
   const syncWithProvider = async (
     provider: StorageProvider,
     localDoc: IndexDoc,
@@ -174,98 +176,125 @@ export const createSyncEngine = (options: SyncOptions) => {
     try {
       await provider.ensureDir([REMOTE_ROOT, `${REMOTE_ROOT}/books`, `${REMOTE_ROOT}/devices`]);
 
-      let remote = emptyIndexDoc();
-      const remoteRaw = await provider.readText(INDEX_PATH).catch((error: unknown) => {
-        if (error instanceof ProviderError && error.code === 'NOT_FOUND') return null;
-        throw error;
-      });
-      if (remoteRaw !== null) remote = decodeIndexDoc(JSON.parse(remoteRaw));
+      for (let attempt = 1; attempt <= INDEX_WRITE_ATTEMPTS; attempt += 1) {
+        // Counters describe the successful attempt only.
+        report.pulledRecords = 0;
+        report.uploadedBlobs = 0;
+        report.downloadedBlobs = 0;
 
-      // 1. Pull remote-wins fields into the local store.
-      const pullBooks = diffPull(localDoc.books, remote.books);
-      const pullNotes = diffPull(localDoc.notes, remote.notes);
-      const fieldClockEntries: Array<readonly [string, string, string]> = [];
-      const recordClockEntries: Array<readonly [string, string]> = [];
-      /** Stamp exactly the fields that arrived, with their remote timestamps. */
-      const stampPulled = (kind: string, id: string, entry: RecordDoc): void => {
-        for (const [field, envelope] of Object.entries(entry.fields)) {
-          clock.observe(envelope.t);
-          fieldClockEntries.push([`${kind}:${id}`, field, envelope.t] as const);
-        }
-        if (entry.deletedAt) {
-          clock.observe(entry.deletedAt.t);
-          recordClockEntries.push([`${kind}:${id}:deleted`, entry.deletedAt.t] as const);
-        }
-      };
-      for (const [id, entry] of Object.entries(pullBooks)) {
-        const { book, reading } = splitBookFields(entry.fields);
-        // A tombstone-only diff (no fields) must still delete the local book.
-        if (Object.keys(book).length > 0 || entry.deletedAt) {
-          await store.apply({
-            id,
-            kind: 'book',
-            fields: book,
-            deleted: Boolean(entry.deletedAt),
-            updatedAt: 0,
-          });
-          report.pulledRecords += 1;
-        }
-        if (Object.keys(reading).length > 0) {
-          await store.apply({ id, kind: 'reading', fields: reading, deleted: false, updatedAt: 0 });
-          report.pulledRecords += 1;
-        }
-        stampPulled('book', id, entry);
-      }
-      for (const [id, entry] of Object.entries(pullNotes)) {
-        if (Object.keys(entry.fields).length > 0 || entry.deletedAt) {
-          await store.apply({
-            id,
-            kind: 'note',
-            fields: Object.fromEntries(Object.entries(entry.fields).map(([k, e]) => [k, e.v])),
-            deleted: Boolean(entry.deletedAt),
-            updatedAt: 0,
-          });
-          report.pulledRecords += 1;
-          stampPulled('note', id, entry);
-        }
-      }
-      if (fieldClockEntries.length > 0) await store.setFieldClocks(fieldClockEntries);
-      if (recordClockEntries.length > 0) await store.setClocks(recordClockEntries);
+        // Etag first: if another writer lands between HEAD and GET, the
+        // commit's If-Match fails and we retry — reading the etag after the
+        // body could adopt the concurrent writer's etag and clobber it.
+        const indexEtag = (await provider.head(INDEX_PATH))?.etag ?? null;
+        let remote = emptyIndexDoc();
+        const remoteRaw = await provider.readText(INDEX_PATH).catch((error: unknown) => {
+          if (error instanceof ProviderError && error.code === 'NOT_FOUND') return null;
+          throw error;
+        });
+        if (remoteRaw !== null) remote = decodeIndexDoc(JSON.parse(remoteRaw));
 
-      // 2. Transfer content-addressed blobs against the merged state.
-      const merged = mergeIndexDoc(localDoc, remote);
-      for (const [id, entry] of Object.entries(merged.books)) {
-        if (entry.deletedAt) continue;
-        const sha256 = entry.fields.sha256?.v;
-        const ext = entry.fields.ext?.v;
-        if (typeof sha256 !== 'string' || typeof ext !== 'string') continue;
-        const blobPath = bookBlobPath(sha256, ext);
-        const remoteBlob = await provider.head(blobPath);
-        const localBlob = await store.bookFile(sha256);
-        if (!remoteBlob && localBlob) {
-          const copy = new Uint8Array(localBlob.data.byteLength);
-          copy.set(localBlob.data);
-          await provider.writeBinary(blobPath, copy.buffer);
-          await provider.writeText(
-            bookMetaPath(sha256),
-            JSON.stringify({ schemaVersion: SCHEMA_VERSION, bookId: id, sha256, ext }),
-          );
-          report.uploadedBlobs += 1;
-        } else if (remoteBlob && !localBlob) {
-          const data = await provider.readBinary(blobPath);
-          if (data) {
-            await store.saveBookFile(sha256, ext, new Uint8Array(data));
-            report.downloadedBlobs += 1;
+        // 1. Pull remote-wins fields into the local store.
+        const pullBooks = diffPull(localDoc.books, remote.books);
+        const pullNotes = diffPull(localDoc.notes, remote.notes);
+        const fieldClockEntries: Array<readonly [string, string, string]> = [];
+        const recordClockEntries: Array<readonly [string, string]> = [];
+        /** Stamp exactly the fields that arrived, with their remote timestamps. */
+        const stampPulled = (kind: string, id: string, entry: RecordDoc): void => {
+          for (const [field, envelope] of Object.entries(entry.fields)) {
+            clock.observe(envelope.t);
+            fieldClockEntries.push([`${kind}:${id}`, field, envelope.t] as const);
+          }
+          if (entry.deletedAt) {
+            clock.observe(entry.deletedAt.t);
+            recordClockEntries.push([`${kind}:${id}:deleted`, entry.deletedAt.t] as const);
+          }
+        };
+        for (const [id, entry] of Object.entries(pullBooks)) {
+          const { book, reading } = splitBookFields(entry.fields);
+          // A tombstone-only diff (no fields) must still delete the local book.
+          if (Object.keys(book).length > 0 || entry.deletedAt) {
+            await store.apply({
+              id,
+              kind: 'book',
+              fields: book,
+              deleted: Boolean(entry.deletedAt),
+              updatedAt: 0,
+            });
+            report.pulledRecords += 1;
+          }
+          if (Object.keys(reading).length > 0) {
+            await store.apply({
+              id,
+              kind: 'reading',
+              fields: reading,
+              deleted: false,
+              updatedAt: 0,
+            });
+            report.pulledRecords += 1;
+          }
+          stampPulled('book', id, entry);
+        }
+        for (const [id, entry] of Object.entries(pullNotes)) {
+          if (Object.keys(entry.fields).length > 0 || entry.deletedAt) {
+            await store.apply({
+              id,
+              kind: 'note',
+              fields: Object.fromEntries(Object.entries(entry.fields).map(([k, e]) => [k, e.v])),
+              deleted: Boolean(entry.deletedAt),
+              updatedAt: 0,
+            });
+            report.pulledRecords += 1;
+            stampPulled('note', id, entry);
           }
         }
-      }
+        if (fieldClockEntries.length > 0) await store.setFieldClocks(fieldClockEntries);
+        if (recordClockEntries.length > 0) await store.setClocks(recordClockEntries);
 
-      // 3. Write the merged index last — it is the commit point.
-      const devices = {
-        ...merged.devices,
-        [deviceId]: { lastWrite: { v: clock.now(), t: clock.peek() } },
-      };
-      await provider.writeText(INDEX_PATH, encodeIndexDoc({ ...merged, devices }));
+        // 2. Transfer content-addressed blobs against the merged state.
+        const merged = mergeIndexDoc(localDoc, remote);
+        for (const [id, entry] of Object.entries(merged.books)) {
+          if (entry.deletedAt) continue;
+          const sha256 = entry.fields.sha256?.v;
+          const ext = entry.fields.ext?.v;
+          if (typeof sha256 !== 'string' || typeof ext !== 'string') continue;
+          const blobPath = bookBlobPath(sha256, ext);
+          const remoteBlob = await provider.head(blobPath);
+          const localBlob = await store.bookFile(sha256);
+          if (!remoteBlob && localBlob) {
+            const copy = new Uint8Array(localBlob.data.byteLength);
+            copy.set(localBlob.data);
+            await provider.writeBinary(blobPath, copy.buffer);
+            await provider.writeText(
+              bookMetaPath(sha256),
+              JSON.stringify({ schemaVersion: SCHEMA_VERSION, bookId: id, sha256, ext }),
+            );
+            report.uploadedBlobs += 1;
+          } else if (remoteBlob && !localBlob) {
+            const data = await provider.readBinary(blobPath);
+            if (data) {
+              await store.saveBookFile(sha256, ext, new Uint8Array(data));
+              report.downloadedBlobs += 1;
+            }
+          }
+        }
+
+        // Commit point. A conditional writer detects a concurrent writer and
+        // forces a fresh read + merge instead of clobbering it (ADR-0006).
+        const devices = {
+          ...merged.devices,
+          [deviceId]: { lastWrite: { v: clock.now(), t: clock.peek() } },
+        };
+        const body = encodeIndexDoc({ ...merged, devices });
+        if (provider.writeTextConditional) {
+          const result = await provider.writeTextConditional(INDEX_PATH, body, indexEtag);
+          if (result === 'conflict') continue;
+        } else {
+          await provider.writeText(INDEX_PATH, body);
+        }
+        return report;
+      }
+      report.ok = false;
+      report.error = 'index write conflict after retries';
       return report;
     } catch (error) {
       report.ok = false;

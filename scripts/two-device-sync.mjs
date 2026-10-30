@@ -216,6 +216,33 @@ const main = async () => {
   if (!contentVisible) fail('content search found nothing in the synced book');
   else log('device B: content match found');
 
+  // ---- Simultaneous rounds: both devices sync at the same moment ----
+  // The content-search phase left a filter in the search box; clear it so
+  // the assertions below see the full library.
+  await deviceB.page.getByPlaceholder('Search title, author, or series').fill('');
+  await deviceB.page.waitForTimeout(400);
+  log('simultaneous sync rounds (5x, both devices at once)');
+  const clickSync = async (page) => {
+    await page.getByRole('button', { name: 'Sync now' }).click();
+    await page.waitForFunction(
+      () => {
+        const button = [...document.querySelectorAll('.sync-settings button')].find(
+          (element) => element.textContent?.trim() === 'Sync now',
+        );
+        return button instanceof HTMLButtonElement && !button.disabled;
+      },
+      null,
+      { timeout: 30000 },
+    );
+  };
+  for (let round = 0; round < 5; round += 1) {
+    await Promise.all([clickSync(deviceA.page), clickSync(deviceB.page)]);
+  }
+  // Nothing may be lost while both devices race the same index.
+  await deviceB.page.waitForTimeout(1200);
+  if (!(await deviceB.page.getByRole('heading', { name: 'نمونه کتاب' }).isVisible())) {
+    fail('book vanished from device B after simultaneous rounds');
+  }
   // ---- Tombstone: delete on B, expect removal on A ----
   log('device B: delete book, sync; device A syncs and should lose it');
   await deviceB.page.getByPlaceholder('Search title, author, or series').fill('');

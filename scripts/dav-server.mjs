@@ -128,10 +128,18 @@ const server = createServer(async (req, res) => {
         const chunks = [];
         for await (const chunk of req) chunks.push(chunk);
         const body = Buffer.concat(chunks);
-        const existed = Boolean(await statOrNull(path));
+        const current = await statOrNull(path);
+        const currentEtag = current ? `"${current.size}-${current.mtimeMs}"` : null;
+        const ifMatch = req.headers['if-match'];
+        const ifNoneMatch = req.headers['if-none-match'];
+        if (typeof ifMatch === 'string' && ifMatch !== currentEtag) return send(res, 412);
+        if (ifNoneMatch === '*' && current) return send(res, 412);
         await ensureParent(path);
         await fs.writeFile(path, body);
-        return send(res, existed ? 204 : 201);
+        const written = await statOrNull(path);
+        return send(res, current ? 204 : 201, null, {
+          ETag: written ? `"${written.size}-${written.mtimeMs}"` : '',
+        });
       }
       case 'MKCOL': {
         if (await statOrNull(path)) return send(res, 405);

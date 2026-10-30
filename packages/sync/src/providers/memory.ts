@@ -12,8 +12,12 @@ export interface MemoryProviderOptions {
 }
 
 export const createMemoryProvider = (options: MemoryProviderOptions = {}): StorageProvider => {
-  const files = new Map<string, { body: ArrayBuffer | string }>();
+  const files = new Map<string, { body: ArrayBuffer | string; version: number }>();
   let failuresLeft = options.failFirst ?? 0;
+  const etagOf = (path: string): string | null => {
+    const file = files.get(path);
+    return file ? `"v${file.version}"` : null;
+  };
 
   const rejectMaybe = (): void => {
     if (failuresLeft > 0) {
@@ -36,14 +40,14 @@ export const createMemoryProvider = (options: MemoryProviderOptions = {}): Stora
     let current = '';
     for (const segment of segments) {
       current = `${current}/${segment}`;
-      files.set(`${current}/`, { body: '' });
+      files.set(`${current}/`, { body: '', version: 0 });
     }
   };
 
   return {
     id: options.id ?? 'memory',
     capabilities: {
-      etag: false,
+      etag: true,
       atomicRename: true,
       streaming: false,
       mkdirs: true,
@@ -66,6 +70,7 @@ export const createMemoryProvider = (options: MemoryProviderOptions = {}): Stora
       if (!file) return null;
       return {
         size: typeof file.body === 'string' ? file.body.length : file.body.byteLength,
+        etag: `"v${file.version}"`,
       };
     },
     async list(path) {
@@ -94,13 +99,22 @@ export const createMemoryProvider = (options: MemoryProviderOptions = {}): Stora
       rejectMaybe();
       const dir = path.slice(0, path.lastIndexOf('/'));
       if (dir && !hasDir(dir)) mkdirp(dir);
-      files.set(path, { body });
+      files.set(path, { body, version: (files.get(path)?.version ?? 0) + 1 });
+    },
+    async writeTextConditional(path, body, etag) {
+      rejectMaybe();
+      const current = etagOf(path);
+      if (current !== etag) return 'conflict';
+      const dir = path.slice(0, path.lastIndexOf('/'));
+      if (dir && !hasDir(dir)) mkdirp(dir);
+      files.set(path, { body, version: (files.get(path)?.version ?? 0) + 1 });
+      return 'ok';
     },
     async writeBinary(path, body) {
       rejectMaybe();
       const dir = path.slice(0, path.lastIndexOf('/'));
       if (dir && !hasDir(dir)) mkdirp(dir);
-      files.set(path, { body });
+      files.set(path, { body, version: (files.get(path)?.version ?? 0) + 1 });
     },
     async ensureDir(paths) {
       rejectMaybe();

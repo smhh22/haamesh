@@ -19,6 +19,7 @@ jobs:
     outputs:
       web: ${{ steps.filter.outputs.web }}
       desktop: ${{ steps.filter.outputs.desktop }}
+      workflows: ${{ steps.filter.outputs.workflows }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,12 +43,23 @@ jobs:
               - 'biome.json'
               - 'tsconfig*.json'
               - 'playwright.config.ts'
-              - '.github/workflows/**'
             desktop:
               - 'apps/reader/src-tauri/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
+            workflows:
               - '.github/workflows/**'
+
+  workflows:
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate workflow YAML
+        run: |
+          ruby -e 'require "yaml"; Dir[".github/workflows/*.yml"].each { |file| YAML.load_file(file); puts "ok #{file}" }'
 
   web:
     needs: changes
@@ -114,9 +126,12 @@ jobs:
           node-version: 22
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: apps/reader/src-tauri
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @hamesh/reader build
+      - run: cargo fmt --manifest-path apps/reader/src-tauri/Cargo.toml -- --check
       - run: cargo check --manifest-path apps/reader/src-tauri/Cargo.toml

@@ -23,6 +23,13 @@ describe('isProviderConfigured', () => {
     ).toBe(true);
     expect(isProviderConfigured({ ...dropbox, appKey: 'key', hasAppSecret: true })).toBe(false);
 
+    const sftp = newProvider('sftp');
+    expect(isProviderConfigured(sftp)).toBe(false);
+    expect(
+      isProviderConfigured({ ...sftp, baseUrl: 'host', username: 'u', hasPassword: true }),
+    ).toBe(true);
+    expect(isProviderConfigured({ ...sftp, baseUrl: 'host', username: 'u' })).toBe(false);
+
     const s3 = newProvider('s3');
     expect(isProviderConfigured(s3)).toBe(false);
     expect(isProviderConfigured({ ...s3, endpoint: 'https://s3.example.com', bucket: 'b' })).toBe(

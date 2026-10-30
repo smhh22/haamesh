@@ -106,11 +106,18 @@ Last updated: 2026-10-30, 11:40 (morning review with user — read with `AGENTS.
   external file reads gated to `.epub`/`.pdf` ✓. Remaining hardening (low
   risk, note for later): symlink escape through a planted link inside the
   data dir; write the follow-up when hardening again.
-- `tauri.conf.json` still has `"csp": null`. Proposed follow-up (needs a
-  desktop run to verify, not attempted blind):
-  `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
-  img-src 'self' blob: data:; font-src 'self' blob: data:; connect-src 'self'
-  ipc: http://ipc.localhost; frame-src blob:; media-src blob:`.
+- Desktop CSP: production policy now set in `tauri.conf.json`
+  (`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
+  img-src 'self' blob: data:; font-src 'self' blob: data:; connect-src
+  https: http: ipc: http://ipc.localhost; frame-src blob:; media-src blob:`),
+  `devCsp` left open for Vite HMR. Verified by launching the release binary
+  and screenshotting the shell (library + sync settings render). Reader blob
+  iframes and WebDAV fetches are policy-allowed but not re-verified after the
+  build tree was cleaned for disk space — confirm in the next desktop run.
+- Disk guardrail: a Tauri release build costs ~6–10 GB in
+  `apps/reader/src-tauri/target/`. Check `df` first, prefer
+  `tauri build --no-bundle` for smoke tests, and clean the tree afterwards;
+  installer artifacts are preserved in `../haamesh-installers/`.
 - EPUB sanitizer now strips to a fixed point (defeats `<scr<script>ipt>`),
   removes iframe/object/embed/base/form + meta refresh, checks URL attributes
   after entity decoding, and gives headless docs a synthetic `<head>` so the

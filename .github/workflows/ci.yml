@@ -42,12 +42,12 @@ jobs:
               - 'biome.json'
               - 'tsconfig*.json'
               - 'playwright.config.ts'
-              - '.github/workflows/ci.yml'
+              - '.github/workflows/**'
             desktop:
               - 'apps/reader/src-tauri/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
-              - '.github/workflows/ci.yml'
+              - '.github/workflows/**'
 
   web:
     needs: changes

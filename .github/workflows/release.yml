@@ -3,6 +3,11 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Tag to release, for example v0.1.3"
+        required: true
 
 permissions:
   contents: write
@@ -18,9 +23,12 @@ jobs:
           - platform: windows-latest
             args: ""
     runs-on: ${{ matrix.platform }}
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ env.RELEASE_TAG }}
           submodules: recursive
 
       - uses: pnpm/action-setup@v4
@@ -49,6 +57,11 @@ jobs:
       - name: Install pnpm dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Stamp the release version
+        shell: bash
+        run: |
+          node -e "const fs=require('fs');const p='apps/reader/src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(p,'utf8'));c.version=process.env.RELEASE_TAG.replace(/^v/,'');fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n')"
+
       - name: Build and upload installers
         uses: tauri-apps/tauri-action@v0
         env:
@@ -56,9 +69,9 @@ jobs:
           # Updater signing: tauri-action does not inherit secrets implicitly.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Hāmesh ${{ github.ref_name }}"
+          tagName: ${{ env.RELEASE_TAG }}
+          releaseName: "Hāmesh ${{ env.RELEASE_TAG }}"
           releaseBody: "Installers for Hāmesh, a local-first ebook reader. See the repository README for details."
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

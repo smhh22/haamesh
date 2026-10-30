@@ -13,7 +13,25 @@ permissions:
   contents: write
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+    steps:
+      - name: Create the draft release once
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists."
+          else
+            gh release create "$RELEASE_TAG" --draft \
+              --title "Hāmesh $RELEASE_TAG" \
+              --notes "Installers for Hāmesh, a local-first ebook reader. See the repository README for details."
+          fi
+
   build:
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:

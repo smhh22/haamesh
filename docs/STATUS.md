@@ -5,7 +5,7 @@ Last updated: 2026-10-30, 03:30 (overnight autonomous session — read with `AGE
 ## Where the project is
 
 - **Phases 0–2 complete. Phase 3 (sync) functionally complete end-to-end.**
-- 25 commits on `main`, newest first: search panel extraction (`<next>`), normalization tests (`e44086f`), local-folder provider (`c639830`),
+- 25 commits on `main`, newest first: search panel extraction (`64bc12b`), normalization tests (`e44086f`), local-folder provider (`c639830`),
   status docs (`4bcd2c6`), content search (`3db793d`), auto-sync (`94c5cf1`), ReaderView refactor
   (`f1f9ba6`), STATUS update (`e811b2f`), sanitizer hardening (`72e47cd`), app sync
   integration (`f395623`), WebDAV provider (`84ea213`), sync engine core

@@ -311,7 +311,8 @@ export const searchBookTexts = (
   limit: number,
 ): Array<{ bookId: string; section: number; snippet: string }> => {
   const needle = normalizeForSearch(query.trim());
-  if (!needle) return [];
+  // Single-character queries would flood the results; require two.
+  if (needle.length < 2) return [];
   const out: Array<{ bookId: string; section: number; snippet: string }> = [];
   for (const row of rows) {
     if (out.length >= limit) break;

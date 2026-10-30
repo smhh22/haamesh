@@ -107,7 +107,7 @@ test('guides sync setup from an empty state', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Sync', exact: true }).click();
 
   await expect(dialog.getByText('No storage connected')).toBeVisible();
-  await dialog.getByRole('button', { name: 'Add WebDAV' }).click();
+  await dialog.getByLabel('Add WebDAV').selectOption('generic');
   await expect(dialog.getByText('Needs setup')).toBeVisible();
 
   await dialog.getByLabel('Server URL').fill('https://dav.example.com');
@@ -115,6 +115,16 @@ test('guides sync setup from an empty state', async ({ page }) => {
 
   await dialog.getByRole('button', { name: 'Remove' }).click();
   await expect(dialog.getByText('No storage connected')).toBeVisible();
+});
+
+test('adds a WebDAV preset with its URL pattern', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+  await dialog.getByRole('button', { name: 'Sync', exact: true }).click();
+
+  await dialog.getByLabel('Add WebDAV').selectOption('koofr');
+  await expect(dialog.getByLabel('Server URL')).toHaveValue('https://app.koofr.net/dav/Koofr');
 });
 
 test('configures an S3-compatible provider', async ({ page }) => {
@@ -440,8 +450,9 @@ test('imports and reads a PDF', async ({ page }) => {
     timeout: 20_000,
   });
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-format', 'pdf');
+  // PDFs support bookmarks and notes on pages; in-book search stays EPUB-only.
   await expect(page.getByRole('button', { name: 'Search' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Notes' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Notes' })).toBeVisible();
   await expect(page.locator('.reader-progress')).toHaveText('Page 1 of 4');
 
   await page.getByRole('button', { name: 'Settings' }).click();
@@ -453,6 +464,25 @@ test('imports and reads a PDF', async ({ page }) => {
   await expect(shell).toHaveAttribute('data-zoom', '1.25');
   await page.getByRole('button', { name: 'Next' }).click();
   await expect.poll(async () => page.locator('.reader-progress').textContent()).toBe('Page 2 of 4');
+});
+
+test('bookmarks PDF pages and lists them', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(pdfFixture);
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+
+  await page.getByRole('button', { name: 'Bookmark' }).click();
+  const panel = page.locator('.notes-panel');
+  await expect(panel.getByText('Page 1')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.locator('.reader-progress')).toContainText('2');
+  await page.getByRole('button', { name: 'Bookmark' }).click();
+  await expect(panel.getByText('Page 2')).toBeVisible();
+  await expect(panel.locator('.note-item')).toHaveCount(2);
 });
 
 test('resumes a multi-page PDF at the saved page', async ({ page }) => {

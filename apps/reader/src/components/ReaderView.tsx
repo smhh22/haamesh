@@ -459,13 +459,12 @@ export const ReaderView = ({
     color: string | null;
     text: string | null;
     note: string | null;
-    cfi: string;
-    fraction: number;
+    locator: Locator;
   }): BookNoteRecord => ({
     id: crypto.randomUUID(),
     bookId: book.id,
     type: input.type,
-    locator: { kind: 'cfi', cfi: input.cfi, fraction: input.fraction },
+    locator: input.locator,
     color: input.color,
     text: input.text,
     note: input.note,
@@ -490,8 +489,7 @@ export const ReaderView = ({
       color,
       text: selection.text,
       note: null,
-      cfi: selection.cfi,
-      fraction: selection.fraction,
+      locator: { kind: 'cfi', cfi: selection.cfi, fraction: selection.fraction },
     });
     addNote(note);
     applyAnnotation(note);
@@ -508,8 +506,7 @@ export const ReaderView = ({
       color: DEFAULT_HIGHLIGHT,
       text: selection.text,
       note: noteDraft.trim(),
-      cfi: selection.cfi,
-      fraction: selection.fraction,
+      locator: { kind: 'cfi', cfi: selection.cfi, fraction: selection.fraction },
     });
     addNote(note);
     applyAnnotation(note);
@@ -520,15 +517,21 @@ export const ReaderView = ({
   };
 
   const addBookmark = () => {
-    const cfi = lastCfiRef.current;
-    if (!cfi) return;
+    // PDFs have no CFI: bookmark the page (ADR-0006 page locators).
+    const locator: Locator | null = isPdf
+      ? pageInfo
+        ? { kind: 'page', page: pageInfo.current, fraction: lastFractionRef.current }
+        : null
+      : lastCfiRef.current
+        ? { kind: 'cfi', cfi: lastCfiRef.current, fraction: lastFractionRef.current }
+        : null;
+    if (!locator) return;
     const note = createNoteRecord({
       type: 'bookmark',
       color: null,
       text: null,
       note: null,
-      cfi,
-      fraction: lastFractionRef.current,
+      locator,
     });
     addNote(note);
     void persistNoteRecord(note);
@@ -537,6 +540,10 @@ export const ReaderView = ({
 
   const jumpToNote = (note: BookNoteRecord) => {
     if (note.locator.kind === 'cfi') void viewRef.current?.goTo(note.locator.cfi);
+    if (note.locator.kind === 'page') {
+      // foliate's PDF renderer indexes pages from zero.
+      void viewRef.current?.goTo(Math.max(0, note.locator.page - 1));
+    }
   };
 
   const deleteBookNote = (note: BookNoteRecord) => {
@@ -565,6 +572,11 @@ export const ReaderView = ({
             '',
             ...bookNotes.map((note) => {
               if (note.type === 'bookmark') {
+                if (note.locator.kind === 'page') {
+                  return `- ${t('reader.noteTypes.bookmark')} (${t('reader.pageNumber', {
+                    page: note.locator.page,
+                  })})`;
+                }
                 return `- ${t('reader.noteTypes.bookmark')} (${Math.round(
                   note.locator.fraction * 100,
                 )}%)`;
@@ -673,29 +685,27 @@ export const ReaderView = ({
           >
             {t('reader.contents')}
           </button>
+          <button
+            type="button"
+            className="reader-action"
+            aria-expanded={panel === 'notes'}
+            onClick={() => togglePanel('notes')}
+          >
+            {t('reader.notes')}
+          </button>
           {!isPdf ? (
-            <>
-              <button
-                type="button"
-                className="reader-action"
-                aria-expanded={panel === 'notes'}
-                onClick={() => togglePanel('notes')}
-              >
-                {t('reader.notes')}
-              </button>
-              <button
-                type="button"
-                className="reader-action"
-                aria-expanded={panel === 'search'}
-                onClick={() => togglePanel('search')}
-              >
-                {t('reader.search')}
-              </button>
-              <button type="button" className="reader-action" onClick={addBookmark}>
-                {t('reader.bookmark')}
-              </button>
-            </>
+            <button
+              type="button"
+              className="reader-action"
+              aria-expanded={panel === 'search'}
+              onClick={() => togglePanel('search')}
+            >
+              {t('reader.search')}
+            </button>
           ) : null}
+          <button type="button" className="reader-action" onClick={addBookmark}>
+            {t('reader.bookmark')}
+          </button>
           <button
             type="button"
             className="reader-action"

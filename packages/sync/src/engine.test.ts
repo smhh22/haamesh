@@ -536,4 +536,56 @@ describe('sync engine', () => {
     expect(titles(storeA)).toEqual(['From A', 'From B']);
     expect(titles(storeB)).toEqual(['From A', 'From B']);
   });
+
+  it('keeps a delete even when the other replica edits concurrently', async () => {
+    const provider = createMemoryProvider();
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    const storeB = createMemoryStore('device-b', now);
+    await storeA.localEdit(bookRecord('1', 'Book', 1000));
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    wall = 2000;
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+
+    wall = 3000;
+    await storeA.localEdit({ id: '1', kind: 'book', fields: {}, deleted: true, updatedAt: 3000 });
+    await storeB.localEdit(bookRecord('1', 'Renamed on B', 3000));
+
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+    wall = 4000;
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    wall = 5000;
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+
+    const book = (store: MemoryStore) =>
+      [...store.records.values()].find((record) => record.kind === 'book' && record.id === '1');
+    expect(book(storeA)?.deleted).toBe(true);
+    expect(book(storeB)?.deleted).toBe(true);
+  });
 });

@@ -12,8 +12,8 @@ describe('buildReaderCss', () => {
   it('uses start alignment and dark colors when requested', () => {
     const css = buildReaderCss({ fontSize: 90, theme: 'dark', justify: false });
     expect(css).toContain('text-align: start');
-    expect(css).toContain('background: #1e1e1e');
-    expect(css).toContain('color: #e6e1d8');
+    expect(css).toContain('background: #14161a');
+    expect(css).toContain('color: #e9e4d9');
   });
 
   it('disables hyphenation and letter spacing', () => {

@@ -20,6 +20,8 @@ interface FoliateRenderer {
   getContents(): Array<{ doc: Document; index: number }>;
   setAttribute(name: string, value: string): void;
   render?(): void;
+  /** Repaints the paginator gutter/filter from the document background. */
+  setStyles?(styles: string): void;
 }
 
 interface FoliateViewElement extends HTMLElement {
@@ -134,6 +136,10 @@ export const ReaderView = ({
     }
     view.renderer.setAttribute('flow', settings.flow);
     view.renderer.render?.();
+    // The paginator caches the document background for its gutter and only
+    // refreshes it from setStyles(); without this, changing the theme leaves
+    // light bands around a dark page.
+    view.renderer.setStyles?.('');
 
     const cfi = lastCfiRef.current;
     if (cfi) {

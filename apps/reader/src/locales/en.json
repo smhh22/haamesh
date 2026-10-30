@@ -154,7 +154,7 @@
     },
     "language": "Language",
     "shortcuts": "Keyboard",
-    "openShortcuts": "Show shortcuts",
+    "show": "Show",
     "updates": "Updates",
     "version": "Version",
     "checkUpdates": "Check for updates",

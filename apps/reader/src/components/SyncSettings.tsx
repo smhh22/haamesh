@@ -99,7 +99,7 @@ export const SyncSettings = () => {
   return (
     <section className="sync-settings" aria-label={t('sync.title')}>
       <div className="settings-section-heading">
-        <h2>{t('sync.title')}</h2>
+        <h3>{t('sync.title')}</h3>
         <p className="hint">{t('sync.lede')}</p>
       </div>
 

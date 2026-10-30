@@ -120,7 +120,7 @@ export const SettingsDialog = ({ open, onClose, onOpenShortcuts }: SettingsDialo
           <div className="setting-row">
             <span>{t('shortcuts.title')}</span>
             <button type="button" className="reader-action" onClick={onOpenShortcuts}>
-              {t('settings.openShortcuts')}
+              {t('settings.show')}
             </button>
           </div>
         </section>

@@ -11,6 +11,7 @@ import { buildReaderCss } from '../readerStyles';
 import { persistNoteRecord } from '../services/libraryPersistence';
 import { notesForBook, useNotesStore } from '../stores/notesStore';
 import { useReaderSettings } from '../stores/readerSettingsStore';
+import { NotesPanel } from './reader/NotesPanel';
 import { SelectionPopover } from './reader/SelectionPopover';
 import { SettingsPanel } from './reader/SettingsPanel';
 import { TocTree } from './reader/TocTree';
@@ -459,6 +460,10 @@ export const ReaderView = ({
     setPanel('notes');
   };
 
+  const jumpToNote = (note: BookNoteRecord) => {
+    if (note.locator.kind === 'cfi') void viewRef.current?.goTo(note.locator.cfi);
+  };
+
   const deleteBookNote = (note: BookNoteRecord) => {
     removeNote(note.id);
     if (note.type !== 'bookmark' && note.locator.kind === 'cfi') {
@@ -641,113 +646,29 @@ export const ReaderView = ({
       ) : null}
 
       {panel === 'notes' ? (
-        <aside className="reader-panel notes-panel" aria-label={t('reader.notes')}>
-          <div className="panel-header">
-            <h2>{t('reader.notes')}</h2>
-            <div className="panel-actions">
-              <button
-                type="button"
-                className="reader-action"
-                onClick={() => exportNotes('markdown')}
-              >
-                {t('reader.exportMarkdown')}
-              </button>
-              <button type="button" className="reader-action" onClick={() => exportNotes('json')}>
-                {t('reader.exportJson')}
-              </button>
-              <button type="button" className="text-button" onClick={closePanel}>
-                {t('reader.close')}
-              </button>
-            </div>
-          </div>
-          {bookNotes.length === 0 ? (
-            <p className="hint">{t('reader.notesEmpty')}</p>
-          ) : (
-            <ul className="notes-list">
-              {bookNotes.map((note) => (
-                <li key={note.id} className="note-item">
-                  <div className="note-meta">
-                    {note.color ? (
-                      <span className="note-color" style={{ background: note.color }} />
-                    ) : null}
-                    <span>{t(`reader.noteTypes.${note.type}`)}</span>
-                    <span className="note-progress">
-                      {numberFormat.format(Math.round(note.locator.fraction * 100))}%
-                    </span>
-                  </div>
-                  {note.text ? (
-                    <blockquote className="note-text" dir="auto">
-                      {note.text}
-                    </blockquote>
-                  ) : null}
-                  {editingNoteId === note.id ? (
-                    <div className="note-edit">
-                      <textarea
-                        value={editDraft}
-                        onChange={(event) => setEditDraft(event.currentTarget.value)}
-                        aria-label={t('reader.notePlaceholder')}
-                      />
-                      <div className="note-actions">
-                        <button
-                          type="button"
-                          className="reader-action"
-                          onClick={() => saveNoteEdit(note)}
-                        >
-                          {t('reader.save')}
-                        </button>
-                        <button
-                          type="button"
-                          className="reader-action"
-                          onClick={() => setEditingNoteId(null)}
-                        >
-                          {t('reader.cancel')}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      {note.note ? (
-                        <p className="note-text" dir="auto">
-                          {note.note}
-                        </p>
-                      ) : null}
-                      <div className="note-actions">
-                        <button
-                          type="button"
-                          className="reader-action"
-                          onClick={() => {
-                            if (note.locator.kind === 'cfi') {
-                              void viewRef.current?.goTo(note.locator.cfi);
-                            }
-                          }}
-                        >
-                          {t('reader.jump')}
-                        </button>
-                        <button
-                          type="button"
-                          className="reader-action"
-                          onClick={() => {
-                            setEditingNoteId(note.id);
-                            setEditDraft(note.note ?? '');
-                          }}
-                        >
-                          {t('reader.edit')}
-                        </button>
-                        <button
-                          type="button"
-                          className="reader-action"
-                          onClick={() => deleteBookNote(note)}
-                        >
-                          {t('reader.delete')}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </aside>
+        <NotesPanel
+          notes={bookNotes}
+          editingNoteId={editingNoteId}
+          editDraft={editDraft}
+          onEditDraftChange={setEditDraft}
+          onEdit={(note) => {
+            setEditingNoteId(note.id);
+            setEditDraft(note.note ?? '');
+          }}
+          onSaveEdit={saveNoteEdit}
+          onCancelEdit={() => {
+            setEditingNoteId(null);
+            setEditDraft('');
+          }}
+          onDelete={(noteId: string) => {
+            const note = bookNotes.find((item) => item.id === noteId);
+            if (note) deleteBookNote(note);
+          }}
+          onJump={jumpToNote}
+          onExportMarkdown={() => exportNotes('markdown')}
+          onExportJson={() => exportNotes('json')}
+          onClose={closePanel}
+        />
       ) : null}
 
       {panel === 'search' ? (

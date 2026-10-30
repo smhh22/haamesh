@@ -343,6 +343,10 @@ export const ReaderView = ({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      // Dialogs (for example the shortcut map) own Escape and typing keys.
+      if (target?.closest('[role="dialog"]')) return;
+
       if (event.key === 'Escape') {
         if (panel) {
           setPanel(null);
@@ -354,8 +358,7 @@ export const ReaderView = ({
         return;
       }
 
-      const target = event.target as HTMLElement | null;
-      if (target?.closest('input, select, textarea, button, [role="dialog"]')) return;
+      if (target?.closest('input, select, textarea, button')) return;
 
       if (
         isPdf &&

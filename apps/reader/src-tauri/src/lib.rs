@@ -274,23 +274,33 @@ async fn sync_pick_root(
     app: tauri::AppHandle,
     state: tauri::State<'_, SyncRootState>,
 ) -> Result<Option<String>, String> {
-    use tauri_plugin_dialog::DialogExt;
-    let picked = app.dialog().file().blocking_pick_folder();
-    let Some(file_path) = picked else {
-        return Ok(None);
-    };
-    let candidate = file_path
-        .into_path()
-        .map_err(|error| error.to_string())?
-        .canonicalize()
-        .map_err(|error| format!("cannot open folder: {error}"))?;
-    if !candidate.is_dir() {
-        return Err("not a directory".into());
+    // The dialog plugin only offers folder picking on desktop; mobile builds
+    // must still compile, and local-folder sync is a desktop feature.
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_dialog::DialogExt;
+        let picked = app.dialog().file().blocking_pick_folder();
+        let Some(file_path) = picked else {
+            return Ok(None);
+        };
+        let candidate = file_path
+            .into_path()
+            .map_err(|error| error.to_string())?
+            .canonicalize()
+            .map_err(|error| format!("cannot open folder: {error}"))?;
+        if !candidate.is_dir() {
+            return Err("not a directory".into());
+        }
+        persist_sync_root(&app, &candidate)?;
+        let display = candidate.to_string_lossy().into_owned();
+        *state.0.lock().map_err(|error| error.to_string())? = Some(candidate);
+        return Ok(Some(display));
     }
-    persist_sync_root(&app, &candidate)?;
-    let display = candidate.to_string_lossy().into_owned();
-    *state.0.lock().map_err(|error| error.to_string())? = Some(candidate);
-    Ok(Some(display))
+    #[cfg(not(desktop))]
+    {
+        let _ = (app, state);
+        Err("choosing a sync folder is not supported on this platform".into())
+    }
 }
 
 /// One-time migration: adopt the folder saved by an older build that stored

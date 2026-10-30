@@ -109,6 +109,36 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
+  android-check:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      NDK_HOME: /usr/local/lib/android/sdk/ndk/28.2.13676358
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/reader/src-tauri
+      - name: Install the Android NDK
+        run: |
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" "ndk;28.2.13676358"
+      - name: Compile the shell for Android
+        env:
+          CC_aarch64_linux_android: /usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
+          AR_aarch64_linux_android: /usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: /usr/local/lib/android/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
+        run: cargo check --manifest-path apps/reader/src-tauri/Cargo.toml --target aarch64-linux-android
+
   windows-desktop:
     needs: changes
     if: needs.changes.outputs.desktop == 'true'

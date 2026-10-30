@@ -1,0 +1,65 @@
+name: Version
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: version-main
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - id: bump
+        env:
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          title=$(printf '%s' "$MESSAGE" | head -n1)
+          latest=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -n1)
+          latest=${latest:-v0.0.0}
+          version=${latest#v}
+          IFS=. read -r major minor patch <<< "$version"
+          lower=$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]')
+
+          if printf '%s' "$MESSAGE" | grep -qi 'breaking change' || [[ "$lower" == *'!:'* ]]; then
+            major=$((major + 1)); minor=0; patch=0
+          elif [[ "$lower" =~ ^feat(\(.+\))?: ]]; then
+            minor=$((minor + 1)); patch=0
+          elif [[ "$lower" =~ ^(fix|perf|refactor)(\(.+\))?: ]]; then
+            patch=$((patch + 1))
+          else
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No release for: $title"
+            exit 0
+          fi
+
+          tag="v${major}.${minor}.${patch}"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Tag $tag already exists; nothing to release."
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag from $title"
+
+      - if: steps.bump.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${TAG}" -f sha="${GITHUB_SHA}"
+          gh workflow run release.yml --ref main -f version="${TAG}"

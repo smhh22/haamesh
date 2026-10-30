@@ -7,12 +7,7 @@
  * FileSystemPort.list returns bare names, so directory detection probes the
  * port; capabilities are conservative (no etag, no atomic rename guarantee).
  */
-import type {
-  ProviderCapabilities,
-  ProviderEntry,
-  ProviderHead,
-  StorageProvider,
-} from '../provider';
+import type { ProviderCapabilities, ProviderEntry, StorageProvider } from '../provider';
 import { ProviderError } from '../provider';
 
 /** Minimal filesystem surface; the platform FileSystemPort satisfies it structurally. */

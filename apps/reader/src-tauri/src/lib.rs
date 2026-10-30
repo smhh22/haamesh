@@ -8,6 +8,10 @@ use tauri::Manager;
 
 struct DbState(Mutex<rusqlite::Connection>);
 
+/// User-chosen sync folder root. All sync fs commands resolve strictly below
+/// it; set only through the native folder picker flow.
+struct SyncRootState(std::sync::Mutex<Option<PathBuf>>);
+
 fn to_sql_value(value: &Value) -> rusqlite::types::Value {
     match value {
         Value::Null => rusqlite::types::Value::Null,
@@ -186,9 +190,118 @@ fn db_select(
     Ok(output)
 }
 
+/// Resolve a sync path below the stored root. Same discipline as
+/// `resolve_data_path`: absolute paths and non-normal components are rejected.
+fn resolve_sync_path(root_state: &SyncRootState, relative: &str) -> Result<PathBuf, String> {
+    let root = root_state
+        .0
+        .lock()
+        .map_err(|error| error.to_string())?
+        .clone()
+        .ok_or_else(|| "no sync folder selected".to_string())?;
+    let relative_path = Path::new(relative);
+    if relative_path.is_absolute()
+        || relative_path
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Err("invalid sync path".into());
+    }
+    Ok(root.join(relative_path))
+}
+
+#[tauri::command]
+fn sync_set_root(state: tauri::State<'_, SyncRootState>, path: String) -> Result<String, String> {
+    let candidate = PathBuf::from(&path)
+        .canonicalize()
+        .map_err(|error| format!("cannot open folder: {error}"))?;
+    if !candidate.is_dir() {
+        return Err("not a directory".into());
+    }
+    let display = candidate.to_string_lossy().into_owned();
+    *state.0.lock().map_err(|error| error.to_string())? = Some(candidate);
+    Ok(display)
+}
+
+#[tauri::command]
+fn sync_root(state: tauri::State<'_, SyncRootState>) -> Option<String> {
+    state
+        .0
+        .lock()
+        .ok()
+        .and_then(|root| root.clone())
+        .map(|path| path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn sync_fs_read(
+    state: tauri::State<'_, SyncRootState>,
+    relative: String,
+) -> Result<Option<Vec<u8>>, String> {
+    let path = resolve_sync_path(&state, &relative)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    fs::read(path).map(Some).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn sync_fs_write(
+    state: tauri::State<'_, SyncRootState>,
+    relative: String,
+    data: Vec<u8>,
+) -> Result<(), String> {
+    let path = resolve_sync_path(&state, &relative)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    fs::write(path, data).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn sync_fs_exists(
+    state: tauri::State<'_, SyncRootState>,
+    relative: String,
+) -> Result<bool, String> {
+    let path = resolve_sync_path(&state, &relative)?;
+    Ok(path.exists())
+}
+
+#[tauri::command]
+fn sync_fs_remove(state: tauri::State<'_, SyncRootState>, relative: String) -> Result<(), String> {
+    let path = resolve_sync_path(&state, &relative)?;
+    if path.is_dir() {
+        fs::remove_dir_all(path).map_err(|error| error.to_string())
+    } else if path.exists() {
+        fs::remove_file(path).map_err(|error| error.to_string())
+    } else {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+fn sync_fs_list(
+    state: tauri::State<'_, SyncRootState>,
+    relative: String,
+) -> Result<Vec<String>, String> {
+    let path = resolve_sync_path(&state, &relative)?;
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let entries = fs::read_dir(path).map_err(|error| error.to_string())?;
+    let mut names = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| error.to_string())?;
+        names.push(entry.file_name().to_string_lossy().into_owned());
+    }
+    names.sort();
+    Ok(names)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             data_read,
             data_write,
@@ -198,13 +311,21 @@ pub fn run() {
             read_external_file,
             db_execute,
             db_execute_batch,
-            db_select
+            db_select,
+            sync_set_root,
+            sync_root,
+            sync_fs_read,
+            sync_fs_write,
+            sync_fs_exists,
+            sync_fs_remove,
+            sync_fs_list
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
             let connection = rusqlite::Connection::open(data_dir.join("hamesh.db"))?;
             app.manage(DbState(Mutex::new(connection)));
+            app.manage(SyncRootState(Mutex::new(None)));
 
             if cfg!(debug_assertions) {
                 app.handle().plugin(

@@ -113,6 +113,10 @@
     "lastSync": "Last sync",
     "never": "Never synced.",
     "report": "Pulled {{pulled}} changes, uploaded {{uploaded}} books, downloaded {{downloaded}} books.",
-    "failed": "Sync failed"
+    "failed": "Sync failed",
+    "providerLocalFolder": "Local folder",
+    "folder": "Sync folder",
+    "chooseFolder": "Choose folder…",
+    "noFolder": "No folder chosen"
   }
 }

@@ -1,6 +1,6 @@
 # Project status
 
-Last updated: 2026-10-30, 10:50 (morning review with user — read with `AGENTS.md`).
+Last updated: 2026-10-30, 11:05 (morning review with user — read with `AGENTS.md`).
 
 ## Where the project is
 
@@ -69,8 +69,12 @@ Last updated: 2026-10-30, 10:50 (morning review with user — read with `AGENTS.
     fields of one book both survive.
   - WebDAV as first real provider (universal, self-hostable, sanction-safe);
     local-folder provider ALSO implemented over a minimal FolderFs surface
-    (`providers/localFolder.ts`, conformance-tested) — needs the DialogPort
-    desktop adapter + directory picker UI before it is user-visible.
+    (`providers/localFolder.ts`, conformance-tested). Morning review chose
+    local-folder UI next: tauri-plugin-dialog picker + root-guarded
+    `sync_fs_*` commands (same Component::Normal discipline as data_*), JS
+    adapter in `services/localFolderFs.ts`, provider option in SyncSettings
+    (desktop only; web keeps WebDAV). Rust compile-checked; native flows need
+    a desktop smoke test.
   - Library content search shipped: storage v3 `book_texts` (per-section
     EPUB text extracted at import via `createDocument`, no blob URLs), shared
     `normalizeForSearch` in core, debounced content-match section in the

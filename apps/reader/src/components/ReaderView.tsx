@@ -550,7 +550,6 @@ export const ReaderView = ({
 
   const numberFormat = new Intl.NumberFormat(i18n.language === 'fa' ? 'fa-IR' : 'en-US');
   const percent = numberFormat.format(Math.round(progress * 100));
-  const fontSize = numberFormat.format(settings.fontSize);
 
   return (
     <div

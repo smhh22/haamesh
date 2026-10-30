@@ -102,7 +102,7 @@ export const migrate = async (db: SqlDatabase): Promise<void> => {
     await db.exec(SYNC_FIELD_CLOCKS_TABLE);
     await db.exec('PRAGMA user_version = 4');
   }
-  // v5 adds user categories and tags (ADR-0012). Check the columns first so a
+  // v5 adds user categories and tags (ADR-0013). Check the columns first so a
   // crash between the ALTERs cannot wedge the next start; the whole step is
   // idempotent.
   if (version < 5) {

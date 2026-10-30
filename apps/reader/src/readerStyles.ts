@@ -21,6 +21,22 @@ const THEMES = {
   { background: string; text: string; link: string }
 >;
 
+/**
+ * Book iframes have their own document, so the app-level faces in tokens.css
+ * never apply there; every reader document declares the bundled families it
+ * may be asked to render. The URLs must be absolute: the paginator loads book
+ * documents from blob: URLs, and path-relative URLs cannot resolve against a
+ * blob base (the face then fails with a network error and silently falls back).
+ */
+const fontUrl = (file: string): string =>
+  typeof window === 'undefined' ? `/fonts/${file}` : `${window.location.origin}/fonts/${file}`;
+
+const FONT_FACES = `
+@font-face { font-family: "Vazirmatn"; src: url("${fontUrl('Vazirmatn-Variable.woff2')}") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Noto Naskh Arabic"; src: url("${fontUrl('NotoNaskhArabic-Regular.woff2')}") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Literata"; src: url("${fontUrl('Literata-Regular.woff2')}") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+`;
+
 /** Bundled OFL faces first, then the closest system fallback. */
 export const FONT_STACKS: Record<ReaderFont, string> = {
   vazirmatn: '"Vazirmatn", system-ui, sans-serif',
@@ -54,7 +70,7 @@ export const buildReaderCss = ({
       ? `padding-inline: ${margin}px !important; padding-block-end: ${margin}px !important;`
       : '';
 
-  return `
+  return `${FONT_FACES}
 html { font-size: ${fontSize}% !important; }
 body {
   background: ${colors.background} !important;

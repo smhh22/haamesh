@@ -1,26 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDialogFocus } from '../hooks/useDialogFocus';
+import { ShortcutsList } from './ShortcutsList';
 
 interface ShortcutsDialogProps {
   open: boolean;
   onClose: () => void;
 }
 
-const ShortcutRow = ({ keys, label }: { keys: string[]; label: string }) => (
-  <div className="shortcut-row">
-    <dt>
-      {keys.map((key) => (
-        <kbd key={key}>{key}</kbd>
-      ))}
-    </dt>
-    <dd>{label}</dd>
-  </div>
-);
-
 /**
- * Keyboard shortcut map, opened with `?` or from the settings dialog. Esc and
- * a click outside close it.
+ * Keyboard shortcut overlay, opened with `?`. Esc and a click outside close
+ * it; the settings dialog also renders the same list as its own section.
  */
 export const ShortcutsDialog = ({ open, onClose }: ShortcutsDialogProps) => {
   const { t } = useTranslation();
@@ -62,26 +52,9 @@ export const ShortcutsDialog = ({ open, onClose }: ShortcutsDialogProps) => {
           </button>
         </div>
 
-        <section className="settings-section">
-          <h3>{t('shortcuts.library')}</h3>
-          <dl className="shortcut-list">
-            <ShortcutRow keys={['/']} label={t('shortcuts.search')} />
-            <ShortcutRow keys={['?']} label={t('shortcuts.help')} />
-            <ShortcutRow keys={['Esc']} label={t('shortcuts.escapeLibrary')} />
-          </dl>
-        </section>
-
-        <section className="settings-section">
-          <h3>{t('shortcuts.reader')}</h3>
-          <dl className="shortcut-list">
-            <ShortcutRow keys={['←', '→']} label={t('shortcuts.pageTurn')} />
-            <ShortcutRow keys={['Space']} label={t('shortcuts.pageNext')} />
-            <ShortcutRow keys={['Shift + Space']} label={t('shortcuts.pagePrev')} />
-            <ShortcutRow keys={['+', '−']} label={t('shortcuts.zoom')} />
-            <ShortcutRow keys={['Esc']} label={t('shortcuts.escapeReader')} />
-            <ShortcutRow keys={['?']} label={t('shortcuts.help')} />
-          </dl>
-        </section>
+        <div className="shortcuts-dialog-body">
+          <ShortcutsList />
+        </div>
       </div>
     </div>
   );

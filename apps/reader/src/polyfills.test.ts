@@ -15,6 +15,40 @@ type GroupByFunction = <T>(
   callback: (item: T, index: number) => PropertyKey,
 ) => Record<string, T[]>;
 
+const withResolversDescriptor = Object.getOwnPropertyDescriptor(Promise, 'withResolvers');
+
+afterEach(() => {
+  if (withResolversDescriptor)
+    Object.defineProperty(Promise, 'withResolvers', withResolversDescriptor);
+  else Reflect.deleteProperty(Promise, 'withResolvers');
+});
+
+describe('withResolvers polyfill', () => {
+  it('resolves and rejects through the returned resolvers', async () => {
+    Reflect.deleteProperty(Promise, 'withResolvers');
+    vi.resetModules();
+    await import('./polyfills');
+
+    const withResolvers = (
+      Promise as unknown as {
+        withResolvers: <T>() => {
+          promise: Promise<T>;
+          resolve: (value: T) => void;
+          reject: (reason?: unknown) => void;
+        };
+      }
+    ).withResolvers;
+
+    const resolvers = withResolvers<number>();
+    resolvers.resolve(7);
+    expect(await resolvers.promise).toBe(7);
+
+    const failing = withResolvers<number>();
+    failing.reject(new Error('nope'));
+    await expect(failing.promise).rejects.toThrow('nope');
+  });
+});
+
 describe('groupBy polyfills', () => {
   it('groups with index-aware callbacks and a null prototype', async () => {
     Reflect.deleteProperty(Object, 'groupBy');

@@ -29,7 +29,7 @@
       "INVALID_FILE": "فایل خالی یا ناخواناست.",
       "UNSUPPORTED_FORMAT": "در این نسخه فقط EPUB، PDF یا مارک‌داون پشتیبانی می‌شود.",
       "CRYPTO_UNAVAILABLE": "برای محاسبهٔ اثر انگشت کتاب به HTTPS یا localhost نیاز است.",
-      "PARSE_FAILED": "این EPUB خوانده نشد.",
+      "PARSE_FAILED": "این فایل خوانده نشد.",
       "UNKNOWN": "هنگام افزودن کتاب خطایی رخ داد."
     },
     "contentMatches": "در متن کتاب‌ها"

@@ -41,4 +41,31 @@ const mapTarget = Map as typeof Map & { groupBy?: typeof mapGroupBy };
 if (typeof objectTarget.groupBy !== 'function') objectTarget.groupBy = objectGroupBy;
 if (typeof mapTarget.groupBy !== 'function') mapTarget.groupBy = mapGroupBy;
 
+/**
+ * The bundled pdf.js (through foliate-js) calls Promise.withResolvers, which
+ * landed in Chrome 119 / WebKit 17.4. Android WebView 113 would otherwise
+ * throw while importing any PDF — the app reported it as a parse failure.
+ */
+type Resolvers<T> = {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+  reject: (reason?: unknown) => void;
+};
+
+const promiseTarget = Promise as typeof Promise & {
+  withResolvers?: <T>() => Resolvers<T>;
+};
+
+if (typeof promiseTarget.withResolvers !== 'function') {
+  promiseTarget.withResolvers = function withResolvers<T>(): Resolvers<T> {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+}
+
 export {};

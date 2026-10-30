@@ -395,14 +395,7 @@ export const App = () => {
           ) : null}
         </section>
 
-        <SettingsDialog
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          onOpenShortcuts={() => {
-            setSettingsOpen(false);
-            setShortcutsOpen(true);
-          }}
-        />
+        <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       </main>
     </DirectionProvider>

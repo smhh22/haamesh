@@ -21,7 +21,7 @@ const page = await browser.newPage({
 await page.goto(BASE);
 
 // Fill the library so the screenshot shows a real collection with covers.
-for (const name of ['sample.epub', 'sample.pdf']) {
+for (const name of ['sample.epub', 'sample.md', 'sample.pdf']) {
   await page.locator('input[type="file"]').setInputFiles(fixture(name));
 }
 await page.waitForTimeout(500);

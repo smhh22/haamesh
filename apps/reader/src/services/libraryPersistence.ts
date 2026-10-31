@@ -4,7 +4,7 @@ import type { BookNoteRecord, BookRecord, LibrarySnapshot, ReadingState } from '
 import { useLibraryStore } from '../stores/libraryStore';
 import { useNotesStore } from '../stores/notesStore';
 import { useReadingStore } from '../stores/readingStore';
-import { rememberBookFile } from './bookFiles';
+import { getBookFile, rememberBookFile } from './bookFiles';
 import { createDataStore } from './dataStore';
 import { type ActiveStorage, createActiveStorage } from './sqlStorage';
 import { getOrCreateDeviceId, stampFieldClocks, stampRecordClock } from './syncStore';
@@ -51,8 +51,8 @@ const readSnapshot = async (dataStore: DataStorePort): Promise<LibrarySnapshot |
   }
 };
 
-/** Reattach persisted book and cover bytes as runtime File/Blob URLs. */
-const hydrateBooks = async (
+/** Reattach persisted covers as runtime blob URLs. Book bytes load on open. */
+const hydrateCovers = async (
   books: BookRecord[],
   dataStore: DataStorePort | null,
 ): Promise<BookRecord[]> => {
@@ -60,14 +60,6 @@ const hydrateBooks = async (
 
   const hydrated: BookRecord[] = [];
   for (const book of books) {
-    const bytes = await dataStore.read(bookPath(book.hash, book.format));
-    if (!bytes) continue;
-
-    const file = new File([toArrayBuffer(bytes)], book.filePath, {
-      type: book.format === 'pdf' ? 'application/pdf' : 'application/epub+zip',
-    });
-    rememberBookFile(book.hash, file);
-
     const coverBytes = await dataStore.read(coverPath(book.hash));
     const runtimeCover = coverBytes
       ? URL.createObjectURL(
@@ -78,6 +70,24 @@ const hydrateBooks = async (
     hydrated.push({ ...book, coverPath: runtimeCover, coverMime: book.coverMime ?? null });
   }
   return hydrated;
+};
+
+/**
+ * Read a book's bytes the first time it is opened. Opening every book at
+ * startup meant large PDFs crossed the IPC bridge and sat in memory even when
+ * the reader never opened them.
+ */
+export const loadBookFile = async (book: BookRecord): Promise<File | null> => {
+  const cached = getBookFile(book.hash);
+  if (cached) return cached;
+  if (!store) return null;
+  const bytes = await store.read(bookPath(book.hash, book.format));
+  if (!bytes) return null;
+  const file = new File([toArrayBuffer(bytes)], book.filePath, {
+    type: book.format === 'pdf' ? 'application/pdf' : 'application/epub+zip',
+  });
+  rememberBookFile(book.hash, file);
+  return file;
 };
 
 /**
@@ -106,7 +116,7 @@ export const initLibraryPersistence = async (): Promise<void> => {
 
   if (!snapshot) return;
 
-  const hydrated = await hydrateBooks(snapshot.books, store);
+  const hydrated = await hydrateCovers(snapshot.books, store);
   useLibraryStore.setState({ books: hydrated });
   useReadingStore.setState({ states: snapshot.reading ?? {} });
   useNotesStore.setState({ notes: snapshot.notes ?? [] });
@@ -227,7 +237,7 @@ export const persistNoteRecord = async (note: BookNoteRecord): Promise<void> => 
 export const reloadLibraryFromStorage = async (): Promise<void> => {
   if (!activeStorage) return;
   const books = await activeStorage.storage.books.list();
-  const hydrated = await hydrateBooks(books, store);
+  const hydrated = await hydrateCovers(books, store);
   const reading = await activeStorage.storage.reading.list();
   const notes = await activeStorage.storage.notes.listAll();
   useLibraryStore.setState({ books: hydrated });

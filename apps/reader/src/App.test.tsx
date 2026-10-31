@@ -46,7 +46,7 @@ describe('App', () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /read/i }));
 
-    expect(screen.getByRole('button', { name: /library/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /library/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('نمونه کتاب');
   });
 });

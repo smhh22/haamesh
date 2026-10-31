@@ -23,34 +23,44 @@ export const parseTags = (value: string): string[] => {
  * Category and tag editor for one book. Categories are free text with
  * suggestions from the library; tags are comma-separated and synced as one
  * field (ADR-0013).
+ *
+ * The body mounts per book (keyed by id) and initializes its fields once.
+ * A store update that replaces the book object — a sync reload, for example —
+ * no longer resets what the user is typing.
  */
-export const BookOrganizationDialog = ({
+export const BookOrganizationDialog = ({ book, ...props }: BookOrganizationDialogProps) => {
+  if (!book) return null;
+  return <BookOrganizationDialogContent key={book.id} book={book} {...props} />;
+};
+
+type BookOrganizationDialogContentProps = Omit<BookOrganizationDialogProps, 'book'> & {
+  book: BookRecord;
+};
+
+const BookOrganizationDialogContent = ({
   book,
   categories,
   onSave,
   onClose,
-}: BookOrganizationDialogProps) => {
+}: BookOrganizationDialogContentProps) => {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  const [category, setCategory] = useState(book?.category ?? '');
-  const [tags, setTags] = useState((book?.tags ?? []).join('، '));
-  useDialogFocus(book !== null, dialogRef);
+  const [category, setCategory] = useState(book.category ?? '');
+  const [tags, setTags] = useState((book.tags ?? []).join('، '));
+  const onCloseRef = useRef(onClose);
+  useDialogFocus(true, dialogRef);
 
   useEffect(() => {
-    setCategory(book?.category ?? '');
-    setTags((book?.tags ?? []).join('، '));
-  }, [book]);
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
-    if (!book) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') onCloseRef.current();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [book, onClose]);
-
-  if (!book) return null;
+  }, []);
 
   const submit = () => {
     const trimmed = category.trim();

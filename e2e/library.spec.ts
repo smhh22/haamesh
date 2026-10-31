@@ -318,6 +318,14 @@ test('keeps the last failed sync round visible', async ({ page }) => {
   await expect(reopened.getByText('The last sync round failed:')).toBeVisible();
   await expect(reopened.locator('.sync-last-error')).toContainText('WebDAV:');
   await expect(reopened.locator('.sync-last-error')).toContainText('Could not reach the server.');
+
+  // The same stored report is localized when the UI is Persian.
+  await reopened.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Switch to Persian' }).click();
+  await page.getByRole('button', { name: 'تنظیمات' }).click();
+  const persian = page.getByRole('dialog', { name: 'تنظیمات' });
+  await persian.getByRole('button', { name: 'همگام‌سازی', exact: true }).click();
+  await expect(persian.locator('.sync-last-error')).toContainText('ارتباط با سرور برقرار نشد.');
 });
 
 test('shows grouped shortcuts in the settings dialog', async ({ page }) => {

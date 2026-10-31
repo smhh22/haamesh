@@ -304,6 +304,9 @@ test('keeps the last failed sync round visible', async ({ page }) => {
   await expect(dialog.getByText('The last sync round failed:')).toBeVisible({
     timeout: 15_000,
   });
+  const failure = dialog.locator('.sync-last-error');
+  await expect(failure).toContainText('WebDAV:');
+  await expect(failure).not.toContainText(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/i);
 });
 
 test('shows grouped shortcuts in the settings dialog', async ({ page }) => {

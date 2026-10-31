@@ -111,7 +111,9 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
       const failed = report.providers.filter((item) => !item.ok);
       setMessage(
         failed.length > 0
-          ? `${t('sync.failed')}: ${failed.map((item) => item.error ?? item.providerId).join(', ')}`
+          ? `${t('sync.failed')}: ${failed
+              .map((item) => item.error ?? providerName(item.providerId))
+              .join(', ')}`
           : t('sync.report', {
               pulled: report.providers.reduce((sum, item) => sum + item.pulledRecords, 0),
               uploaded: report.providers.reduce((sum, item) => sum + item.uploadedBlobs, 0),
@@ -129,6 +131,10 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
   const readyProviders = config.providers.filter(
     (provider) => provider.enabled && isProviderConfigured(provider),
   );
+  // Reports carry the provider kind ("webdav"), not the config UUID; show the
+  // name the user configured for that kind.
+  const providerName = (id: string): string =>
+    config.providers.find((provider) => provider.kind === id)?.label ?? id;
   const lastSyncText = lastSyncAt
     ? new Intl.DateTimeFormat(i18n.language, {
         dateStyle: 'medium',
@@ -673,7 +679,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
               .filter((item) => !item.ok)
               .map((item) => (
                 <li key={item.providerId}>
-                  {item.providerId}: {item.error ?? t('sync.failed')}
+                  {providerName(item.providerId)}: {item.error ?? t('sync.failed')}
                 </li>
               ))}
           </ul>

@@ -391,19 +391,17 @@ const buildSftpProvider = async (provider: SyncProviderConfig): Promise<StorageP
   const base = provider.sftpRemoteBase || '/';
   let session = sftpSessions.get(provider.id);
   if (!session) {
-    try {
-      session = await connectSftp({
-        host: provider.baseUrl.trim(),
-        port: provider.sftpPort || 22,
-        username: provider.username,
-        password: provider.password,
-        keyPath: provider.sftpKeyPath,
-        keyPassphrase: '',
-      });
-      sftpSessions.set(provider.id, session);
-    } catch {
-      return null;
-    }
+    // Connection errors are real failures, not missing configuration; let them
+    // reach the test/sync report with the server's message.
+    session = await connectSftp({
+      host: provider.baseUrl.trim(),
+      port: provider.sftpPort || 22,
+      username: provider.username,
+      password: provider.password,
+      keyPath: provider.sftpKeyPath,
+      keyPassphrase: '',
+    });
+    sftpSessions.set(provider.id, session);
   }
   return createLocalFolderProvider(createSftpFs(session, base));
 };
@@ -460,17 +458,30 @@ export const providerFromConfig = async (
 };
 
 /** Build providers for every enabled, fully-configured replica. */
-const providersFromConfig = async (config: SyncConfig): Promise<StorageProvider[]> => {
+interface ProviderBuild {
+  providers: StorageProvider[];
+  failures: Array<{ providerId: string; error: string }>;
+}
+
+const providersFromConfig = async (config: SyncConfig): Promise<ProviderBuild> => {
   const providers: StorageProvider[] = [];
+  const failures: Array<{ providerId: string; error: string }> = [];
   for (const entry of config.providers) {
     if (!entry.enabled || !isProviderConfigured(entry)) continue;
     if (entry.kind === 'local-folder') {
       await restoreSyncRoot(entry.localFolder);
     }
-    const provider = await providerFromConfig(await resolveSecrets(entry));
-    if (provider) providers.push(provider);
+    try {
+      const provider = await providerFromConfig(await resolveSecrets(entry));
+      if (provider) providers.push(provider);
+    } catch (error) {
+      failures.push({
+        providerId: entry.label || entry.kind,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
-  return providers;
+  return { providers, failures };
 };
 
 /** Basic reachability + credentials check for one provider. */
@@ -500,7 +511,16 @@ export const testSyncConnection = async (provider: SyncProviderConfig): Promise<
   if (provider.kind === 'local-folder' && provider.localFolder) {
     await restoreSyncRoot(provider.localFolder);
   }
-  const built = await providerFromConfig(await resolveSecrets(provider));
+  let built: StorageProvider | null;
+  try {
+    built = await providerFromConfig(await resolveSecrets(provider));
+  } catch (error) {
+    return {
+      ok: false,
+      code: 'failed',
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
   if (!built) return { ok: false, code: 'not-configured' };
   try {
     await built.ensureDir(['Hamesh']);
@@ -568,8 +588,10 @@ export const runSync = (config: SyncConfig): Promise<SyncReport> => {
 };
 
 const runSyncRound = async (config: SyncConfig): Promise<SyncReport> => {
-  const providers = await providersFromConfig(config);
-  if (providers.length === 0) throw new Error('No sync provider configured.');
+  const { providers, failures } = await providersFromConfig(config);
+  if (providers.length === 0 && failures.length === 0) {
+    throw new Error('No sync provider configured.');
+  }
   const storage = getActiveStorage();
   const clock = getSyncClock();
   const dataStore = await createDataStore();
@@ -579,6 +601,17 @@ const runSyncRound = async (config: SyncConfig): Promise<SyncReport> => {
   const store = createSqlSyncStore(storage, dataStore);
   const engine = createSyncEngine({ deviceId, clock, store, providers });
   const report = await engine.sync();
+  for (const failure of failures) {
+    report.ok = false;
+    report.providers.push({
+      providerId: failure.providerId,
+      ok: false,
+      error: failure.error,
+      pulledRecords: 0,
+      uploadedBlobs: 0,
+      downloadedBlobs: 0,
+    });
+  }
   localStorage.setItem(
     STATUS_KEY,
     JSON.stringify({ lastSyncAt: Date.now(), lastReport: report } satisfies SyncStatus),

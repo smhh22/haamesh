@@ -133,6 +133,68 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
       }).format(new Date(lastSyncAt))
     : t('sync.never');
 
+  const addOptions = [
+    {
+      value: 'webdav:generic',
+      label: t('sync.webdavGeneric'),
+      kind: 'webdav' as const,
+      overrides: {},
+    },
+    ...WEBDAV_PRESETS.map((preset) => ({
+      value: `webdav:${preset.id}`,
+      label: preset.label,
+      kind: 'webdav' as const,
+      overrides: { baseUrl: preset.baseUrl, label: preset.label },
+    })),
+    { value: 's3', label: t('sync.addS3'), kind: 's3' as const, overrides: {} },
+    { value: 'dropbox', label: t('sync.addDropbox'), kind: 'dropbox' as const, overrides: {} },
+    ...(isSftpAvailable()
+      ? [{ value: 'sftp', label: t('sync.addSftp'), kind: 'sftp' as const, overrides: {} }]
+      : []),
+    ...(isLocalFolderAvailable()
+      ? [
+          {
+            value: 'local-folder',
+            label: t('sync.addLocalFolder'),
+            kind: 'local-folder' as const,
+            overrides: {},
+          },
+          {
+            value: 'local-folder:syncthing',
+            label: t('sync.addSyncthing'),
+            kind: 'local-folder' as const,
+            overrides: { preset: SYNCTHING_PRESET },
+          },
+        ]
+      : []),
+  ];
+
+  const addProviderFromSelect = (value: string) => {
+    const option = addOptions.find((item) => item.value === value);
+    if (option) addProvider(option.kind, option.overrides);
+  };
+
+  const addProviderSelect = (
+    <select
+      className="text-input sync-add-select"
+      aria-label={t('sync.addProvider')}
+      defaultValue=""
+      onChange={(event) => {
+        addProviderFromSelect(event.target.value);
+        event.target.value = '';
+      }}
+    >
+      <option value="" disabled>
+        {t('sync.addProvider')}
+      </option>
+      {addOptions.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+
   return (
     <section className="sync-settings" aria-label={t('sync.title')}>
       {showHeading ? (
@@ -148,60 +210,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
         <div className="sync-empty">
           <p className="sync-empty-title">{t('sync.emptyTitle')}</p>
           <p className="hint">{t('sync.emptyBody')}</p>
-          <div className="sync-add">
-            <select
-              className="text-input"
-              aria-label={t('sync.addWebdav')}
-              defaultValue=""
-              onChange={(event) => {
-                const preset = WEBDAV_PRESETS.find((item) => item.id === event.target.value);
-                addProvider(
-                  'webdav',
-                  preset ? { baseUrl: preset.baseUrl, label: preset.label } : {},
-                );
-                event.target.value = '';
-              }}
-            >
-              <option value="" disabled>
-                {t('sync.addWebdav')}
-              </option>
-              <option value="generic">{t('sync.webdavGeneric')}</option>
-              {WEBDAV_PRESETS.map((preset) => (
-                <option key={preset.id} value={preset.id}>
-                  {preset.label}
-                </option>
-              ))}
-            </select>
-            <button type="button" className="reader-action" onClick={() => addProvider('s3')}>
-              {t('sync.addS3')}
-            </button>
-            <button type="button" className="reader-action" onClick={() => addProvider('dropbox')}>
-              {t('sync.addDropbox')}
-            </button>
-            {isLocalFolderAvailable() ? (
-              <>
-                <button
-                  type="button"
-                  className="reader-action"
-                  onClick={() => addProvider('local-folder')}
-                >
-                  {t('sync.addLocalFolder')}
-                </button>
-                <button
-                  type="button"
-                  className="reader-action"
-                  onClick={() => addProvider('local-folder', { preset: SYNCTHING_PRESET })}
-                >
-                  {t('sync.addSyncthing')}
-                </button>
-              </>
-            ) : null}
-            {isSftpAvailable() ? (
-              <button type="button" className="reader-action" onClick={() => addProvider('sftp')}>
-                {t('sync.addSftp')}
-              </button>
-            ) : null}
-          </div>
+          <div className="sync-add">{addProviderSelect}</div>
         </div>
       ) : null}
 
@@ -247,6 +256,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-sftp-host-${provider.id}`}>{t('sync.sftpHost')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-sftp-host-${provider.id}`}
                     type="text"
                     value={provider.baseUrl}
@@ -261,6 +271,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-sftp-port-${provider.id}`}>{t('sync.sftpPort')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-sftp-port-${provider.id}`}
                     type="number"
                     min={1}
@@ -275,6 +286,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-sftp-user-${provider.id}`}>{t('sync.username')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-sftp-user-${provider.id}`}
                     type="text"
                     value={provider.username}
@@ -288,6 +300,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-sftp-pass-${provider.id}`}>{t('sync.password')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-sftp-pass-${provider.id}`}
                     type="password"
                     value={provider.password}
@@ -302,6 +315,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-sftp-key-${provider.id}`}>{t('sync.sftpKeyPath')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-sftp-key-${provider.id}`}
                     type="text"
                     value={provider.sftpKeyPath}
@@ -318,6 +332,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   </label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-sftp-base-${provider.id}`}
                     type="text"
                     value={provider.sftpRemoteBase}
@@ -338,6 +353,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-url-${provider.id}`}>{t('sync.baseUrl')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-url-${provider.id}`}
                     type="url"
                     value={provider.baseUrl}
@@ -352,6 +368,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-user-${provider.id}`}>{t('sync.username')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-user-${provider.id}`}
                     type="text"
                     value={provider.username}
@@ -365,6 +382,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-pass-${provider.id}`}>{t('sync.password')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-pass-${provider.id}`}
                     type="password"
                     value={provider.password}
@@ -379,6 +397,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-proxy-${provider.id}`}>{t('sync.proxy')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-proxy-${provider.id}`}
                     type="text"
                     value={provider.proxy}
@@ -397,6 +416,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-s3-endpoint-${provider.id}`}>{t('sync.s3Endpoint')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-s3-endpoint-${provider.id}`}
                     type="url"
                     value={provider.endpoint}
@@ -410,6 +430,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-s3-region-${provider.id}`}>{t('sync.s3Region')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-s3-region-${provider.id}`}
                     type="text"
                     value={provider.region}
@@ -422,6 +443,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-s3-bucket-${provider.id}`}>{t('sync.s3Bucket')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-s3-bucket-${provider.id}`}
                     type="text"
                     value={provider.bucket}
@@ -433,6 +455,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-s3-access-${provider.id}`}>{t('sync.s3AccessKey')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-s3-access-${provider.id}`}
                     type="text"
                     value={provider.accessKeyId}
@@ -446,6 +469,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-s3-secret-${provider.id}`}>{t('sync.s3SecretKey')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-s3-secret-${provider.id}`}
                     type="password"
                     value={provider.secretAccessKey}
@@ -460,6 +484,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   <label htmlFor={`sync-s3-proxy-${provider.id}`}>{t('sync.proxy')}</label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-s3-proxy-${provider.id}`}
                     type="text"
                     value={provider.proxy}
@@ -480,6 +505,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   </label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-dropbox-key-${provider.id}`}
                     type="text"
                     value={provider.appKey}
@@ -493,6 +519,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   </label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-dropbox-secret-${provider.id}`}
                     type="password"
                     value={provider.appSecret}
@@ -523,6 +550,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   </label>
                   <input
                     className="text-input"
+                    dir="ltr"
                     id={`sync-dropbox-code-${provider.id}`}
                     type="text"
                     value={dropboxCode[provider.id] ?? ''}
@@ -614,57 +642,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
       })}
 
       {config.providers.length > 0 ? (
-        <div className="setting-row sync-add">
-          <select
-            className="text-input"
-            aria-label={t('sync.addWebdav')}
-            defaultValue=""
-            onChange={(event) => {
-              const preset = WEBDAV_PRESETS.find((item) => item.id === event.target.value);
-              addProvider('webdav', preset ? { baseUrl: preset.baseUrl, label: preset.label } : {});
-              event.target.value = '';
-            }}
-          >
-            <option value="" disabled>
-              {t('sync.addWebdav')}
-            </option>
-            <option value="generic">{t('sync.webdavGeneric')}</option>
-            {WEBDAV_PRESETS.map((preset) => (
-              <option key={preset.id} value={preset.id}>
-                {preset.label}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="reader-action" onClick={() => addProvider('s3')}>
-            {t('sync.addS3')}
-          </button>
-          <button type="button" className="reader-action" onClick={() => addProvider('dropbox')}>
-            {t('sync.addDropbox')}
-          </button>
-          {isLocalFolderAvailable() ? (
-            <>
-              <button
-                type="button"
-                className="reader-action"
-                onClick={() => addProvider('local-folder')}
-              >
-                {t('sync.addLocalFolder')}
-              </button>
-              <button
-                type="button"
-                className="reader-action"
-                onClick={() => addProvider('local-folder', { preset: SYNCTHING_PRESET })}
-              >
-                {t('sync.addSyncthing')}
-              </button>
-            </>
-          ) : null}
-          {isSftpAvailable() ? (
-            <button type="button" className="reader-action" onClick={() => addProvider('sftp')}>
-              {t('sync.addSftp')}
-            </button>
-          ) : null}
-        </div>
+        <div className="setting-row sync-add">{addProviderSelect}</div>
       ) : null}
 
       <div className="sync-actions">

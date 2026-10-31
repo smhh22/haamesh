@@ -186,7 +186,8 @@
     "sftpPort": "Port",
     "sftpKeyPath": "Private key path (optional)",
     "sftpRemoteBase": "Remote folder",
-    "sftpHint": "Sync over SSH to your own server. Enter a password or a private key path; the host key is remembered on first connect."
+    "sftpHint": "Sync over SSH to your own server. Enter a password or a private key path; the host key is remembered on first connect.",
+    "addProvider": "Add storage"
   },
   "update": {
     "available": "Hāmesh {{version}} is available.",

@@ -4,6 +4,7 @@ import { resolveBookDirection } from './direction';
 import { ImportError } from './error';
 import { sha256Hex } from './hash';
 import { convertMarkdownToEpub, isMarkdownFile } from './markdown';
+import { ensurePdfWorker } from './pdfWorker';
 
 export { ImportError, type ImportErrorCode } from './error';
 export { sha256Hex } from './hash';
@@ -70,6 +71,7 @@ const importBookWithFormat = async (file: File, format: BookFormat): Promise<Imp
 
   const bytes = Uint8Array.from(new Uint8Array(await file.arrayBuffer()));
   const hash = await sha256Hex(bytes);
+  if (format === 'pdf') await ensurePdfWorker();
 
   let book: Awaited<ReturnType<typeof makeBook>>;
   try {

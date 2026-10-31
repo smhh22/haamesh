@@ -42,3 +42,7 @@ declare module 'foliate-js/overlayer.js' {
     ): Element;
   }
 }
+
+declare module 'foliate-js/vendor/pdfjs/pdf.worker.mjs' {
+  export const WorkerMessageHandler: unknown;
+}

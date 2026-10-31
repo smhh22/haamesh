@@ -414,7 +414,7 @@ const buildSftpProvider = async (provider: SyncProviderConfig): Promise<StorageP
   if (!(await fs.exists(''))) {
     throw new Error(`remote folder not found: ${provider.sftpRemoteBase || '/'}`);
   }
-  const built = createLocalFolderProvider(fs);
+  const built = createLocalFolderProvider(fs, '', provider.id);
   sftpProviders.set(provider.id, { signature, provider: built });
   return built;
 };
@@ -426,7 +426,9 @@ export const providerFromConfig = async (
     case 'sftp':
       return buildSftpProvider(provider);
     case 'local-folder':
-      return isLocalFolderAvailable() ? createLocalFolderProvider(createLocalFolderFs()) : null;
+      return isLocalFolderAvailable()
+        ? createLocalFolderProvider(createLocalFolderFs(), '', provider.id)
+        : null;
     case 'webdav':
       return provider.baseUrl
         ? createWebDavProvider(
@@ -434,6 +436,7 @@ export const providerFromConfig = async (
               baseUrl: provider.baseUrl,
               username: provider.username || undefined,
               password: provider.password || undefined,
+              id: provider.id,
             },
             providerFetch(provider.proxy),
           )
@@ -445,6 +448,7 @@ export const providerFromConfig = async (
               appKey: provider.appKey,
               appSecret: provider.appSecret,
               refreshToken: provider.refreshToken,
+              id: provider.id,
             },
             providerFetch(provider.proxy),
           )
@@ -461,6 +465,7 @@ export const providerFromConfig = async (
               bucket: provider.bucket,
               accessKeyId: provider.accessKeyId,
               secretAccessKey: provider.secretAccessKey,
+              id: provider.id,
             },
             providerFetch(provider.proxy),
           )

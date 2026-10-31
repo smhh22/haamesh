@@ -21,7 +21,11 @@ export interface FolderFs {
   mkdir?(path: string): Promise<void>;
 }
 
-export const createLocalFolderProvider = (fs: FolderFs, baseDir = ''): StorageProvider => {
+export const createLocalFolderProvider = (
+  fs: FolderFs,
+  baseDir = '',
+  id = 'local-folder',
+): StorageProvider => {
   const join = (...parts: string[]): string =>
     [baseDir, ...parts]
       .filter((part) => part !== '')
@@ -38,7 +42,7 @@ export const createLocalFolderProvider = (fs: FolderFs, baseDir = ''): StoragePr
   };
 
   return {
-    id: 'local-folder',
+    id,
     capabilities: {
       etag: false,
       atomicRename: false,

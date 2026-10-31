@@ -122,6 +122,26 @@ export const ReaderView = ({
   const [toc, setToc] = useState<TocItem[]>([]);
   const [activeHref, setActiveHref] = useState<string | null>(null);
   const [panel, setPanel] = useState<ReaderPanel>(null);
+  const panelButtonRefs = useRef<Record<Exclude<ReaderPanel, null>, HTMLButtonElement | null>>({
+    toc: null,
+    notes: null,
+    search: null,
+    settings: null,
+  });
+  const lastPanel = useRef<Exclude<ReaderPanel, null> | null>(null);
+
+  // Closing a panel unmounts its close button; return focus to the toolbar
+  // button that opened it so keyboard users keep their place.
+  useEffect(() => {
+    if (panel) {
+      lastPanel.current = panel;
+      return;
+    }
+    const previous = lastPanel.current;
+    if (!previous) return;
+    lastPanel.current = null;
+    panelButtonRefs.current[previous]?.focus();
+  }, [panel]);
   const [selection, setSelection] = useState<SelectionInfo | null>(null);
   const [noteMode, setNoteMode] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
@@ -679,6 +699,9 @@ export const ReaderView = ({
         <div className="reader-actions">
           <button
             type="button"
+            ref={(node) => {
+              panelButtonRefs.current.toc = node;
+            }}
             className="reader-action"
             aria-expanded={panel === 'toc'}
             onClick={() => togglePanel('toc')}
@@ -687,6 +710,9 @@ export const ReaderView = ({
           </button>
           <button
             type="button"
+            ref={(node) => {
+              panelButtonRefs.current.notes = node;
+            }}
             className="reader-action"
             aria-expanded={panel === 'notes'}
             onClick={() => togglePanel('notes')}
@@ -696,6 +722,9 @@ export const ReaderView = ({
           {!isPdf ? (
             <button
               type="button"
+              ref={(node) => {
+                panelButtonRefs.current.search = node;
+              }}
               className="reader-action"
               aria-expanded={panel === 'search'}
               onClick={() => togglePanel('search')}
@@ -708,6 +737,9 @@ export const ReaderView = ({
           </button>
           <button
             type="button"
+            ref={(node) => {
+              panelButtonRefs.current.settings = node;
+            }}
             className="reader-action"
             aria-expanded={panel === 'settings'}
             onClick={() => togglePanel('settings')}

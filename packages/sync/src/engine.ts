@@ -76,6 +76,8 @@ export interface SyncProviderReport {
   providerId: string;
   ok: boolean;
   error?: string;
+  /** Machine-readable failure kind for localized UI copy. */
+  code?: string;
   pulledRecords: number;
   uploadedBlobs: number;
   downloadedBlobs: number;
@@ -294,12 +296,14 @@ export const createSyncEngine = (options: SyncOptions) => {
               if (data.byteLength > MAX_BLOB_BYTES) {
                 report.ok = false;
                 report.error = `blob too large: ${sha256}`;
+                report.code = 'INTEGRITY';
                 continue;
               }
               const digest = await sha256Hex(new Uint8Array(data));
               if (digest !== sha256) {
                 report.ok = false;
                 report.error = `blob hash mismatch: ${sha256}`;
+                report.code = 'INTEGRITY';
                 continue;
               }
               await store.saveBookFile(sha256, ext, new Uint8Array(data));
@@ -325,10 +329,12 @@ export const createSyncEngine = (options: SyncOptions) => {
       }
       report.ok = false;
       report.error = 'index write conflict after retries';
+      report.code = 'CONFLICT';
       return report;
     } catch (error) {
       report.ok = false;
       report.error = error instanceof Error ? error.message : String(error);
+      report.code = error instanceof ProviderError ? error.code : 'UNKNOWN';
       return report;
     }
   };

@@ -207,7 +207,16 @@
     "sftpRemoteBase": "Remote folder",
     "sftpHint": "Sync over SSH to your own server. Enter a password or a private key path; the host key is remembered on first connect.",
     "addProvider": "Add storage",
-    "lastFailed": "The last sync round failed:"
+    "lastFailed": "The last sync round failed:",
+    "errors": {
+      "AUTH_FAILED": "The server rejected the credentials.",
+      "CONFLICT": "The remote index kept changing. Try again.",
+      "CONFIGURATION": "This storage is not fully configured.",
+      "INTEGRITY": "A downloaded book failed its integrity check.",
+      "NETWORK": "Could not reach the server.",
+      "NOT_FOUND": "The remote folder was not found.",
+      "UNKNOWN": "The sync round failed."
+    }
   },
   "update": {
     "available": "Hāmesh {{version}} is available.",

@@ -270,5 +270,11 @@ export const createWebDavProvider = (
       if (response.status === 404) return;
       await requireOk('DELETE', path, response);
     },
+
+    async deleteFile(path) {
+      const response = await request('DELETE', path);
+      if (response.status === 404) return;
+      await requireOk('DELETE', path, response);
+    },
   };
 };

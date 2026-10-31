@@ -204,7 +204,16 @@ export const createSyncEngine = (options: SyncOptions) => {
           if (error instanceof ProviderError && error.code === 'NOT_FOUND') return null;
           throw error;
         });
-        if (remoteRaw !== null) remote = decodeIndexDoc(JSON.parse(remoteRaw));
+        // An interrupted write can leave the index empty. Treat that as no
+        // index (the object still exists, so the conditional write keeps its
+        // etag), but never silently overwrite a non-empty file we cannot read.
+        if (remoteRaw !== null && remoteRaw.trim() !== '') {
+          try {
+            remote = decodeIndexDoc(JSON.parse(remoteRaw));
+          } catch {
+            throw new ProviderError('remote index is not valid JSON', 'CORRUPT');
+          }
+        }
         const indexExists = remoteRaw !== null;
         // Weak validators cannot satisfy If-Match; when the object exists but
         // has no usable validator, fall back to an unconditional commit

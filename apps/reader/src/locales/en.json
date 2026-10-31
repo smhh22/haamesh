@@ -212,6 +212,7 @@
       "AUTH_FAILED": "The server rejected the credentials.",
       "CONFLICT": "The remote index kept changing. Try again.",
       "CONFIGURATION": "This storage is not fully configured.",
+      "CORRUPT": "The remote index is damaged. Move Hamesh/index.json aside on the server, then sync again.",
       "INTEGRITY": "A downloaded book failed its integrity check.",
       "NETWORK": "Could not reach the server.",
       "NOT_FOUND": "The remote folder was not found.",

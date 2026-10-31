@@ -4,7 +4,13 @@
  * A new backend implements this and passes the shared conformance suite.
  */
 
-export type ProviderErrorCode = 'AUTH_FAILED' | 'NOT_FOUND' | 'NETWORK' | 'CONFLICT' | 'UNKNOWN';
+export type ProviderErrorCode =
+  | 'AUTH_FAILED'
+  | 'NOT_FOUND'
+  | 'NETWORK'
+  | 'CONFLICT'
+  | 'CORRUPT'
+  | 'UNKNOWN';
 
 export class ProviderError extends Error {
   readonly code: ProviderErrorCode;
@@ -63,6 +69,8 @@ export interface StorageProvider {
   writeBinary(path: string, body: ArrayBuffer): Promise<void>;
   ensureDir(paths: string[]): Promise<void>;
   deleteDir(path: string): Promise<void>;
+  /** Delete one object; missing files are a no-op. */
+  deleteFile(path: string): Promise<void>;
 
   uploadStream?(path: string, localPath: string): Promise<boolean>;
   downloadStream?(path: string, localPath: string): Promise<boolean>;

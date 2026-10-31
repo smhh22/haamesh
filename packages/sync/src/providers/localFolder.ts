@@ -119,5 +119,15 @@ export const createLocalFolderProvider = (
         throw new ProviderError(`delete failed: ${String(error)}`, 'UNKNOWN');
       }
     },
+
+    async deleteFile(path) {
+      const full = join(path);
+      if (!(await fs.exists(full))) return;
+      try {
+        await fs.remove(full);
+      } catch (error) {
+        throw new ProviderError(`delete failed: ${String(error)}`, 'UNKNOWN');
+      }
+    },
   };
 };

@@ -127,5 +127,10 @@ export const createMemoryProvider = (options: MemoryProviderOptions = {}): Stora
         if (key.startsWith(prefix)) files.delete(key);
       }
     },
+
+    async deleteFile(path) {
+      rejectMaybe();
+      files.delete(path);
+    },
   };
 };

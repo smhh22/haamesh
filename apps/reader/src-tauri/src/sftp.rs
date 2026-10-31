@@ -271,9 +271,31 @@ pub async fn sftp_write(
         prefix = format!("{prefix}/{part}");
         ensure_dir(&sftp, &prefix).await?;
     }
-    sftp.write(path, &data)
-        .await
-        .map_err(|error| error.to_string())
+    // Write to a sibling temp file and rename, so a dropped connection cannot
+    // leave a truncated index (an empty index used to wedge every later sync).
+    let unique = format!(
+        "{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default()
+    );
+    let temp = format!("{path}.tmp-{unique}");
+    if let Err(error) = sftp.write(&temp, &data).await {
+        let _ = sftp.remove_file(&temp).await;
+        return Err(error.to_string());
+    }
+    if sftp.rename(&temp, &path).await.is_err() {
+        // SFTP v3 servers may refuse to rename over an existing file; fall
+        // back to replacing it. The new file is already complete.
+        let _ = sftp.remove_file(&path).await;
+        if let Err(error) = sftp.rename(&temp, &path).await {
+            let _ = sftp.remove_file(&temp).await;
+            return Err(format!("rename {temp}: {error}"));
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]

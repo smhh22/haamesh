@@ -83,6 +83,16 @@ export const providerConformanceChecks: ConformanceCheck[] = [
     },
   },
   {
+    name: 'deletes a single file idempotently',
+    run: async (createProvider) => {
+      const provider = createProvider();
+      await provider.writeText('docs/one.json', 'x');
+      await provider.deleteFile('docs/one.json');
+      assert((await provider.readText('docs/one.json')) === null, 'file deleted');
+      await provider.deleteFile('docs/one.json');
+    },
+  },
+  {
     name: 'deletes a directory tree',
     run: async (createProvider) => {
       const provider = createProvider();

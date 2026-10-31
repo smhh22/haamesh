@@ -307,7 +307,8 @@ test('keeps the last failed sync round visible', async ({ page }) => {
   const failure = dialog.locator('.sync-last-error');
   await expect(failure).toContainText('WebDAV:');
   await expect(failure).toContainText('Could not reach the server.');
-  await expect(failure).not.toContainText('TypeError');
+  // The raw provider detail stays visible for diagnosis.
+  await expect(failure).toContainText('network error: TypeError: Failed to fetch');
   await expect(failure).not.toContainText(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/i);
 
   // The report is persisted, so reopening the app still explains the failure.

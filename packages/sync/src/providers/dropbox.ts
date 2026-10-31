@@ -318,6 +318,12 @@ export const createDropboxProvider = (
       if (response.status === 409) return;
       if (!response.ok) throw await failure('files/delete_v2', response);
     },
+
+    async deleteFile(path) {
+      const response = await api('files/delete_v2', { path: remotePath(path) });
+      if (response.status === 409) return;
+      if (!response.ok) throw await failure('files/delete_v2', response);
+    },
   };
 };
 

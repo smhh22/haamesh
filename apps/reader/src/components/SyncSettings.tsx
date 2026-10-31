@@ -704,6 +704,12 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
               .map((item) => (
                 <li key={item.providerId}>
                   <bdi>{providerName(item.providerId)}</bdi>: {errorText(item)}
+                  {item.error && item.error !== errorText(item) ? (
+                    <small className="hint" dir="auto">
+                      {' '}
+                      ({item.error})
+                    </small>
+                  ) : null}
                 </li>
               ))}
           </ul>

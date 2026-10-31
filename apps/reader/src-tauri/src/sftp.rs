@@ -138,6 +138,7 @@ pub async fn sftp_connect(
     password: Option<String>,
     key_path: Option<String>,
     key_passphrase: Option<String>,
+    base: Option<String>,
 ) -> Result<String, String> {
     let host = host.trim().to_string();
     if host.is_empty() || host.contains('/') || host.contains(' ') {
@@ -207,6 +208,19 @@ pub async fn sftp_connect(
     let sftp = SftpSession::new(channel.into_stream())
         .await
         .map_err(|error| format!("sftp handshake failed: {error}"))?;
+    // The chosen remote folder must already exist; uploads create their
+    // parents only below it, never system directories above it.
+    if let Some(base) = base.filter(|value| !value.trim().is_empty()) {
+        validate_remote_path(&base)?;
+        match sftp.metadata(base.clone()).await {
+            Ok(metadata) if metadata.is_dir() => {}
+            Ok(_) => return Err(format!("not a folder: {base}")),
+            Err(error) if is_missing(&error) => {
+                return Err(format!("remote folder not found: {base}"));
+            }
+            Err(error) => return Err(format!("cannot check {base}: {error}")),
+        }
+    }
     let id = format!(
         "sftp-{}-{}",
         std::process::id(),

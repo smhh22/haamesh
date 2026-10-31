@@ -556,7 +556,9 @@ const autoSync = async (): Promise<void> => {
  * and visible, and the manual button.
  */
 export const initAutoSync = (): (() => void) => {
-  void autoSync();
+  // Give the first paint and the library hydration room before a sync round
+  // starts; the round is network + merge work and used to land mid-startup.
+  const firstRound = setTimeout(() => void autoSync(), 10_000);
   const interval = setInterval(() => {
     if (document.visibilityState === 'visible') void autoSync();
   }, AUTO_SYNC_INTERVAL_MS);
@@ -569,6 +571,7 @@ export const initAutoSync = (): (() => void) => {
   document.addEventListener('visibilitychange', onHide);
   window.addEventListener('pagehide', () => void autoSync());
   return () => {
+    clearTimeout(firstRound);
     clearInterval(interval);
     document.removeEventListener('visibilitychange', onHide);
     if (hideTimer) clearTimeout(hideTimer);

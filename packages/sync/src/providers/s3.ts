@@ -22,6 +22,8 @@ export interface S3Config {
   bucket: string;
   accessKeyId: string;
   secretAccessKey: string;
+  /** Stable id used in sync reports; defaults to "s3". */
+  id?: string;
 }
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -92,7 +94,7 @@ export const createS3Provider = (
   };
 
   return {
-    id: 's3',
+    id: config.id ?? 's3',
     capabilities: {
       etag: true,
       atomicRename: false,

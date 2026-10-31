@@ -19,6 +19,8 @@ export interface WebDavConfig {
   password?: string;
   /** Directory inside baseUrl that holds the Hamesh tree. */
   basePath?: string;
+  /** Stable id used in sync reports; defaults to "webdav". */
+  id?: string;
 }
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -145,7 +147,7 @@ export const createWebDavProvider = (
   };
 
   return {
-    id: 'webdav',
+    id: config.id ?? 'webdav',
     capabilities: {
       etag: true,
       atomicRename: false,

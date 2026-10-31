@@ -131,10 +131,13 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
   const readyProviders = config.providers.filter(
     (provider) => provider.enabled && isProviderConfigured(provider),
   );
-  // Reports carry the provider kind ("webdav"), not the config UUID; show the
-  // name the user configured for that kind.
+  // Reports carry the provider's id; older stored reports carry the kind.
+  // Show the configured label either way.
   const providerName = (id: string): string =>
-    config.providers.find((provider) => provider.kind === id)?.label ?? id;
+    (
+      config.providers.find((provider) => provider.id === id) ??
+      config.providers.find((provider) => provider.kind === id)
+    )?.label ?? id;
   const lastSyncText = lastSyncAt
     ? new Intl.DateTimeFormat(i18n.language, {
         dateStyle: 'medium',

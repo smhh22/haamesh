@@ -21,6 +21,8 @@ export interface DropboxConfig {
   appKey: string;
   appSecret: string;
   refreshToken: string;
+  /** Stable id used in sync reports; defaults to "dropbox". */
+  id?: string;
 }
 
 export interface DropboxEndpoints {
@@ -241,7 +243,7 @@ export const createDropboxProvider = (
   };
 
   return {
-    id: 'dropbox',
+    id: config.id ?? 'dropbox',
     capabilities: {
       etag: true,
       atomicRename: false,

@@ -561,6 +561,7 @@ test('searches inside the book', async ({ page }) => {
 
   const panel = page.locator('.search-panel');
   const input = panel.getByPlaceholder('Search in this book');
+  await expect(input).toBeFocused();
   await input.fill('پاراگراف');
   await input.press('Enter');
 

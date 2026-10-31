@@ -32,6 +32,10 @@ export const NotesPanel = ({
   onClose,
 }: NotesPanelProps) => {
   const { t } = useTranslation();
+  const percentFormat = new Intl.NumberFormat(i18n.language === 'fa' ? 'fa-IR' : 'en-US', {
+    style: 'percent',
+    maximumFractionDigits: 0,
+  });
   return (
     <aside className="reader-panel notes-panel" aria-label={t('reader.notes')}>
       <div className="panel-header">
@@ -66,9 +70,7 @@ export const NotesPanel = ({
                           i18n.language === 'fa' ? 'fa-IR' : 'en-US',
                         ).format(note.locator.page),
                       })
-                    : `${new Intl.NumberFormat(i18n.language === 'fa' ? 'fa-IR' : 'en-US').format(
-                        Math.round(note.locator.fraction * 100),
-                      )}%`}
+                    : percentFormat.format(note.locator.fraction)}
                 </span>
               </div>
               {note.text ? (

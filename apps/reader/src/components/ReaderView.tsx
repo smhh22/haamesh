@@ -32,7 +32,7 @@ interface FoliateViewElement extends HTMLElement {
   goTo(target: string | number): Promise<{ index: number; anchor: unknown } | undefined>;
   next(): Promise<void>;
   prev(): Promise<void>;
-  destroy(): void;
+  close(): void;
   getCFI(index: number, range: Range): string;
   addAnnotation(annotation: {
     value: string;
@@ -207,6 +207,7 @@ export const ReaderView = ({
     if (!stage) return;
 
     let cancelled = false;
+    let parsedBook: FoliateBook | null = null;
     const view = document.createElement('foliate-view') as FoliateViewElement;
     viewRef.current = view;
     stage.append(view);
@@ -360,6 +361,7 @@ export const ReaderView = ({
           parsed.destroy();
           return;
         }
+        parsedBook = parsed;
         parsed.transformTarget?.addEventListener('data', onData);
         setToc((parsed.toc ?? []) as TocItem[]);
 
@@ -392,10 +394,19 @@ export const ReaderView = ({
       view.removeEventListener('show-annotation', onShowAnnotation);
       view.removeEventListener('external-link', blockExternalLink);
       try {
-        view.destroy();
+        view.close();
       } catch {
         // The view may not have finished opening; removing the element is enough.
       }
+      // foliate's close() destroys the renderer but not the parsed book; for
+      // PDFs book.destroy() terminates the pdf.js worker and frees the
+      // document, and EPUB sections release their documents/blobs.
+      try {
+        parsedBook?.destroy();
+      } catch {
+        // Already destroyed (cancelled while opening).
+      }
+      parsedBook = null;
       view.remove();
       viewRef.current = null;
     };

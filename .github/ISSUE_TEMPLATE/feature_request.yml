@@ -1,0 +1,54 @@
+name: Feature request
+description: Suggest a feature or a change in behavior.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Hāmesh is local-first: no accounts, no vendor servers, sync only to
+        storage the user owns. Features that fit those constraints are easiest
+        to accept.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation where you miss this, not just the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: How should it work from the user's side?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing workarounds, or other designs you thought about.
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Library / organization
+        - Reading experience
+        - Notes and annotations
+        - Sync
+        - Formats (EPUB, PDF, Markdown)
+        - Settings / appearance
+        - Accessibility / RTL
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context (optional)
+      description: Mockups, references, or examples from other readers.
+    validations:
+      required: false

@@ -212,7 +212,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-        run: gh release edit "$RELEASE_TAG" --draft=false --latest
+        run: |
+          set -euo pipefail
+          # Concurrent release runs finish out of order (Windows/Android take
+          # different times), so an older tag can publish last and steal the
+          # "Latest" marker. Only the highest semver tag owns it.
+          newest=$(git ls-remote --tags --refs "https://github.com/${GITHUB_REPOSITORY}.git" \
+            | awk -F/ '{print $NF}' | grep -E '^v[0-9]' | sort -V | tail -n1)
+          if [ "$RELEASE_TAG" = "$newest" ]; then
+            gh release edit "$RELEASE_TAG" --draft=false --latest
+          else
+            gh release edit "$RELEASE_TAG" --draft=false
+          fi
 
   verify:
     needs: publish

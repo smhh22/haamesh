@@ -43,7 +43,13 @@
     "contentMatches": "In book contents",
     "removeTitle": "Remove this book?",
     "removeBody": "“{{title}}” will be removed from Hāmesh along with its reading progress, notes, and highlights. Files outside the app are not touched.",
-    "removeConfirm": "Remove"
+    "removeConfirm": "Remove",
+    "renameCategory": "Rename category",
+    "deleteCategory": "Delete category",
+    "renameCategoryTitle": "Rename category",
+    "categoryName": "Category name",
+    "deleteCategoryTitle": "Delete this category?",
+    "deleteCategoryBody": "Books in “{{name}}” stay in your library without a category."
   },
   "reader": {
     "back": "Library",

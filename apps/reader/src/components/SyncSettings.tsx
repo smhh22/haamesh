@@ -37,7 +37,9 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; text: string }>>({});
   const [dropboxCode, setDropboxCode] = useState<Record<string, string>>({});
   const [connectingId, setConnectingId] = useState<string | null>(null);
-  const [lastSyncAt, setLastSyncAt] = useState<number | null>(syncStatus().lastSyncAt);
+  const initialStatus = syncStatus();
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(initialStatus.lastSyncAt);
+  const [lastReport, setLastReport] = useState(initialStatus.lastReport);
 
   const commit = (next: SyncConfig) => {
     setConfig(next);
@@ -117,6 +119,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
             }),
       );
       setLastSyncAt(Date.now());
+      setLastReport(report);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     }
@@ -662,6 +665,20 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
         <p className="hint">{t('sync.noReady')}</p>
       ) : null}
       {message ? <p className="hint">{message}</p> : null}
+      {lastReport && !lastReport.ok ? (
+        <div className="sync-last-error" role="status">
+          <p className="hint">{t('sync.lastFailed')}</p>
+          <ul>
+            {lastReport.providers
+              .filter((item) => !item.ok)
+              .map((item) => (
+                <li key={item.providerId}>
+                  {item.providerId}: {item.error ?? t('sync.failed')}
+                </li>
+              ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 };

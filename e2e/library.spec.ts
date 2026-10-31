@@ -292,6 +292,20 @@ test('renames and deletes a tag across books', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Manage tags' })).toHaveCount(0);
 });
 
+test('keeps the last failed sync round visible', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+  await dialog.getByRole('button', { name: 'Sync', exact: true }).click();
+
+  await dialog.getByLabel('Add storage').selectOption('webdav:generic');
+  await dialog.getByLabel('Server URL').fill('http://127.0.0.1:9');
+  await dialog.getByRole('button', { name: 'Sync now' }).click();
+  await expect(dialog.getByText('The last sync round failed:')).toBeVisible({
+    timeout: 15_000,
+  });
+});
+
 test('shows grouped shortcuts in the settings dialog', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).click();

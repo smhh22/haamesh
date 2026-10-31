@@ -1056,6 +1056,21 @@ blockquote.note-text {
   color: var(--hamesh-color-danger);
 }
 
+.sync-last-error {
+  margin-block-start: var(--hamesh-space-2);
+  color: var(--hamesh-color-danger);
+  font-size: 0.85rem;
+}
+
+.sync-last-error p {
+  margin: 0;
+}
+
+.sync-last-error ul {
+  margin: var(--hamesh-space-1) 0 0;
+  padding-inline-start: var(--hamesh-space-4);
+}
+
 .sync-actions {
   display: flex;
   align-items: center;

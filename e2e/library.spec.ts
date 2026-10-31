@@ -435,8 +435,21 @@ test('navigates the TOC and changes reader settings', async ({ page }) => {
   await expect(shell).toHaveAttribute('data-font-size', '110');
   await page.getByRole('button', { name: 'Dark' }).click();
   await expect(shell).toHaveAttribute('data-theme', 'dark');
+  await expect(page.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Sepia' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
   await page.getByRole('button', { name: 'Scrolled' }).click();
   await expect(shell).toHaveAttribute('data-flow', 'scrolled');
+  await expect(page.getByRole('button', { name: 'Scrolled' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByRole('button', { name: 'Paginated' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
 
   // Typography controls update the reader styles live.
   await page.getByLabel('Font', { exact: true }).selectOption('literata');
@@ -843,4 +856,20 @@ test('hides zoom controls for EPUB but keeps them for PDF', async ({ page }) => 
   await expect(page.locator('.settings-panel')).toBeVisible();
   await expect(page.locator('.settings-panel').getByText('Zoom')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Increase font size' })).toBeVisible();
+});
+
+test('exposes PDF fit modes as pressed toggles', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(pdfFixture);
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const fitPage = page.getByRole('button', { name: 'Fit page' });
+  const fitWidth = page.getByRole('button', { name: 'Fit width' });
+  await expect(fitPage).toHaveAttribute('aria-pressed', 'true');
+  await fitWidth.click();
+  await expect(fitWidth).toHaveAttribute('aria-pressed', 'true');
+  await expect(fitPage).toHaveAttribute('aria-pressed', 'false');
 });

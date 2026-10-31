@@ -56,6 +56,7 @@ export const SettingsPanel = ({ settings, isPdf, onClose }: SettingsPanelProps) 
               className={
                 settings.pdfZoom === 'fit-page' ? 'reader-action is-selected' : 'reader-action'
               }
+              aria-pressed={settings.pdfZoom === 'fit-page'}
               onClick={() => settings.setPdfZoom('fit-page')}
             >
               {t('reader.fitPage')}
@@ -65,6 +66,7 @@ export const SettingsPanel = ({ settings, isPdf, onClose }: SettingsPanelProps) 
               className={
                 settings.pdfZoom === 'fit-width' ? 'reader-action is-selected' : 'reader-action'
               }
+              aria-pressed={settings.pdfZoom === 'fit-width'}
               onClick={() => settings.setPdfZoom('fit-width')}
             >
               {t('reader.fitWidth')}
@@ -93,6 +95,7 @@ export const SettingsPanel = ({ settings, isPdf, onClose }: SettingsPanelProps) 
                   className={
                     settings.theme === theme ? 'reader-action is-selected' : 'reader-action'
                   }
+                  aria-pressed={settings.theme === theme}
                   onClick={() => settings.setTheme(theme)}
                 >
                   {t(`reader.themes.${theme}`)}
@@ -218,6 +221,7 @@ export const SettingsPanel = ({ settings, isPdf, onClose }: SettingsPanelProps) 
                 className={
                   settings.flow === 'paginated' ? 'reader-action is-selected' : 'reader-action'
                 }
+                aria-pressed={settings.flow === 'paginated'}
                 onClick={() => settings.setFlow('paginated')}
               >
                 {t('reader.paginated')}
@@ -227,6 +231,7 @@ export const SettingsPanel = ({ settings, isPdf, onClose }: SettingsPanelProps) 
                 className={
                   settings.flow === 'scrolled' ? 'reader-action is-selected' : 'reader-action'
                 }
+                aria-pressed={settings.flow === 'scrolled'}
                 onClick={() => settings.setFlow('scrolled')}
               >
                 {t('reader.scrolled')}

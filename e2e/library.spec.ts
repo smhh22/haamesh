@@ -306,6 +306,8 @@ test('keeps the last failed sync round visible', async ({ page }) => {
   });
   const failure = dialog.locator('.sync-last-error');
   await expect(failure).toContainText('WebDAV:');
+  await expect(failure).toContainText('Could not reach the server.');
+  await expect(failure).not.toContainText('TypeError');
   await expect(failure).not.toContainText(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/i);
 
   // The report is persisted, so reopening the app still explains the failure.
@@ -315,6 +317,7 @@ test('keeps the last failed sync round visible', async ({ page }) => {
   await reopened.getByRole('button', { name: 'Sync', exact: true }).click();
   await expect(reopened.getByText('The last sync round failed:')).toBeVisible();
   await expect(reopened.locator('.sync-last-error')).toContainText('WebDAV:');
+  await expect(reopened.locator('.sync-last-error')).toContainText('Could not reach the server.');
 });
 
 test('shows grouped shortcuts in the settings dialog', async ({ page }) => {

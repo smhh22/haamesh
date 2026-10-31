@@ -112,7 +112,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
       setMessage(
         failed.length > 0
           ? `${t('sync.failed')}: ${failed
-              .map((item) => item.error ?? providerName(item.providerId))
+              .map((item) => `${providerName(item.providerId)}: ${errorText(item)}`)
               .join(', ')}`
           : t('sync.report', {
               pulled: report.providers.reduce((sum, item) => sum + item.pulledRecords, 0),
@@ -138,6 +138,15 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
       config.providers.find((provider) => provider.id === id) ??
       config.providers.find((provider) => provider.kind === id)
     )?.label ?? id;
+  // Localize known failure codes; fall back to the provider's message.
+  const errorText = (item: { code?: string; error?: string }): string => {
+    if (item.code) {
+      const key = `sync.errors.${item.code}`;
+      const translated = t(key);
+      if (translated !== key) return translated;
+    }
+    return item.error ?? t('sync.failed');
+  };
   const lastSyncText = lastSyncAt
     ? new Intl.DateTimeFormat(i18n.language, {
         dateStyle: 'medium',
@@ -682,7 +691,7 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
               .filter((item) => !item.ok)
               .map((item) => (
                 <li key={item.providerId}>
-                  {providerName(item.providerId)}: {item.error ?? t('sync.failed')}
+                  <bdi>{providerName(item.providerId)}</bdi>: {errorText(item)}
                 </li>
               ))}
           </ul>

@@ -628,6 +628,7 @@ const runSyncRound = async (config: SyncConfig): Promise<SyncReport> => {
       providerId: failure.providerId,
       ok: false,
       error: failure.error,
+      code: 'CONFIGURATION',
       pulledRecords: 0,
       uploadedBlobs: 0,
       downloadedBlobs: 0,

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SyncRecord, SyncStore } from './engine';
 import { buildLocalDoc, createSyncEngine } from './engine';
 import type { StorageProvider } from './provider';
+import { ProviderError } from './provider';
 import { createMemoryProvider } from './providers/memory';
 
 interface MemoryStore extends SyncStore {
@@ -603,6 +604,44 @@ describe('sync engine', () => {
       [...store.records.values()].find((record) => record.kind === 'book' && record.id === '1');
     expect(book(storeA)?.deleted).toBe(true);
     expect(book(storeB)?.deleted).toBe(true);
+  });
+
+  it('reports a machine-readable code for provider failures', async () => {
+    const store = createMemoryStore('device-a', () => 1000);
+    const base = createMemoryProvider({ id: 'replica-a' });
+
+    const authFailure: StorageProvider = {
+      ...base,
+      ensureDir: async () => {
+        throw new ProviderError('auth failed', 'AUTH_FAILED', 401);
+      },
+    };
+    const authReport = await createSyncEngine({
+      deviceId: 'device-a',
+      clock: store.clock,
+      store,
+      providers: [authFailure],
+    }).sync();
+    expect(authReport.ok).toBe(false);
+    expect(authReport.providers[0]).toMatchObject({
+      providerId: 'replica-a',
+      ok: false,
+      code: 'AUTH_FAILED',
+    });
+
+    const plainFailure: StorageProvider = {
+      ...base,
+      ensureDir: async () => {
+        throw new Error('boom');
+      },
+    };
+    const plainReport = await createSyncEngine({
+      deviceId: 'device-a',
+      clock: store.clock,
+      store,
+      providers: [plainFailure],
+    }).sync();
+    expect(plainReport.providers[0]?.code).toBe('UNKNOWN');
   });
 });
 

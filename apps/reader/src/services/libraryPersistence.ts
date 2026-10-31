@@ -240,6 +240,11 @@ export const reloadLibraryFromStorage = async (): Promise<void> => {
   const hydrated = await hydrateCovers(books, store);
   const reading = await activeStorage.storage.reading.list();
   const notes = await activeStorage.storage.notes.listAll();
+  // Covers are replaced on every reload; release the previous blob URLs or a
+  // long session leaks one cover per book per sync round.
+  for (const book of useLibraryStore.getState().books) {
+    if (book.coverPath?.startsWith('blob:')) URL.revokeObjectURL(book.coverPath);
+  }
   useLibraryStore.setState({ books: hydrated });
   useReadingStore.setState({
     states: Object.fromEntries(reading.map((state) => [state.bookId, state])),

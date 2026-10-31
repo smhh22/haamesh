@@ -408,7 +408,6 @@ export const App = () => {
             <button
               type="button"
               className="view-toggle"
-              aria-pressed={viewMode === 'list'}
               onClick={() => setViewMode((mode) => (mode === 'grid' ? 'list' : 'grid'))}
             >
               {viewMode === 'grid' ? t('library.listView') : t('library.gridView')}

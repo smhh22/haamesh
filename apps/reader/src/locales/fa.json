@@ -49,7 +49,14 @@
     "renameCategoryTitle": "تغییر نام دسته",
     "categoryName": "نام دسته",
     "deleteCategoryTitle": "این دسته حذف شود؟",
-    "deleteCategoryBody": "کتاب‌های «{{name}}» بدون دسته در کتابخانه می‌مانند."
+    "deleteCategoryBody": "کتاب‌های «{{name}}» بدون دسته در کتابخانه می‌مانند.",
+    "manageTags": "مدیریت برچسب‌ها",
+    "noTags": "هنوز برچسبی نیست.",
+    "tagName": "نام برچسب",
+    "renameTag": "تغییر نام",
+    "deleteTag": "حذف",
+    "deleteTagQuestion": "«{{name}}» از همهٔ کتاب‌ها حذف شود؟",
+    "tagUsedIn": "{{count}} کتاب"
   },
   "reader": {
     "back": "کتابخانه",

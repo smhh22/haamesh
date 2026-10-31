@@ -417,6 +417,19 @@ h1 {
   font-size: 0.85rem;
 }
 
+.category-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--hamesh-space-2);
+}
+
+.prompt-label {
+  display: block;
+  margin-block-end: var(--hamesh-space-1);
+  color: var(--hamesh-color-muted);
+  font-size: 0.9rem;
+}
+
 .tag-filter {
   display: flex;
   flex-wrap: wrap;

@@ -43,7 +43,13 @@
     "contentMatches": "در متن کتاب‌ها",
     "removeTitle": "این کتاب حذف شود؟",
     "removeBody": "«{{title}}» همراه با پیشرفت مطالعه، یادداشت‌ها و هایلایت‌هایش از هامش حذف می‌شود. فایل‌های بیرون برنامه دست نمی‌خورند.",
-    "removeConfirm": "حذف"
+    "removeConfirm": "حذف",
+    "renameCategory": "تغییر نام دسته",
+    "deleteCategory": "حذف دسته",
+    "renameCategoryTitle": "تغییر نام دسته",
+    "categoryName": "نام دسته",
+    "deleteCategoryTitle": "این دسته حذف شود؟",
+    "deleteCategoryBody": "کتاب‌های «{{name}}» بدون دسته در کتابخانه می‌مانند."
   },
   "reader": {
     "back": "کتابخانه",

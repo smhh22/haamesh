@@ -216,6 +216,44 @@ test('lays out a real mobile shelf and reader', async ({ page }) => {
   expect(turnBoxes.every((width) => width > 100)).toBe(true);
 });
 
+test('renames and deletes a category across its books', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
+
+  const assign = async (title: string) => {
+    await page
+      .locator('.book-card', { hasText: title })
+      .getByRole('button', { name: 'Edit' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Book details' });
+    await dialog.getByLabel('Category').fill('Classics');
+    await dialog.getByRole('button', { name: 'Save' }).click();
+    await expect(dialog).toHaveCount(0);
+  };
+  await assign('نمونه کتاب');
+  await assign('Sample Book');
+
+  await page.getByLabel('Category', { exact: true }).selectOption('Classics');
+  await page.getByRole('button', { name: 'Rename category' }).click();
+  const rename = page.getByRole('dialog', { name: 'Rename category' });
+  await rename.getByLabel('Category name').fill('Classic novels');
+  await rename.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByLabel('Category', { exact: true })).toHaveValue('Classic novels');
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Delete category' }).click();
+  const remove = page.getByRole('dialog', { name: 'Delete this category?' });
+  await remove.getByRole('button', { name: 'Remove' }).click();
+  await expect(page.getByLabel('Category', { exact: true })).toHaveValue('__all__');
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+  await expect(
+    page.getByLabel('Category', { exact: true }).locator('option', { hasText: 'Classic novels' }),
+  ).toHaveCount(0);
+});
+
 test('shows grouped shortcuts in the settings dialog', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).click();

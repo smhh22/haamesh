@@ -14,6 +14,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { BookOrganizationDialog } from './components/BookOrganizationDialog';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { PromptDialog } from './components/PromptDialog';
 import { ReaderView } from './components/ReaderView';
 import { SettingsDialog } from './components/SettingsDialog';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
@@ -66,6 +67,7 @@ export const App = () => {
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [removingBookId, setRemovingBookId] = useState<string | null>(null);
+  const [categoryAction, setCategoryAction] = useState<'rename' | 'delete' | null>(null);
   const [sort, setSort] = useState<BookSort>('recent');
   const [viewMode, setViewMode] = useState<BookView>('grid');
   const [contentMatches, setContentMatches] = useState<ContentMatch[]>([]);
@@ -202,6 +204,25 @@ export const App = () => {
     updateBook(book.id, organization);
     setEditingBookId(null);
     void persistBookOrganization(book, organization);
+  };
+
+  const renameCategory = (from: string, to: string) => {
+    if (to === from) return;
+    for (const book of books.filter((item) => item.category === from)) {
+      const organization = { category: to, tags: book.tags };
+      updateBook(book.id, organization);
+      void persistBookOrganization(book, organization);
+    }
+    setCategoryFilter(to);
+  };
+
+  const deleteCategory = (name: string) => {
+    for (const book of books.filter((item) => item.category === name)) {
+      const organization = { category: null, tags: book.tags };
+      updateBook(book.id, organization);
+      void persistBookOrganization(book, organization);
+    }
+    setCategoryFilter(undefined);
   };
 
   const removeBookAndFile = (book: BookRecord) => {
@@ -372,6 +393,24 @@ export const App = () => {
                   </option>
                 ))}
               </select>
+              {typeof categoryFilter === 'string' ? (
+                <div className="category-actions">
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => setCategoryAction('rename')}
+                  >
+                    {t('library.renameCategory')}
+                  </button>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => setCategoryAction('delete')}
+                  >
+                    {t('library.deleteCategory')}
+                  </button>
+                </div>
+              ) : null}
               {tags.length > 0 ? (
                 <fieldset className="tag-filter" aria-label={t('library.tags')}>
                   {tags.slice(0, 12).map((tag) => (
@@ -499,6 +538,31 @@ export const App = () => {
             if (editingBook) saveOrganization(editingBook, organization);
           }}
           onClose={() => setEditingBookId(null)}
+        />
+        <PromptDialog
+          open={categoryAction === 'rename' && typeof categoryFilter === 'string'}
+          title={t('library.renameCategoryTitle')}
+          label={t('library.categoryName')}
+          initialValue={typeof categoryFilter === 'string' ? categoryFilter : ''}
+          onConfirm={(name) => {
+            if (typeof categoryFilter === 'string') renameCategory(categoryFilter, name);
+            setCategoryAction(null);
+          }}
+          onClose={() => setCategoryAction(null)}
+        />
+        <ConfirmDialog
+          open={categoryAction === 'delete' && typeof categoryFilter === 'string'}
+          title={t('library.deleteCategoryTitle')}
+          message={t('library.deleteCategoryBody', {
+            name: typeof categoryFilter === 'string' ? categoryFilter : '',
+          })}
+          confirmLabel={t('library.removeConfirm')}
+          danger
+          onConfirm={() => {
+            if (typeof categoryFilter === 'string') deleteCategory(categoryFilter);
+            setCategoryAction(null);
+          }}
+          onClose={() => setCategoryAction(null)}
         />
         <ConfirmDialog
           open={removingBook !== null}

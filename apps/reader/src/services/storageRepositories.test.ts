@@ -5,7 +5,9 @@ import {
   type BookRecord,
   createSqlStorage,
   createSyncClockRepository,
+  type LibrarySnapshot,
   migrate,
+  migrateJsonSnapshot,
   type SqlDatabase,
   type SqlValue,
 } from '@hamesh/storage';
@@ -210,5 +212,68 @@ describe('SQL repositories', () => {
 
     await clocks.remove(['book:book-2:deleted']);
     expect(await clocks.list()).toEqual({ 'book:book-1': '0003:0' });
+  });
+});
+
+describe('JSON manifest migration', () => {
+  const note: BookNoteRecord = {
+    id: 'note-1',
+    bookId: 'book-1',
+    type: 'highlight',
+    locator: { kind: 'cfi', cfi: 'epubcfi(/6/4)', fraction: 0.5 },
+    color: 'yellow',
+    text: 'متن',
+    note: null,
+    createdAt: 4,
+    updatedAt: 4,
+    deletedAt: null,
+  };
+
+  const snapshot = (books: BookRecord[]): LibrarySnapshot => ({
+    version: 1,
+    books,
+    reading: {
+      'book-1': {
+        bookId: 'book-1',
+        locator: { kind: 'cfi', cfi: 'epubcfi(/6/2)', fraction: 0.1 },
+        fraction: 0.1,
+        status: 'reading',
+        updatedAt: 3,
+      },
+    },
+    notes: [note],
+  });
+
+  it('imports books, reading state, and notes exactly once', async () => {
+    const db = await openDb();
+    const storage = createSqlStorage(db);
+    await migrateJsonSnapshot(db, snapshot([book()]));
+
+    expect(await storage.books.list()).toHaveLength(1);
+    expect(await storage.reading.list()).toHaveLength(1);
+    expect(await storage.notes.listAll()).toHaveLength(1);
+
+    // The marker makes the import one-way; a later snapshot is ignored.
+    await migrateJsonSnapshot(
+      db,
+      snapshot([book({ id: 'book-2', hash: 'b'.repeat(64), title: 'دیگر' })]),
+    );
+    expect(await storage.books.list()).toHaveLength(1);
+  });
+
+  it('rolls back and can retry after a failed import', async () => {
+    const db = await openDb();
+    const storage = createSqlStorage(db);
+    // Two rows share the unique hash, so the second insert aborts the import.
+    await expect(
+      migrateJsonSnapshot(db, snapshot([book(), book({ id: 'book-2' })])),
+    ).rejects.toThrow();
+
+    expect(await storage.books.list()).toEqual([]);
+    expect(await storage.notes.listAll()).toEqual([]);
+
+    // The marker rolled back with the transaction, so a valid snapshot imports.
+    await migrateJsonSnapshot(db, snapshot([book()]));
+    expect(await storage.books.list()).toHaveLength(1);
   });
 });

@@ -171,6 +171,13 @@ pub async fn sftp_connect(
         .channel_open_session()
         .await
         .map_err(|error| error.to_string())?;
+    // The channel must enter the sftp subsystem before the SFTP session
+    // starts: without this request the server never sends the version
+    // packet and SftpSession::new times out.
+    channel
+        .request_subsystem(true, "sftp")
+        .await
+        .map_err(|error| format!("sftp subsystem request failed: {error}"))?;
     let sftp = SftpSession::new(channel.into_stream())
         .await
         .map_err(|error| format!("sftp handshake failed: {error}"))?;

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SearchResult } from './types';
 
@@ -21,6 +22,13 @@ export const SearchPanel = ({
   onClose,
 }: SearchPanelProps) => {
   const { t } = useTranslation();
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Opening the panel is a request to search, so put the caret in the field.
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
   return (
     <aside className="reader-panel search-panel" aria-label={t('reader.search')}>
       <div className="panel-header">
@@ -31,6 +39,7 @@ export const SearchPanel = ({
       </div>
       <form className="search-form" onSubmit={onSubmit}>
         <input
+          ref={inputRef}
           type="search"
           value={query}
           onChange={(event) => onQueryChange(event.currentTarget.value)}
@@ -41,9 +50,15 @@ export const SearchPanel = ({
           {t('reader.searchButton')}
         </button>
       </form>
-      {searching ? <p className="hint">{t('reader.searching')}</p> : null}
+      {searching ? (
+        <p className="hint" role="status">
+          {t('reader.searching')}
+        </p>
+      ) : null}
       {!searching && query && results.length === 0 ? (
-        <p className="hint">{t('reader.noSearchResults')}</p>
+        <p className="hint" role="status">
+          {t('reader.noSearchResults')}
+        </p>
       ) : null}
       <ul className="search-results">
         {results.map((result) => (

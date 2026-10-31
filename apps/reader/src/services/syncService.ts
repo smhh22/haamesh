@@ -74,6 +74,8 @@ export interface SyncStatus {
 
 const CONFIG_KEY = 'hamesh.sync.config';
 const STATUS_KEY = 'hamesh.sync.status';
+/** Fired after a round persists its status, so an open panel can refresh. */
+const STATUS_EVENT = 'hamesh:sync-status';
 
 const providerLabel = (kind: ProviderKind): string => {
   switch (kind) {
@@ -348,6 +350,13 @@ const loadStatus = (): SyncStatus => {
 };
 
 export const syncStatus = (): SyncStatus => loadStatus();
+
+/** Subscribe to finished rounds (manual or automatic). Returns an unsubscribe. */
+export const onSyncStatusChange = (listener: () => void): (() => void) => {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener(STATUS_EVENT, listener);
+  return () => window.removeEventListener(STATUS_EVENT, listener);
+};
 
 /** A provider can sync once it has the minimum details its kind needs. */
 export const isProviderConfigured = (provider: SyncProviderConfig): boolean => {
@@ -638,6 +647,7 @@ const runSyncRound = async (config: SyncConfig): Promise<SyncReport> => {
     STATUS_KEY,
     JSON.stringify({ lastSyncAt: Date.now(), lastReport: report } satisfies SyncStatus),
   );
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(STATUS_EVENT));
   // Local SQL writes from the pull are invisible to the running UI until the
   // stores rehydrate; do both only when the round actually changed something.
   const changed = report.providers.some(

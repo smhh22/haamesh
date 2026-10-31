@@ -1147,6 +1147,28 @@ kbd {
   gap: var(--hamesh-space-2);
 }
 
+.confirm-dialog {
+  inline-size: min(26rem, 100%);
+}
+
+.confirm-body {
+  padding: var(--hamesh-space-4);
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--hamesh-space-2);
+  margin-block-start: var(--hamesh-space-3);
+}
+
+.reader-action.is-danger {
+  border-color: var(--hamesh-color-danger);
+  background: var(--hamesh-color-danger);
+  color: var(--hamesh-color-canvas);
+}
+
 .settings-backdrop {
   position: fixed;
   inset: 0;

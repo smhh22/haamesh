@@ -228,6 +228,22 @@ test('shows grouped shortcuts in the settings dialog', async ({ page }) => {
   await expect(dialog.locator('kbd').first()).toBeVisible();
 });
 
+test('asks before removing a book', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(fixture);
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Remove' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Remove this book?' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Remove' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click();
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toHaveCount(0);
+});
+
 test('persists the library across a reload', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(fixture);

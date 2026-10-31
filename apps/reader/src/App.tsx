@@ -13,6 +13,7 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BookOrganizationDialog } from './components/BookOrganizationDialog';
+import { ConfirmDialog } from './components/ConfirmDialog';
 import { ReaderView } from './components/ReaderView';
 import { SettingsDialog } from './components/SettingsDialog';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
@@ -64,6 +65,7 @@ export const App = () => {
   const [categoryFilter, setCategoryFilter] = useState<string | null | undefined>(undefined);
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
+  const [removingBookId, setRemovingBookId] = useState<string | null>(null);
   const [sort, setSort] = useState<BookSort>('recent');
   const [viewMode, setViewMode] = useState<BookView>('grid');
   const [contentMatches, setContentMatches] = useState<ContentMatch[]>([]);
@@ -96,6 +98,9 @@ export const App = () => {
   }, [books, locale]);
   const editingBook = editingBookId
     ? (books.find((book) => book.id === editingBookId) ?? null)
+    : null;
+  const removingBook = removingBookId
+    ? (books.find((book) => book.id === removingBookId) ?? null)
     : null;
   const addBook = useLibraryStore((state) => state.addBook);
   const removeBook = useLibraryStore((state) => state.removeBook);
@@ -453,7 +458,7 @@ export const App = () => {
                       <button
                         type="button"
                         className="text-button"
-                        onClick={() => removeBookAndFile(book)}
+                        onClick={() => setRemovingBookId(book.id)}
                       >
                         {t('library.remove')}
                       </button>
@@ -494,6 +499,18 @@ export const App = () => {
             if (editingBook) saveOrganization(editingBook, organization);
           }}
           onClose={() => setEditingBookId(null)}
+        />
+        <ConfirmDialog
+          open={removingBook !== null}
+          title={t('library.removeTitle')}
+          message={t('library.removeBody', { title: removingBook?.title ?? '' })}
+          confirmLabel={t('library.removeConfirm')}
+          danger
+          onConfirm={() => {
+            if (removingBook) removeBookAndFile(removingBook);
+            setRemovingBookId(null);
+          }}
+          onClose={() => setRemovingBookId(null)}
         />
         <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />

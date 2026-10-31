@@ -40,7 +40,10 @@
       "PARSE_FAILED": "This file could not be read.",
       "UNKNOWN": "Something went wrong while importing."
     },
-    "contentMatches": "In book contents"
+    "contentMatches": "In book contents",
+    "removeTitle": "Remove this book?",
+    "removeBody": "“{{title}}” will be removed from Hāmesh along with its reading progress, notes, and highlights. Files outside the app are not touched.",
+    "removeConfirm": "Remove"
   },
   "reader": {
     "back": "Library",

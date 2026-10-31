@@ -49,7 +49,14 @@
     "renameCategoryTitle": "Rename category",
     "categoryName": "Category name",
     "deleteCategoryTitle": "Delete this category?",
-    "deleteCategoryBody": "Books in “{{name}}” stay in your library without a category."
+    "deleteCategoryBody": "Books in “{{name}}” stay in your library without a category.",
+    "manageTags": "Manage tags",
+    "noTags": "No tags yet.",
+    "tagName": "Tag name",
+    "renameTag": "Rename",
+    "deleteTag": "Delete",
+    "deleteTagQuestion": "Delete “{{name}}” from every book?",
+    "tagUsedIn": "{{count}} books"
   },
   "reader": {
     "back": "Library",

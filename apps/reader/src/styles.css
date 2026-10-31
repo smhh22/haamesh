@@ -1160,6 +1160,52 @@ kbd {
   gap: var(--hamesh-space-2);
 }
 
+.tags-dialog .confirm-body {
+  max-block-size: 60vh;
+  overflow-y: auto;
+}
+
+.tag-manage-list {
+  display: grid;
+  gap: var(--hamesh-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag-manage-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hamesh-space-2);
+  border-block-start: 1px solid var(--hamesh-color-border);
+  padding-block: var(--hamesh-space-2);
+}
+
+.tag-manage-row:first-child {
+  border-block-start: 0;
+}
+
+.tag-manage-name {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+}
+
+.tag-manage-count {
+  white-space: nowrap;
+}
+
+.tag-manage-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--hamesh-space-2);
+  margin-inline-start: auto;
+}
+
+.tag-manage-row .text-input {
+  flex: 1 1 12rem;
+}
+
 .confirm-dialog {
   inline-size: min(26rem, 100%);
 }

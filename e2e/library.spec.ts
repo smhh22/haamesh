@@ -254,6 +254,44 @@ test('renames and deletes a category across its books', async ({ page }) => {
   ).toHaveCount(0);
 });
 
+test('renames and deletes a tag across books', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
+
+  const assign = async (title: string) => {
+    await page
+      .locator('.book-card', { hasText: title })
+      .getByRole('button', { name: 'Edit' })
+      .click();
+    const details = page.getByRole('dialog', { name: 'Book details' });
+    await details.getByLabel('Tags').fill('history');
+    await details.getByRole('button', { name: 'Save' }).click();
+    await expect(details).toHaveCount(0);
+  };
+  await assign('نمونه کتاب');
+  await assign('Sample Book');
+
+  await page.getByRole('button', { name: 'Manage tags' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Manage tags' });
+  await expect(dialog.getByText('#history')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Rename' }).click();
+  await dialog.getByLabel('Tag name').fill('past');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog.getByText('#past')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(page.locator('.tag-chip', { hasText: 'past' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Manage tags' }).click();
+  await dialog.getByRole('button', { name: 'Delete' }).click();
+  await dialog.getByRole('button', { name: 'Remove' }).click();
+  await expect(dialog.getByText('No tags yet.')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(page.locator('.tag-chip')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Manage tags' })).toHaveCount(0);
+});
+
 test('shows grouped shortcuts in the settings dialog', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).click();

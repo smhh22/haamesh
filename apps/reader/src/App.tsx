@@ -18,6 +18,7 @@ import { PromptDialog } from './components/PromptDialog';
 import { ReaderView } from './components/ReaderView';
 import { SettingsDialog } from './components/SettingsDialog';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
+import { type TagSummary, TagsDialog } from './components/TagsDialog';
 import { UpdateBanner } from './components/UpdateBanner';
 import { type BookSort, type BookView, filterAndSortBooks } from './library/bookList';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
@@ -68,6 +69,7 @@ export const App = () => {
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [removingBookId, setRemovingBookId] = useState<string | null>(null);
   const [categoryAction, setCategoryAction] = useState<'rename' | 'delete' | null>(null);
+  const [tagsOpen, setTagsOpen] = useState(false);
   const [sort, setSort] = useState<BookSort>('recent');
   const [viewMode, setViewMode] = useState<BookView>('grid');
   const [contentMatches, setContentMatches] = useState<ContentMatch[]>([]);
@@ -89,15 +91,16 @@ export const App = () => {
       ].sort((a, b) => new Intl.Collator(locale).compare(a, b)),
     [books, locale],
   );
-  const tags = useMemo(() => {
+  const tagSummaries = useMemo<TagSummary[]>(() => {
     const counts = new Map<string, number>();
     for (const book of books) {
       for (const tag of book.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
     }
     return [...counts.entries()]
       .sort((a, b) => b[1] - a[1] || new Intl.Collator(locale).compare(a[0], b[0]))
-      .map(([tag]) => tag);
+      .map(([name, count]) => ({ name, count }));
   }, [books, locale]);
+  const tags = useMemo(() => tagSummaries.map((summary) => summary.name), [tagSummaries]);
   const editingBook = editingBookId
     ? (books.find((book) => book.id === editingBookId) ?? null)
     : null;
@@ -223,6 +226,31 @@ export const App = () => {
       void persistBookOrganization(book, organization);
     }
     setCategoryFilter(undefined);
+  };
+
+  const renameTag = (from: string, to: string) => {
+    if (to === from) return;
+    for (const book of books) {
+      if (!book.tags.includes(from)) continue;
+      const nextTags = [...new Set(book.tags.map((tag) => (tag === from ? to : tag)))];
+      const organization = { category: book.category, tags: nextTags };
+      updateBook(book.id, organization);
+      void persistBookOrganization(book, organization);
+    }
+    setTagFilter((current) => current.map((tag) => (tag === from ? to : tag)));
+  };
+
+  const deleteTag = (tag: string) => {
+    for (const book of books) {
+      if (!book.tags.includes(tag)) continue;
+      const organization = {
+        category: book.category,
+        tags: book.tags.filter((item) => item !== tag),
+      };
+      updateBook(book.id, organization);
+      void persistBookOrganization(book, organization);
+    }
+    setTagFilter((current) => current.filter((item) => item !== tag));
   };
 
   const removeBookAndFile = (book: BookRecord) => {
@@ -432,6 +460,11 @@ export const App = () => {
                   ))}
                 </fieldset>
               ) : null}
+              {tags.length > 0 ? (
+                <button type="button" className="text-button" onClick={() => setTagsOpen(true)}>
+                  {t('library.manageTags')}
+                </button>
+              ) : null}
             </div>
           ) : null}
 
@@ -538,6 +571,13 @@ export const App = () => {
             if (editingBook) saveOrganization(editingBook, organization);
           }}
           onClose={() => setEditingBookId(null)}
+        />
+        <TagsDialog
+          open={tagsOpen}
+          tags={tagSummaries}
+          onRename={renameTag}
+          onDelete={deleteTag}
+          onClose={() => setTagsOpen(false)}
         />
         <PromptDialog
           open={categoryAction === 'rename' && typeof categoryFilter === 'string'}

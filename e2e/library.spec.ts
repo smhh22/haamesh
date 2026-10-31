@@ -750,6 +750,50 @@ test('bookmarks PDF pages and lists them', async ({ page }) => {
   await expect(panel.locator('.note-item')).toHaveCount(2);
 });
 
+test('highlights PDF text and redraws it after reload', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(pdfFixture);
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
+
+  const frame = page.frames().find((item) => item.url().startsWith('blob:'));
+  expect(frame).toBeTruthy();
+  await frame!.waitForSelector('.textLayer span');
+  await frame!.evaluate(() => {
+    const span = document.querySelector('.textLayer span');
+    if (!span) throw new Error('no text layer span');
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.dispatchEvent(new Event('selectionchange'));
+  });
+
+  await page.getByRole('button', { name: 'Yellow' }).click();
+
+  const overlays = () =>
+    frame!.evaluate(() => document.querySelectorAll('.hamesh-pdf-highlight').length);
+  await expect.poll(overlays).toBeGreaterThan(0);
+
+  await page.getByRole('button', { name: 'Library' }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
+
+  const reopened = page.frames().find((item) => item.url().startsWith('blob:'));
+  expect(reopened).toBeTruthy();
+  await reopened!.waitForSelector('#hamesh-pdf-overlays div');
+  await expect(reopened!.locator('#hamesh-pdf-overlays div').first()).toBeVisible();
+  const noteItem = page.locator('.note-item');
+  await page.getByRole('button', { name: 'Notes' }).click();
+  await expect(noteItem.first()).toContainText('Hamesh PDF Test');
+});
+
 test('resumes a multi-page PDF at the saved page', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));

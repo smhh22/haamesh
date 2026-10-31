@@ -2,9 +2,12 @@
 export interface SelectionInfo {
   x: number;
   y: number;
-  cfi: string;
   text: string;
   fraction: number;
+  /** EPUB only: CFI of the selection. */
+  cfi?: string;
+  /** PDF only: text-anchored position inside the page's text layer. */
+  pdf?: { page: number; text: string; occurrence: number };
 }
 
 export interface SearchResult {

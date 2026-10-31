@@ -25,6 +25,12 @@ const THEMES: ReaderTheme[] = ['auto', 'light', 'sepia', 'dark'];
 export const SettingsPanel = ({ settings, isPdf, onClose }: SettingsPanelProps) => {
   const { t, i18n } = useTranslation();
   const numberFormat = new Intl.NumberFormat(i18n.language === 'fa' ? 'fa-IR' : 'en-US');
+  // Intl supplies the locale's percent sign (٪ in Persian) instead of a
+  // hardcoded ASCII %, which the toolbar already uses.
+  const percentFormat = new Intl.NumberFormat(i18n.language === 'fa' ? 'fa-IR' : 'en-US', {
+    style: 'percent',
+    maximumFractionDigits: 0,
+  });
   const decimalFormat = new Intl.NumberFormat(i18n.language === 'fa' ? 'fa-IR' : 'en-US', {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
@@ -115,7 +121,9 @@ export const SettingsPanel = ({ settings, isPdf, onClose }: SettingsPanelProps) 
                 aria-label={t('reader.brightness')}
                 onChange={(event) => settings.setBrightness(Number(event.target.value))}
               />
-              <span className="setting-value">{numberFormat.format(settings.brightness)}%</span>
+              <span className="setting-value">
+                {percentFormat.format(settings.brightness / 100)}
+              </span>
             </div>
           </div>
           <div className="setting-row">
@@ -145,7 +153,7 @@ export const SettingsPanel = ({ settings, isPdf, onClose }: SettingsPanelProps) 
               >
                 A−
               </button>
-              <span className="setting-value">{numberFormat.format(settings.fontSize)}%</span>
+              <span className="setting-value">{percentFormat.format(settings.fontSize / 100)}</span>
               <button
                 type="button"
                 className="reader-action"

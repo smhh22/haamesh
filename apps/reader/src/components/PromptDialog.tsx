@@ -15,39 +15,49 @@ interface PromptDialogProps {
 /**
  * Single-field prompt for small edits such as renaming a category. Enter
  * submits, Escape cancels, and the field is focused when the dialog opens.
+ *
+ * The body mounts only while open, so its value is initialized once from
+ * initialValue. Resetting it from an effect raced with fast input: text typed
+ * between the initial select-all and the effect appended to the old value.
  */
-export const PromptDialog = ({
-  open,
+export const PromptDialog = ({ open, ...props }: PromptDialogProps) => {
+  if (!open) return null;
+  return <PromptDialogContent {...props} />;
+};
+
+type PromptDialogContentProps = Omit<PromptDialogProps, 'open'>;
+
+const PromptDialogContent = ({
   title,
   label,
   initialValue,
   confirmLabel,
   onConfirm,
   onClose,
-}: PromptDialogProps) => {
+}: PromptDialogContentProps) => {
   const { t } = useTranslation();
   const [value, setValue] = useState(initialValue);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  useDialogFocus(open, dialogRef);
+  const onCloseRef = useRef(onClose);
+  useDialogFocus(true, dialogRef);
 
   useEffect(() => {
-    if (open) setValue(initialValue);
-  }, [open, initialValue]);
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
-    if (!open) return;
     const input = inputRef.current;
     if (input) {
       input.focus();
       input.select();
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') onCloseRef.current();
     };
     const onPointerDown = (event: PointerEvent) => {
       const dialog = dialogRef.current;
-      if (dialog && !dialog.contains(event.target as Node)) onClose();
+      if (dialog && !dialog.contains(event.target as Node)) onCloseRef.current();
     };
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('pointerdown', onPointerDown);
@@ -55,9 +65,7 @@ export const PromptDialog = ({
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('pointerdown', onPointerDown);
     };
-  }, [open, onClose]);
-
-  if (!open) return null;
+  }, []);
 
   const submit = () => {
     const trimmed = value.trim();

@@ -515,8 +515,49 @@ fn install_kind() -> String {
 /// Download a .deb from our own GitHub release and install it via
 /// `pkexec apt-get install`, which resolves dependencies and asks for the
 /// admin password in a system dialog. The caller relaunches afterwards.
+fn base64_to_string(value: &str) -> Result<String, String> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(value.trim())
+        .map_err(|error| format!("invalid base64: {error}"))?;
+    String::from_utf8(bytes).map_err(|error| error.to_string())
+}
+
+/// Verify a Tauri updater signature (minisign) against the embedded public
+/// key before letting a downloaded package reach pkexec. Mirrors the updater
+/// plugin: both the key and the signature are base64-wrapped, and the signed
+/// trusted comment must name this version (a tampered manifest could
+/// otherwise pair a new version with an older signed artifact).
+fn verify_update_signature(
+    data: &[u8],
+    signature_b64: &str,
+    pubkey_b64: &str,
+    version: &str,
+) -> Result<(), String> {
+    let public_key_text = base64_to_string(pubkey_b64)?;
+    let signature_text = base64_to_string(signature_b64)?;
+    let public_key = minisign_verify::PublicKey::decode(&public_key_text)
+        .map_err(|error| format!("invalid updater public key: {error}"))?;
+    let signature = minisign_verify::Signature::decode(&signature_text)
+        .map_err(|error| format!("invalid update signature: {error}"))?;
+    public_key
+        .verify(data, &signature, true)
+        .map_err(|error| format!("update signature does not match: {error}"))?;
+    if !signature
+        .trusted_comment()
+        .contains(&format!("version:{version}"))
+    {
+        return Err("update signature is for a different version".into());
+    }
+    Ok(())
+}
+
 #[tauri::command]
-async fn install_deb_update(url: String, version: String) -> Result<(), String> {
+async fn install_deb_update(
+    app: tauri::AppHandle,
+    url: String,
+    version: String,
+) -> Result<(), String> {
     const PREFIX: &str = "https://github.com/smhh22/haamesh/releases/download/";
     if version.is_empty()
         || version.len() > 32
@@ -557,6 +598,34 @@ async fn install_deb_update(url: String, version: String) -> Result<(), String> 
         return Err(format!("download failed: HTTP {}", response.status()));
     }
     let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+
+    // The deb path bypasses the Tauri updater, so it must verify the published
+    // signature itself; apt installs whatever file it is given.
+    let pubkey = app
+        .config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|plugin| plugin.get("pubkey"))
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| "updater signing key is not configured".to_string())?
+        .to_string();
+    let signature_url = format!("{url}.sig");
+    let signature_response = reqwest::get(&signature_url)
+        .await
+        .map_err(|error| format!("signature download failed: {error}"))?;
+    if !signature_response.status().is_success() {
+        return Err(format!(
+            "signature download failed: HTTP {}",
+            signature_response.status()
+        ));
+    }
+    let signature_text = signature_response
+        .text()
+        .await
+        .map_err(|error| format!("signature download failed: {error}"))?;
+    verify_update_signature(&bytes, &signature_text, &pubkey, &version)?;
+
     fs::write(&file, &bytes).map_err(|error| error.to_string())?;
 
     let status = std::process::Command::new("pkexec")
@@ -712,7 +781,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_beneath;
+    use super::{resolve_beneath, verify_update_signature};
     use std::fs;
     use std::path::{Path, PathBuf};
 
@@ -762,6 +831,37 @@ mod tests {
         assert!(error.contains("symlink"), "unexpected error: {error}");
         let _ = fs::remove_dir_all(base);
         let _ = fs::remove_dir_all(outside);
+    }
+
+    #[test]
+    fn rejects_malformed_update_signatures() {
+        assert!(verify_update_signature(b"payload", "not-base64!", "also-not!", "1.0.0").is_err());
+    }
+
+    /// Verifies the real release artifacts when the paths are supplied:
+    /// HAMESH_UPDATE_DEB, HAMESH_UPDATE_SIG, HAMESH_UPDATE_PUBKEY and
+    /// HAMESH_UPDATE_VERSION. No-op on CI where they are absent.
+    #[test]
+    fn verifies_a_real_release_when_artifacts_are_provided() {
+        let (Ok(deb_path), Ok(sig_path), Ok(pubkey_path)) = (
+            std::env::var("HAMESH_UPDATE_DEB"),
+            std::env::var("HAMESH_UPDATE_SIG"),
+            std::env::var("HAMESH_UPDATE_PUBKEY"),
+        ) else {
+            return;
+        };
+        let version = std::env::var("HAMESH_UPDATE_VERSION").unwrap_or_default();
+        let data = fs::read(deb_path).unwrap();
+        let signature = fs::read_to_string(sig_path).unwrap();
+        let pubkey = fs::read_to_string(pubkey_path).unwrap();
+
+        verify_update_signature(&data, &signature, &pubkey, &version)
+            .expect("a published signature must verify");
+
+        let mut tampered = data.clone();
+        tampered[0] ^= 0xff;
+        assert!(verify_update_signature(&tampered, &signature, &pubkey, &version).is_err());
+        assert!(verify_update_signature(&data, &signature, &pubkey, "0.0.1").is_err());
     }
 
     #[cfg(unix)]

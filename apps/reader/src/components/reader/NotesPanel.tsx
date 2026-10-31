@@ -64,7 +64,7 @@ export const NotesPanel = ({
                 ) : null}
                 <span>{t(`reader.noteTypes.${note.type}`)}</span>
                 <span className="note-progress">
-                  {note.locator.kind === 'page'
+                  {note.locator.kind === 'page' || note.locator.kind === 'pdf'
                     ? t('reader.pageNumber', {
                         page: new Intl.NumberFormat(
                           i18n.language === 'fa' ? 'fa-IR' : 'en-US',

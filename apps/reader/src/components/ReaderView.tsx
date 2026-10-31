@@ -1,5 +1,14 @@
 import type { Locator, TocItem } from '@hamesh/core';
-import { isSanitizableMediaType, pageTurnForKey, sanitizeEpubHtml } from '@hamesh/engine';
+import {
+  applyPdfHighlights,
+  isSanitizableMediaType,
+  PDF_OVERLAY_ID,
+  type PdfHighlightDraft,
+  pageTurnForKey,
+  pdfLocatorMatchesPage,
+  pdfOccurrenceIndex,
+  sanitizeEpubHtml,
+} from '@hamesh/engine';
 import type { BookNoteRecord, BookRecord } from '@hamesh/storage';
 import { Overlayer } from 'foliate-js/overlayer.js';
 import { type FoliateBook, makeBook } from 'foliate-js/view.js';
@@ -129,6 +138,12 @@ export const ReaderView = ({
     settings: null,
   });
   const lastPanel = useRef<Exclude<ReaderPanel, null> | null>(null);
+  // Latest PDF highlight lookup; called from the open-book effect without
+  // re-opening the book when the note set changes.
+  const pdfHighlightsRef = useRef<(index: number) => PdfHighlightDraft[]>(() => []);
+  // Loaded PDF page documents (the fixed-layout renderer does not expose them
+  // through getContents); pruned when their iframe detaches.
+  const pdfPageDocsRef = useRef<Map<number, Document>>(new Map());
 
   // Closing a panel unmounts its close button; return focus to the toolbar
   // button that opened it so keyboard users keep their place.
@@ -158,6 +173,38 @@ export const ReaderView = ({
   useEffect(() => {
     notesRef.current = bookNotes;
   }, [bookNotes]);
+
+  // Redraw PDF highlights whenever the note set changes; each page's overlay
+  // is rebuilt from the live text layer.
+  useEffect(() => {
+    if (!isPdf || !ready) return;
+    for (const [index, doc] of pdfPageDocsRef.current) {
+      if (!doc.defaultView) {
+        pdfPageDocsRef.current.delete(index);
+        continue;
+      }
+      applyPdfHighlights(doc, pdfHighlightsRef.current(index));
+    }
+  });
+
+  const pdfHighlightsForPage = (index: number): PdfHighlightDraft[] =>
+    bookNotes
+      .filter(
+        (note) =>
+          note.deletedAt === null &&
+          note.type !== 'bookmark' &&
+          pdfLocatorMatchesPage(note.locator, index),
+      )
+      .map((note) => {
+        const locator = note.locator as Extract<Locator, { kind: 'pdf' }>;
+        return {
+          id: note.id,
+          color: note.color ?? DEFAULT_HIGHLIGHT,
+          text: locator.text,
+          occurrence: locator.occurrence,
+        };
+      });
+  pdfHighlightsRef.current = pdfHighlightsForPage;
 
   useEffect(() => {
     const view = viewRef.current;
@@ -269,10 +316,66 @@ export const ReaderView = ({
 
     const onLoad = (event: Event) => {
       setReady(true);
-      if (isPdf) return;
       const detail = (event as CustomEvent<{ doc?: Document; index?: number }>).detail;
       const doc = detail?.doc;
       if (!doc) return;
+      const pageIndex = detail?.index ?? 0;
+
+      // The iframe owns focus once the reader clicks the text; forward its
+      // keydowns for both formats.
+      doc.addEventListener('keydown', (event) => keyHandlerRef.current(event));
+
+      if (isPdf) {
+        pdfPageDocsRef.current.set(pageIndex, doc);
+        applyPdfHighlights(doc, pdfHighlightsRef.current(pageIndex));
+        // The text layer renders asynchronously after this load event; redraw
+        // whenever it changes, ignoring mutations of our own overlay.
+        const layer = doc.querySelector('.textLayer');
+        const view_ = doc.defaultView;
+        if (layer && view_) {
+          const observer = new view_.MutationObserver((records) => {
+            const own = records.every((record) => {
+              const target = record.target as Element;
+              return (
+                target.id === PDF_OVERLAY_ID || Boolean(target.closest?.(`#${PDF_OVERLAY_ID}`))
+              );
+            });
+            if (!own) applyPdfHighlights(doc, pdfHighlightsRef.current(pageIndex));
+          });
+          observer.observe(layer, { childList: true, subtree: true });
+        }
+        let pdfSelectionTimer: number | undefined;
+        const capturePdfSelection = () => {
+          const selected = doc.getSelection();
+          if (!selected || selected.isCollapsed || selected.rangeCount === 0) return;
+          const range = selected.getRangeAt(0);
+          const raw = selected.toString();
+          if (!raw.trim()) return;
+          const layer = doc.querySelector('.textLayer');
+          if (!layer) return;
+          const occurrence = pdfOccurrenceIndex(layer, range, raw);
+          if (occurrence < 0) return;
+          const rect = range.getBoundingClientRect();
+          const frameRect = doc.defaultView?.frameElement?.getBoundingClientRect();
+          setSelection({
+            x: Math.min(window.innerWidth - 260, Math.max(8, (frameRect?.left ?? 0) + rect.left)),
+            y: Math.min(
+              window.innerHeight - 180,
+              Math.max(8, (frameRect?.top ?? 0) + rect.bottom + 8),
+            ),
+            text: raw.trim(),
+            fraction: lastFractionRef.current,
+            pdf: { page: pageIndex + 1, text: raw, occurrence },
+          });
+        };
+        const onPdfSelection = () => {
+          window.clearTimeout(pdfSelectionTimer);
+          pdfSelectionTimer = window.setTimeout(capturePdfSelection, 120);
+        };
+        doc.addEventListener('selectionchange', onPdfSelection);
+        doc.addEventListener('pointerup', onPdfSelection);
+        return;
+      }
 
       // Books without their own dir attribute paginate by our resolved
       // direction; this runs before the renderer measures layout.
@@ -280,9 +383,6 @@ export const ReaderView = ({
         doc.documentElement.dir = book.direction;
       }
       applyReaderStyle(doc, settingsCssRef.current);
-      // The paginator iframes own focus once the reader clicks the text;
-      // forward their keydowns so page turns and shortcuts keep working.
-      doc.addEventListener('keydown', (event) => keyHandlerRef.current(event));
       for (const note of notesRef.current) applyNote(note);
 
       let timer: number | undefined;
@@ -513,14 +613,30 @@ export const ReaderView = ({
     });
   };
 
+  const selectionLocator = (): Locator | null => {
+    if (!selection) return null;
+    if (selection.pdf) {
+      return {
+        kind: 'pdf',
+        page: selection.pdf.page,
+        text: selection.pdf.text,
+        occurrence: selection.pdf.occurrence,
+        fraction: selection.fraction,
+      };
+    }
+    return selection.cfi ? { kind: 'cfi', cfi: selection.cfi, fraction: selection.fraction } : null;
+  };
+
   const saveSelectionHighlight = (color: string) => {
     if (!selection) return;
+    const locator = selectionLocator();
+    if (!locator) return;
     const note = createNoteRecord({
       type: 'highlight',
       color,
       text: selection.text,
       note: null,
-      locator: { kind: 'cfi', cfi: selection.cfi, fraction: selection.fraction },
+      locator,
     });
     addNote(note);
     applyAnnotation(note);
@@ -532,12 +648,14 @@ export const ReaderView = ({
 
   const saveSelectionNote = () => {
     if (!selection || !noteDraft.trim()) return;
+    const locator = selectionLocator();
+    if (!locator) return;
     const note = createNoteRecord({
       type: 'note',
       color: DEFAULT_HIGHLIGHT,
       text: selection.text,
       note: noteDraft.trim(),
-      locator: { kind: 'cfi', cfi: selection.cfi, fraction: selection.fraction },
+      locator,
     });
     addNote(note);
     applyAnnotation(note);
@@ -571,7 +689,7 @@ export const ReaderView = ({
 
   const jumpToNote = (note: BookNoteRecord) => {
     if (note.locator.kind === 'cfi') void viewRef.current?.goTo(note.locator.cfi);
-    if (note.locator.kind === 'page') {
+    if (note.locator.kind === 'page' || note.locator.kind === 'pdf') {
       // foliate's PDF renderer indexes pages from zero.
       void viewRef.current?.goTo(Math.max(0, note.locator.page - 1));
     }

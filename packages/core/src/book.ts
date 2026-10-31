@@ -10,6 +10,15 @@ export type BookFormat = 'epub' | 'pdf';
 export type Locator =
   | { kind: 'cfi'; cfi: string; fraction: number }
   | { kind: 'page'; page: number; fraction: number }
+  | {
+      kind: 'pdf';
+      page: number;
+      /** Selected text as it appears in the page's text layer. */
+      text: string;
+      /** Which repeat of `text` on the page this is (0-based). */
+      occurrence: number;
+      fraction: number;
+    }
   | { kind: 'offset'; offset: number; fraction: number };
 
 export interface BookMetadata {

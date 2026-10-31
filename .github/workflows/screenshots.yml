@@ -58,13 +58,21 @@ jobs:
             echo "Screenshots unchanged; nothing to commit."
             exit 0
           fi
-          branch="chore/screenshots-$(date +%Y%m%d%H%M%S)"
+          # One long-lived branch keeps back-to-back releases from opening a
+          # new PR (and racing each other) for the same assets.
+          branch="chore/screenshots"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$branch"
+          git checkout -B "$branch"
           git add .github/assets
           git commit -m "docs: refresh README screenshots"
-          git push -u origin "$branch"
-          gh pr create --fill --title "docs: refresh README screenshots" \
-            --body "Automatic refresh after the latest release (scripts/update-screenshots.mjs)."
+          git push --force origin "$branch"
+          open=$(gh pr list --head "$branch" --state open --json number --jq 'length')
+          if [ "$open" = "0" ]; then
+            gh pr create --fill --title "docs: refresh README screenshots" \
+              --head "$branch" \
+              --body "Automatic refresh after the latest release (scripts/update-screenshots.mjs)."
+          else
+            echo "Updated the open screenshots PR."
+          fi
           gh pr merge --auto --squash

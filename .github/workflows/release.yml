@@ -228,6 +228,9 @@ jobs:
   verify:
     needs: publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
     env:
       RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
     steps:
@@ -254,3 +257,20 @@ jobs:
           curl -fsIL "${base}/Hamesh_${version}_amd64.deb" -o /dev/null
           curl -fsIL "${base}/Hamesh_${version}_x64-setup.exe" -o /dev/null
           curl -fsIL "${base}/Hamesh_${version}_universal.apk" -o /dev/null
+
+      # Release runs are dispatched by the Version workflow's token, so the
+      # `workflow_run` trigger in screenshots.yml never fires for them. Ask for
+      # the refresh explicitly, and only when this tag is still the newest.
+      - name: Refresh README screenshots
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          newest=$(git ls-remote --tags --refs "https://github.com/${GITHUB_REPOSITORY}.git" \
+            | awk -F/ '{print $NF}' | grep -E '^v[0-9]' | sort -V | tail -n1)
+          if [ "$RELEASE_TAG" = "$newest" ]; then
+            gh workflow run screenshots.yml --ref main
+          else
+            echo "$RELEASE_TAG was superseded by $newest; screenshots follow the newest release."
+          fi

@@ -25,6 +25,7 @@
     "categories": "Category",
     "allCategories": "All categories",
     "uncategorized": "Uncategorized",
+    "groupCount": "{{total}} books",
     "edit": "Edit",
     "search": "Search title, author, or series",
     "sort": "Sort books",

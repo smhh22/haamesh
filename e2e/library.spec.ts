@@ -175,8 +175,11 @@ test('organizes books into a category with tags and filters by them', async ({ p
   await expect(dialog).toHaveCount(0);
 
   await expect(page.locator('.tag-chip', { hasText: 'history' })).toBeVisible();
-  await page.getByLabel('Category', { exact: true }).selectOption('Persian classics');
-  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+  await expect(
+    page
+      .locator('.book-group', { hasText: 'Persian classics' })
+      .getByRole('heading', { name: 'نمونه کتاب' }),
+  ).toBeVisible();
 
   await page.locator('.tag-chip', { hasText: 'persian' }).click();
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
@@ -235,23 +238,61 @@ test('renames and deletes a category across its books', async ({ page }) => {
   await assign('نمونه کتاب');
   await assign('Sample Book');
 
-  await page.getByLabel('Category', { exact: true }).selectOption('Classics');
-  await page.getByRole('button', { name: 'Rename category' }).click();
+  const group = page.locator('.book-group', { hasText: 'Classics' });
+  await expect(group.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+  await expect(group.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
+
+  await group.getByRole('button', { name: 'Rename category' }).click();
   const rename = page.getByRole('dialog', { name: 'Rename category' });
   await rename.getByLabel('Category name').fill('Classic novels');
   await rename.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByLabel('Category', { exact: true })).toHaveValue('Classic novels');
-  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Delete category' }).click();
+  const renamed = page.locator('.book-group', { hasText: 'Classic novels' });
+  await expect(renamed).toHaveCount(1);
+  await expect(renamed.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+  await expect(renamed.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
+
+  await renamed.getByRole('button', { name: 'Delete category' }).click();
   const remove = page.getByRole('dialog', { name: 'Delete this category?' });
   await remove.getByRole('button', { name: 'Remove' }).click();
-  await expect(page.getByLabel('Category', { exact: true })).toHaveValue('__all__');
+
+  await expect(page.locator('.book-group', { hasText: 'Classic novels' })).toHaveCount(0);
+  // With no categories left the library returns to the flat grid.
+  await expect(page.locator('.book-groups')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
-  await expect(
-    page.getByLabel('Category', { exact: true }).locator('option', { hasText: 'Classic novels' }),
-  ).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
+});
+
+test('collapses category sections and remembers the state', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+  const assign = async (title: string) => {
+    await page
+      .locator('.book-card', { hasText: title })
+      .getByRole('button', { name: 'Edit' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Book details' });
+    await dialog.getByLabel('Category').fill('Classics');
+    await dialog.getByRole('button', { name: 'Save' }).click();
+    await expect(dialog).toHaveCount(0);
+  };
+  await assign('نمونه کتاب');
+  await assign('Sample Book');
+
+  const toggle = page.locator('.book-group', { hasText: 'Classics' }).locator('.book-group-toggle');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByRole('heading', { name: 'Sample Book' })).toHaveCount(0);
+
+  await page.reload();
+  const reloaded = page
+    .locator('.book-group', { hasText: 'Classics' })
+    .locator('.book-group-toggle');
+  await expect(reloaded).toHaveAttribute('aria-expanded', 'false');
+  await reloaded.click();
+  await expect(reloaded).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
 });
 
 test('renames and deletes a tag across books', async ({ page }) => {

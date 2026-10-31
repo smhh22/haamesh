@@ -20,7 +20,12 @@ import { SettingsDialog } from './components/SettingsDialog';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { type TagSummary, TagsDialog } from './components/TagsDialog';
 import { UpdateBanner } from './components/UpdateBanner';
-import { type BookSort, type BookView, filterAndSortBooks } from './library/bookList';
+import {
+  type BookSort,
+  type BookView,
+  filterAndSortBooks,
+  groupBooksByCategory,
+} from './library/bookList';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
 import {
   type ContentMatch,
@@ -68,11 +73,13 @@ export const App = () => {
   >(null);
   const [openingBookId, setOpeningBookId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string | null | undefined>(undefined);
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [removingBookId, setRemovingBookId] = useState<string | null>(null);
-  const [categoryAction, setCategoryAction] = useState<'rename' | 'delete' | null>(null);
+  const [categoryAction, setCategoryAction] = useState<{
+    type: 'rename' | 'delete';
+    name: string;
+  } | null>(null);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [sort, setSort] = useState<BookSort>('recent');
   const [viewMode, setViewMode] = useState<BookView>('grid');
@@ -86,6 +93,8 @@ export const App = () => {
   } | null>(null);
   const books = useLibraryStore((state) => state.books);
   const updateBook = useLibraryStore((state) => state.updateBook);
+  const collapsedGroups = useUiStore((state) => state.collapsedGroups);
+  const toggleGroup = useUiStore((state) => state.toggleGroup);
   const categories = useMemo(
     () =>
       [
@@ -115,16 +124,23 @@ export const App = () => {
   const removeBook = useLibraryStore((state) => state.removeBook);
   const saveReadingState = useReadingStore((state) => state.save);
   const removeReadingState = useReadingStore((state) => state.remove);
+  const collator = useMemo(
+    () => new Intl.Collator(locale, { sensitivity: 'base', numeric: true }),
+    [locale],
+  );
+  const numberFormat = useMemo(
+    () => new Intl.NumberFormat(locale === 'fa' ? 'fa-IR' : 'en-US'),
+    [locale],
+  );
   const visibleBooks = useMemo(
-    () =>
-      filterAndSortBooks(
-        books,
-        query,
-        sort,
-        new Intl.Collator(locale, { sensitivity: 'base', numeric: true }),
-        { category: categoryFilter, tags: tagFilter },
-      ),
-    [books, query, sort, locale, categoryFilter, tagFilter],
+    () => filterAndSortBooks(books, query, sort, collator, { tags: tagFilter }),
+    [books, query, sort, collator, tagFilter],
+  );
+  // Grouped sections only when the library actually uses categories.
+  const hasCategories = useMemo(() => books.some((book) => book.category !== null), [books]);
+  const bookGroups = useMemo(
+    () => (hasCategories ? groupBooksByCategory(visibleBooks, collator) : []),
+    [hasCategories, visibleBooks, collator],
   );
   const direction = directionFor(locale);
 
@@ -220,7 +236,6 @@ export const App = () => {
       updateBook(book.id, organization);
       void persistBookOrganization(book, organization);
     }
-    setCategoryFilter(to);
   };
 
   const deleteCategory = (name: string) => {
@@ -229,7 +244,6 @@ export const App = () => {
       updateBook(book.id, organization);
       void persistBookOrganization(book, organization);
     }
-    setCategoryFilter(undefined);
   };
 
   const renameTag = (from: string, to: string) => {
@@ -306,6 +320,48 @@ export const App = () => {
     }, 300);
     return () => clearTimeout(timer);
   }, [query]);
+
+  const renderBookCard = (book: BookRecord) => (
+    <li key={book.id} className="book-card">
+      <div className="cover">
+        {book.coverPath ? (
+          <img src={book.coverPath} alt="" />
+        ) : (
+          <span className="cover-fallback" aria-hidden="true">
+            {book.title.trim().charAt(0) || '?'}
+          </span>
+        )}
+      </div>
+      <div className="book-body">
+        <h3 dir="auto">{book.title}</h3>
+        <p className="authors" dir="auto">
+          {formatAuthors(book.authors, locale) || t('library.unknownAuthor')}
+        </p>
+        <p className="badges">
+          <span className="badge">
+            {book.direction === 'rtl' ? t('library.rtl') : t('library.ltr')}
+          </span>
+          <span className="badge">{book.language ?? t('library.unknownLanguage')}</span>
+        </p>
+        <div className="book-actions">
+          <button
+            type="button"
+            className="text-button"
+            disabled={openingBookId !== null}
+            onClick={() => void openReader(book)}
+          >
+            {openingBookId === book.id ? t('library.opening') : t('library.read')}
+          </button>
+          <button type="button" className="text-button" onClick={() => setEditingBookId(book.id)}>
+            {t('library.edit')}
+          </button>
+          <button type="button" className="text-button" onClick={() => setRemovingBookId(book.id)}>
+            {t('library.remove')}
+          </button>
+        </div>
+      </div>
+    </li>
+  );
 
   const openFile = readerSession ? getBookFile(readerSession.book.hash) : null;
   if (readerSession && openFile) {
@@ -416,46 +472,6 @@ export const App = () => {
 
           {books.length > 0 ? (
             <div className="library-filters">
-              <label className="filter-label" htmlFor="category-filter">
-                {t('library.categories')}
-              </label>
-              <select
-                id="category-filter"
-                className="sort-select"
-                value={categoryFilter === undefined ? '__all__' : (categoryFilter ?? '__none__')}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setCategoryFilter(
-                    value === '__all__' ? undefined : value === '__none__' ? null : value,
-                  );
-                }}
-              >
-                <option value="__all__">{t('library.allCategories')}</option>
-                <option value="__none__">{t('library.uncategorized')}</option>
-                {categories.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-              {typeof categoryFilter === 'string' ? (
-                <div className="category-actions">
-                  <button
-                    type="button"
-                    className="text-button"
-                    onClick={() => setCategoryAction('rename')}
-                  >
-                    {t('library.renameCategory')}
-                  </button>
-                  <button
-                    type="button"
-                    className="text-button"
-                    onClick={() => setCategoryAction('delete')}
-                  >
-                    {t('library.deleteCategory')}
-                  </button>
-                </div>
-              ) : null}
               {tags.length > 0 ? (
                 <fieldset className="tag-filter" aria-label={t('library.tags')}>
                   {tags.slice(0, 12).map((tag) => (
@@ -505,57 +521,65 @@ export const App = () => {
             <div className="empty">
               <p className="empty-title">{t('library.noResults')}</p>
             </div>
+          ) : hasCategories ? (
+            <div className="book-groups">
+              {bookGroups.map((group) => {
+                const collapsed = collapsedGroups.includes(group.key);
+                const label = group.category ?? t('library.uncategorized');
+                return (
+                  <section key={group.key} className="book-group">
+                    <div className="book-group-header">
+                      <button
+                        type="button"
+                        className="book-group-toggle"
+                        aria-expanded={!collapsed}
+                        onClick={() => toggleGroup(group.key)}
+                      >
+                        <span className="book-group-chevron" aria-hidden="true">
+                          {collapsed ? '▸' : '▾'}
+                        </span>
+                        <span dir="auto">{label}</span>
+                        <span className="book-group-count">
+                          {t('library.groupCount', {
+                            total: numberFormat.format(group.books.length),
+                          })}
+                        </span>
+                      </button>
+                      {group.category !== null ? (
+                        <div className="book-group-actions">
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() =>
+                              setCategoryAction({ type: 'rename', name: group.category ?? '' })
+                            }
+                          >
+                            {t('library.renameCategory')}
+                          </button>
+                          <button
+                            type="button"
+                            className="text-button"
+                            onClick={() =>
+                              setCategoryAction({ type: 'delete', name: group.category ?? '' })
+                            }
+                          >
+                            {t('library.deleteCategory')}
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                    {collapsed ? null : (
+                      <ul className={viewMode === 'list' ? 'book-grid is-list' : 'book-grid'}>
+                        {group.books.map(renderBookCard)}
+                      </ul>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
           ) : (
             <ul className={viewMode === 'list' ? 'book-grid is-list' : 'book-grid'}>
-              {visibleBooks.map((book) => (
-                <li key={book.id} className="book-card">
-                  <div className="cover">
-                    {book.coverPath ? (
-                      <img src={book.coverPath} alt="" />
-                    ) : (
-                      <span className="cover-fallback" aria-hidden="true">
-                        {book.title.trim().charAt(0) || '?'}
-                      </span>
-                    )}
-                  </div>
-                  <div className="book-body">
-                    <h3 dir="auto">{book.title}</h3>
-                    <p className="authors" dir="auto">
-                      {formatAuthors(book.authors, locale) || t('library.unknownAuthor')}
-                    </p>
-                    <p className="badges">
-                      <span className="badge">
-                        {book.direction === 'rtl' ? t('library.rtl') : t('library.ltr')}
-                      </span>
-                      <span className="badge">{book.language ?? t('library.unknownLanguage')}</span>
-                    </p>
-                    <div className="book-actions">
-                      <button
-                        type="button"
-                        className="text-button"
-                        disabled={openingBookId !== null}
-                        onClick={() => void openReader(book)}
-                      >
-                        {openingBookId === book.id ? t('library.opening') : t('library.read')}
-                      </button>
-                      <button
-                        type="button"
-                        className="text-button"
-                        onClick={() => setEditingBookId(book.id)}
-                      >
-                        {t('library.edit')}
-                      </button>
-                      <button
-                        type="button"
-                        className="text-button"
-                        onClick={() => setRemovingBookId(book.id)}
-                      >
-                        {t('library.remove')}
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              ))}
+              {visibleBooks.map(renderBookCard)}
             </ul>
           )}
 
@@ -598,26 +622,24 @@ export const App = () => {
           onClose={() => setTagsOpen(false)}
         />
         <PromptDialog
-          open={categoryAction === 'rename' && typeof categoryFilter === 'string'}
+          open={categoryAction?.type === 'rename'}
           title={t('library.renameCategoryTitle')}
           label={t('library.categoryName')}
-          initialValue={typeof categoryFilter === 'string' ? categoryFilter : ''}
+          initialValue={categoryAction?.name ?? ''}
           onConfirm={(name) => {
-            if (typeof categoryFilter === 'string') renameCategory(categoryFilter, name);
+            if (categoryAction?.type === 'rename') renameCategory(categoryAction.name, name);
             setCategoryAction(null);
           }}
           onClose={() => setCategoryAction(null)}
         />
         <ConfirmDialog
-          open={categoryAction === 'delete' && typeof categoryFilter === 'string'}
+          open={categoryAction?.type === 'delete'}
           title={t('library.deleteCategoryTitle')}
-          message={t('library.deleteCategoryBody', {
-            name: typeof categoryFilter === 'string' ? categoryFilter : '',
-          })}
+          message={t('library.deleteCategoryBody', { name: categoryAction?.name ?? '' })}
           confirmLabel={t('library.removeConfirm')}
           danger
           onConfirm={() => {
-            if (typeof categoryFilter === 'string') deleteCategory(categoryFilter);
+            if (categoryAction?.type === 'delete') deleteCategory(categoryAction.name);
             setCategoryAction(null);
           }}
           onClose={() => setCategoryAction(null)}

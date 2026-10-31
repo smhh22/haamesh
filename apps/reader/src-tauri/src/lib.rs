@@ -38,29 +38,40 @@ fn to_sql_value(value: &Value) -> rusqlite::types::Value {
     }
 }
 
-/// Resolve a relative path below the app data directory. Absolute paths,
-/// parent traversal, and prefixes are rejected so the frontend cannot escape
-/// its own storage subtree.
-fn resolve_data_path(app: &tauri::AppHandle, relative: &str) -> Result<PathBuf, String> {
-    // An empty path resolves to the data root itself; removing it would wipe
-    // the database, books, and covers.
+/// Resolve a relative path below a trusted base. Absolute paths, parent
+/// traversal, and prefixes are rejected, and existing path components must not
+/// be symlinks, so a link planted inside the data directory cannot redirect
+/// reads, writes, or removals elsewhere.
+fn resolve_beneath(base: &Path, relative: &str) -> Result<PathBuf, String> {
+    // An empty path resolves to the base itself; removing it would wipe the
+    // database, books, and covers.
     if relative.trim().is_empty() {
         return Err("invalid data path".into());
     }
-    let relative_path = Path::new(relative);
-    if relative_path.is_absolute()
-        || relative_path
-            .components()
-            .any(|component| !matches!(component, Component::Normal(_)))
-    {
-        return Err("invalid data path".into());
+    let mut resolved = base.to_path_buf();
+    for component in Path::new(relative).components() {
+        let Component::Normal(name) = component else {
+            return Err("invalid data path".into());
+        };
+        resolved.push(name);
+        match fs::symlink_metadata(&resolved) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err("data path must not contain symlinks".into());
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.to_string()),
+        }
     }
+    Ok(resolved)
+}
 
+fn resolve_data_path(app: &tauri::AppHandle, relative: &str) -> Result<PathBuf, String> {
     let base = app
         .path()
         .app_data_dir()
         .map_err(|error| error.to_string())?;
-    Ok(base.join(relative_path))
+    resolve_beneath(&base, relative)
 }
 
 #[tauri::command]
@@ -679,4 +690,71 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running Hāmesh");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_beneath;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let path =
+            std::env::temp_dir().join(format!("hamesh-path-test-{}-{name}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn rejects_empty_absolute_and_parent_paths() {
+        let base = temp_dir("invalid");
+        let absolute = base.join("outside");
+        let cases = [
+            "".to_string(),
+            "   ".to_string(),
+            absolute.to_string_lossy().into_owned(),
+            "../outside".to_string(),
+            "books/../../outside".to_string(),
+        ];
+        for case in cases {
+            assert!(
+                resolve_beneath(&base, &case).is_err(),
+                "accepted invalid path {case:?}"
+            );
+        }
+        let _ = fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn resolves_missing_nested_paths() {
+        let base = temp_dir("nested");
+        let resolved = resolve_beneath(&base, "books/abc.epub").unwrap();
+        assert_eq!(resolved, base.join("books").join("abc.epub"));
+        let _ = fs::remove_dir_all(base);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_symlinked_components() {
+        let base = temp_dir("symlink");
+        let outside = temp_dir("outside");
+        std::os::unix::fs::symlink(&outside, base.join("books")).unwrap();
+        let error = resolve_beneath(&base, "books/book.epub").unwrap_err();
+        assert!(error.contains("symlink"), "unexpected error: {error}");
+        let _ = fs::remove_dir_all(base);
+        let _ = fs::remove_dir_all(outside);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn allows_a_symlinked_base() {
+        let real = temp_dir("real-base");
+        let link = temp_dir("link-parent").join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let resolved = resolve_beneath(&link, "books/book.epub").unwrap();
+        assert_eq!(resolved, Path::new(&link).join("books").join("book.epub"));
+        let _ = fs::remove_dir_all(real);
+        let _ = fs::remove_dir_all(link.parent().unwrap());
+    }
 }

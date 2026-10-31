@@ -171,6 +171,12 @@ export const createS3Provider = (
       // Object storage has no directories; prefixes exist implicitly.
     },
 
+    async deleteFile(path) {
+      const response = await request('DELETE', keyUrl(path));
+      if (response.status === 404) return;
+      if (!response.ok) throw errorFor('DELETE', path, response);
+    },
+
     async deleteDir(path) {
       const dir = path.replace(/^\/+|\/+$/g, '');
       const prefix = dir ? `${dir}/` : '';

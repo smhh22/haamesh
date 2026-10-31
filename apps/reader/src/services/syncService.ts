@@ -551,7 +551,26 @@ export const testSyncConnection = async (provider: SyncProviderConfig): Promise<
   if (!built) return { ok: false, code: 'not-configured' };
   try {
     await built.ensureDir(['Hamesh']);
-    await built.readText('Hamesh/index.json');
+    const raw = await built.readText('Hamesh/index.json');
+    if (raw && raw.trim() !== '') {
+      try {
+        JSON.parse(raw);
+      } catch {
+        return {
+          ok: false,
+          code: 'failed',
+          detail:
+            'Hamesh/index.json is not valid JSON; move it aside on the server so the next sync can rebuild it.',
+        };
+      }
+    }
+    // Sync needs write access, not just reads: a read-only account or folder
+    // passes a read test and then fails on the first upload.
+    const probe = `Hamesh/.hamesh-connection-${crypto.randomUUID()}.json`;
+    await built.writeText(probe, 'ok');
+    const echo = await built.readText(probe);
+    await built.deleteFile(probe).catch(() => {});
+    if (echo !== 'ok') throw new Error('the storage did not return the test file');
     return { ok: true };
   } catch (error) {
     return {

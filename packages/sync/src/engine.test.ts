@@ -643,6 +643,41 @@ describe('sync engine', () => {
     }).sync();
     expect(plainReport.providers[0]?.code).toBe('UNKNOWN');
   });
+
+  it('treats an empty remote index as absent', async () => {
+    const provider = createMemoryProvider();
+    await provider.writeText('Hamesh/index.json', '');
+    const store = createMemoryStore('device-a', () => 1000);
+
+    const report = await createSyncEngine({
+      deviceId: 'device-a',
+      clock: store.clock,
+      store,
+      providers: [provider],
+    }).sync();
+
+    expect(report.ok).toBe(true);
+    const written = await provider.readText('Hamesh/index.json');
+    expect(written).toBeTruthy();
+    expect(() => JSON.parse(written ?? '')).not.toThrow();
+  });
+
+  it('reports a corrupt remote index without overwriting it', async () => {
+    const provider = createMemoryProvider();
+    await provider.writeText('Hamesh/index.json', '{not json');
+    const store = createMemoryStore('device-a', () => 1000);
+
+    const report = await createSyncEngine({
+      deviceId: 'device-a',
+      clock: store.clock,
+      store,
+      providers: [provider],
+    }).sync();
+
+    expect(report.ok).toBe(false);
+    expect(report.providers[0]?.code).toBe('CORRUPT');
+    expect(await provider.readText('Hamesh/index.json')).toBe('{not json');
+  });
 });
 
 describe('local document field clocks', () => {

@@ -386,7 +386,25 @@ fn sync_fs_write(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
-    fs::write(path, data).map_err(|error| error.to_string())
+    // Temp file in the same directory, then rename: an interrupted write must
+    // not truncate the existing index or book metadata.
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("file");
+    let temp = path.with_file_name(format!(
+        ".{name}.tmp-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default()
+    ));
+    fs::write(&temp, &data).map_err(|error| error.to_string())?;
+    fs::rename(&temp, &path).map_err(|error| {
+        let _ = fs::remove_file(&temp);
+        error.to_string()
+    })
 }
 
 #[tauri::command]

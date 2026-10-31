@@ -94,5 +94,9 @@ export const createMemoryProvider = (id = 'memory'): StorageProvider => {
         if (key === dir || key.startsWith(`${dir}/`)) files.delete(key);
       }
     },
+
+    async deleteFile(path) {
+      files.delete(normalize(path));
+    },
   };
 };

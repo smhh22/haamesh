@@ -17,7 +17,13 @@ const log = execFileSync('git', ['log', '--pretty=format:%s', `${from}..${to}`],
   encoding: 'utf8',
 }).trim();
 
-const subjects = log ? log.split('\n').filter(Boolean) : [];
+// Internal work (chore/ci/docs/test/build/style) is not user-facing; keep it
+// out of the notes and the updater hover preview.
+const INTERNAL = /^(chore|ci|docs|test|build|style)(\(.+\))?!?:/i;
+
+const subjects = (log ? log.split('\n').filter(Boolean) : []).filter(
+  (subject) => !INTERNAL.test(subject),
+);
 
 const FEATURES = /^feat(\(.+\))?!?:/i;
 const FIXES = /^fix(\(.+\))?!?:/i;

@@ -511,6 +511,7 @@ test('navigates the TOC and changes reader settings', async ({ page }) => {
   await tocItem.click();
   await expect(tocItem).toHaveClass(/is-active/);
   await page.getByRole('button', { name: 'Close' }).click();
+  await expect(page.getByRole('button', { name: 'Contents' })).toBeFocused();
 
   await page.getByRole('button', { name: 'Settings' }).click();
   const shell = page.locator('.reader-shell');
@@ -607,6 +608,7 @@ test('searches inside the book', async ({ page }) => {
 
   await panel.locator('.search-result').first().click();
   await page.getByRole('button', { name: 'Close' }).click();
+  await expect(page.getByRole('button', { name: 'Search' })).toBeFocused();
 });
 
 test('creates a highlight and bookmark, then persists them', async ({ page }) => {

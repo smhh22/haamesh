@@ -307,6 +307,14 @@ test('keeps the last failed sync round visible', async ({ page }) => {
   const failure = dialog.locator('.sync-last-error');
   await expect(failure).toContainText('WebDAV:');
   await expect(failure).not.toContainText(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/i);
+
+  // The report is persisted, so reopening the app still explains the failure.
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const reopened = page.getByRole('dialog', { name: 'Settings' });
+  await reopened.getByRole('button', { name: 'Sync', exact: true }).click();
+  await expect(reopened.getByText('The last sync round failed:')).toBeVisible();
+  await expect(reopened.locator('.sync-last-error')).toContainText('WebDAV:');
 });
 
 test('shows grouped shortcuts in the settings dialog', async ({ page }) => {
@@ -346,6 +354,31 @@ test('persists the library across a reload', async ({ page }) => {
   await page.reload();
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
   await expect(page.getByText('RTL')).toBeVisible();
+});
+
+test('reports a missing book file instead of hiding the book', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(fixture);
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+  await expect(page.locator('.library')).toHaveAttribute('aria-busy', 'false');
+
+  // Reload so the runtime file cache is empty, then simulate a corrupted
+  // profile by deleting the stored blob. The lazy loader must surface an
+  // error on open rather than the book vanishing from the library.
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+  await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const books = await root.getDirectoryHandle('books');
+    for await (const name of books.keys()) {
+      if (name.endsWith('.epub') || name.endsWith('.pdf')) await books.removeEntry(name);
+    }
+  });
+
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(
+    page.getByText("This book's file is missing from Hāmesh storage. Import it again."),
+  ).toBeVisible();
 });
 
 test('resumes at the saved position', async ({ page }) => {

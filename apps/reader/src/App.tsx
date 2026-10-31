@@ -31,6 +31,7 @@ import {
 import { importBookFile } from './services/importBook';
 import {
   deletePersistedBook,
+  loadBookFile,
   persistBook,
   persistBookOrganization,
   persistReadingState,
@@ -62,7 +63,10 @@ export const App = () => {
   const setLocale = useUiStore((state) => state.setLocale);
   const [isImporting, setIsImporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [errorCode, setErrorCode] = useState<ImportErrorCode | 'UNKNOWN' | null>(null);
+  const [errorCode, setErrorCode] = useState<
+    ImportErrorCode | 'UNKNOWN' | 'BOOK_FILE_MISSING' | 'OPEN_FAILED' | null
+  >(null);
+  const [openingBookId, setOpeningBookId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null | undefined>(undefined);
   const [tagFilter, setTagFilter] = useState<string[]>([]);
@@ -264,15 +268,29 @@ export const App = () => {
     void deletePersistedBook(book);
   };
 
-  const openReader = (book: BookRecord) => {
-    if (!getBookFile(book.hash)) {
-      setErrorCode('UNKNOWN');
-      return;
+  const openingRef = useRef<string | null>(null);
+
+  const openReader = async (book: BookRecord) => {
+    if (openingRef.current) return;
+    openingRef.current = book.id;
+    setOpeningBookId(book.id);
+    setErrorCode(null);
+    try {
+      const file = await loadBookFile(book);
+      if (!file) {
+        setErrorCode('BOOK_FILE_MISSING');
+        return;
+      }
+      setReaderSession({
+        book,
+        start: useReadingStore.getState().states[book.id] ?? null,
+      });
+    } catch {
+      setErrorCode('OPEN_FAILED');
+    } finally {
+      openingRef.current = null;
+      setOpeningBookId(null);
     }
-    setReaderSession({
-      book,
-      start: useReadingStore.getState().states[book.id] ?? null,
-    });
   };
 
   useEffect(() => {
@@ -516,9 +534,10 @@ export const App = () => {
                       <button
                         type="button"
                         className="text-button"
-                        onClick={() => openReader(book)}
+                        disabled={openingBookId !== null}
+                        onClick={() => void openReader(book)}
                       >
-                        {t('library.read')}
+                        {openingBookId === book.id ? t('library.opening') : t('library.read')}
                       </button>
                       <button
                         type="button"
@@ -550,7 +569,7 @@ export const App = () => {
                   if (!matchBook) return null;
                   return (
                     <li key={`${match.bookId}:${match.section}`}>
-                      <button type="button" onClick={() => openReader(matchBook)}>
+                      <button type="button" onClick={() => void openReader(matchBook)}>
                         <span className="content-match-title">{matchBook.title}</span>
                         <span className="content-match-snippet" dir="auto">
                           {match.snippet}

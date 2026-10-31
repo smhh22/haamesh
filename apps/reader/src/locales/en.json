@@ -17,6 +17,7 @@
     "ltr": "LTR",
     "remove": "Remove",
     "read": "Read",
+    "opening": "Opening…",
     "details": "Book details",
     "category": "Category",
     "tags": "Tags",
@@ -38,6 +39,8 @@
       "UNSUPPORTED_FORMAT": "Only EPUB, PDF, or Markdown files are supported in this build.",
       "CRYPTO_UNAVAILABLE": "Book hashing needs HTTPS or localhost.",
       "PARSE_FAILED": "This file could not be read.",
+      "BOOK_FILE_MISSING": "This book's file is missing from Hāmesh storage. Import it again.",
+      "OPEN_FAILED": "This book could not be opened.",
       "UNKNOWN": "Something went wrong while importing."
     },
     "contentMatches": "In book contents",

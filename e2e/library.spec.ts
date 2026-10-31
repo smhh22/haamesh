@@ -538,6 +538,23 @@ const openReader = async (page: import('@playwright/test').Page) => {
   });
 };
 
+test('formats reader percentages in the active locale', async ({ page }) => {
+  await openReader(page);
+  await page.getByRole('button', { name: 'Settings' }).click();
+  // Brightness and font size both start at 100%.
+  await expect(page.locator('.settings-panel').getByText('100%', { exact: true })).toHaveCount(2);
+  await page.getByRole('button', { name: 'Close' }).click();
+
+  await page.getByRole('button', { name: 'Library' }).click();
+  await page.getByRole('button', { name: 'Switch to Persian' }).click();
+  await page.locator('.book-card').first().getByRole('button', { name: 'خواندن' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+  await page.getByRole('button', { name: 'تنظیمات' }).click();
+  await expect(page.locator('.settings-panel').getByText('۱۰۰٪', { exact: true })).toHaveCount(2);
+});
+
 test('searches inside the book', async ({ page }) => {
   await openReader(page);
   await page.getByRole('button', { name: 'Search' }).click();

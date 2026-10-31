@@ -966,6 +966,11 @@ blockquote.note-text {
   gap: var(--hamesh-space-2);
 }
 
+.sync-add-select {
+  inline-size: 100%;
+  max-inline-size: 26rem;
+}
+
 .sync-card-footer {
   display: flex;
   justify-content: flex-end;

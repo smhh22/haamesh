@@ -107,7 +107,7 @@ test('guides sync setup from an empty state', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Sync', exact: true }).click();
 
   await expect(dialog.getByText('No storage connected')).toBeVisible();
-  await dialog.getByLabel('Add WebDAV').selectOption('generic');
+  await dialog.getByLabel('Add storage').selectOption('webdav:generic');
   await expect(dialog.getByText('Needs setup')).toBeVisible();
 
   await dialog.getByLabel('Server URL').fill('https://dav.example.com');
@@ -123,7 +123,7 @@ test('adds a WebDAV preset with its URL pattern', async ({ page }) => {
   const dialog = page.getByRole('dialog', { name: 'Settings' });
   await dialog.getByRole('button', { name: 'Sync', exact: true }).click();
 
-  await dialog.getByLabel('Add WebDAV').selectOption('koofr');
+  await dialog.getByLabel('Add storage').selectOption('webdav:koofr');
   await expect(dialog.getByLabel('Server URL')).toHaveValue('https://app.koofr.net/dav/Koofr');
 });
 
@@ -133,7 +133,7 @@ test('configures an S3-compatible provider', async ({ page }) => {
   const dialog = page.getByRole('dialog', { name: 'Settings' });
   await dialog.getByRole('button', { name: 'Sync', exact: true }).click();
 
-  await dialog.getByRole('button', { name: 'Add S3 storage' }).click();
+  await dialog.getByLabel('Add storage').selectOption('s3');
   await expect(dialog.getByText('Needs setup')).toBeVisible();
 
   await dialog.getByLabel('Endpoint').fill('https://s3.example.com');
@@ -149,7 +149,7 @@ test('configures a Dropbox provider with a user-owned app', async ({ page }) => 
   const dialog = page.getByRole('dialog', { name: 'Settings' });
   await dialog.getByRole('button', { name: 'Sync', exact: true }).click();
 
-  await dialog.getByRole('button', { name: 'Add Dropbox' }).click();
+  await dialog.getByLabel('Add storage').selectOption('dropbox');
   await expect(dialog.getByText('Needs setup')).toBeVisible();
 
   await dialog.getByLabel('App key').fill('test-app-key');

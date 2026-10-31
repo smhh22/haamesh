@@ -65,6 +65,8 @@ export const extractMissingBookTexts = async (): Promise<number> => {
       const { sections } = await extractEpubText(file);
       await storage.storage.texts.replace(book.id, sections);
       extracted += 1;
+      // Yield so a batch of large books cannot block input and paint.
+      await new Promise((resolve) => setTimeout(resolve, 0));
     }
   } catch (error) {
     console.warn('Book text reconciliation failed', error);

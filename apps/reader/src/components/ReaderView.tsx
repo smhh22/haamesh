@@ -1,10 +1,5 @@
 import type { Locator, TocItem } from '@hamesh/core';
-import {
-  ensurePdfWorker,
-  isSanitizableMediaType,
-  pageTurnForKey,
-  sanitizeEpubHtml,
-} from '@hamesh/engine';
+import { isSanitizableMediaType, pageTurnForKey, sanitizeEpubHtml } from '@hamesh/engine';
 import type { BookNoteRecord, BookRecord } from '@hamesh/storage';
 import { Overlayer } from 'foliate-js/overlayer.js';
 import { type FoliateBook, makeBook } from 'foliate-js/view.js';
@@ -340,7 +335,6 @@ export const ReaderView = ({
 
     void (async () => {
       try {
-        if (isPdf) await ensurePdfWorker();
         const parsed = await makeBook(file);
         if (cancelled) {
           parsed.destroy();

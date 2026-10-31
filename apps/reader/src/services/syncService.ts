@@ -381,29 +381,42 @@ export const isProviderConfigured = (provider: SyncProviderConfig): boolean => {
 };
 
 /**
- * Desktop-only SFTP sessions, one per configured provider. A dropped session
- * surfaces as a sync failure; the next round reconnects.
+ * Desktop-only SFTP providers, rebuilt when their connection settings change.
+ * The adapter keeps one session and reconnects when the server closes it.
  */
-const sftpSessions = new Map<string, string>();
+const sftpProviders = new Map<string, { signature: string; provider: StorageProvider }>();
 
 const buildSftpProvider = async (provider: SyncProviderConfig): Promise<StorageProvider | null> => {
   if (!isSftpAvailable()) return null;
-  const base = provider.sftpRemoteBase || '/';
-  let session = sftpSessions.get(provider.id);
-  if (!session) {
-    // Connection errors are real failures, not missing configuration; let them
-    // reach the test/sync report with the server's message.
-    session = await connectSftp({
-      host: provider.baseUrl.trim(),
-      port: provider.sftpPort || 22,
-      username: provider.username,
-      password: provider.password,
-      keyPath: provider.sftpKeyPath,
-      keyPassphrase: '',
-    });
-    sftpSessions.set(provider.id, session);
+  const signature = JSON.stringify([
+    provider.baseUrl.trim(),
+    provider.sftpPort || 22,
+    provider.username,
+    provider.password,
+    provider.sftpKeyPath,
+    provider.sftpRemoteBase || '/',
+  ]);
+  const cached = sftpProviders.get(provider.id);
+  if (cached && cached.signature === signature) return cached.provider;
+
+  const fs = createSftpFs({
+    host: provider.baseUrl.trim(),
+    port: provider.sftpPort || 22,
+    username: provider.username,
+    password: provider.password,
+    keyPath: provider.sftpKeyPath,
+    keyPassphrase: '',
+    base: provider.sftpRemoteBase || '/',
+  });
+  // Connect eagerly so a bad key, closed port, or missing base folder surfaces
+  // in Test connection instead of the first sync operation. The empty relative
+  // path resolves to the base folder itself.
+  if (!(await fs.exists(''))) {
+    throw new Error(`remote folder not found: ${provider.sftpRemoteBase || '/'}`);
   }
-  return createLocalFolderProvider(createSftpFs(session, base));
+  const built = createLocalFolderProvider(fs);
+  sftpProviders.set(provider.id, { signature, provider: built });
+  return built;
 };
 
 export const providerFromConfig = async (

@@ -4,11 +4,49 @@ export type BookSort = 'recent' | 'title' | 'author';
 export type BookView = 'grid' | 'list';
 
 export interface BookFilters {
-  /** undefined = all books, null = uncategorized, string = that category. */
-  category?: string | null;
   /** A book must carry every selected tag. */
   tags?: string[];
 }
+
+export interface BookGroup {
+  /** Stable key for persisted collapse state. */
+  key: string;
+  /** null is the uncategorized bucket, always rendered last. */
+  category: string | null;
+  books: BookRecord[];
+}
+
+const UNCATEGORIZED_KEY = '::none';
+const categoryKey = (category: string | null): string =>
+  category === null ? UNCATEGORIZED_KEY : `::cat:${category}`;
+
+/**
+ * Group filtered books by category. Named categories sort with the active
+ * collator; books without a category always come last.
+ */
+export const groupBooksByCategory = (
+  books: BookRecord[],
+  collator: Intl.Collator = new Intl.Collator(),
+): BookGroup[] => {
+  const buckets = new Map<string, BookRecord[]>();
+  for (const book of books) {
+    const key = categoryKey(book.category);
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(book);
+    else buckets.set(key, [book]);
+  }
+  const groups: BookGroup[] = [...buckets.entries()].map(([key, grouped]) => ({
+    key,
+    category: key === UNCATEGORIZED_KEY ? null : (grouped[0]?.category ?? null),
+    books: grouped,
+  }));
+  groups.sort((a, b) => {
+    if (a.category === null) return 1;
+    if (b.category === null) return -1;
+    return collator.compare(a.category, b.category);
+  });
+  return groups;
+};
 
 const normalize = (value: string): string =>
   value.normalize('NFKC').replace(/[يى]/g, 'ی').replace(/ك/g, 'ک').toLocaleLowerCase();
@@ -26,14 +64,10 @@ export const filterAndSortBooks = (
 ): BookRecord[] => {
   const needle = normalize(query.trim());
   const selectedTags = filters.tags ?? [];
-  const byCategory =
-    filters.category === undefined
-      ? books
-      : books.filter((book) => (book.category ?? null) === filters.category);
   const byTags =
     selectedTags.length === 0
-      ? byCategory
-      : byCategory.filter((book) => selectedTags.every((tag) => book.tags.includes(tag)));
+      ? books
+      : books.filter((book) => selectedTags.every((tag) => book.tags.includes(tag)));
   const filtered = needle
     ? byTags.filter((book) =>
         [book.title, ...book.authors, book.series ?? '', book.category ?? '', ...book.tags].some(

@@ -7,12 +7,16 @@ export type UiLocale = 'en' | 'fa';
 interface UiStore {
   theme: UiTheme;
   locale: UiLocale;
+  /** Library category sections the user collapsed (device-local). */
+  collapsedGroups: string[];
   setTheme: (theme: UiTheme) => void;
   setLocale: (locale: UiLocale) => void;
+  toggleGroup: (key: string) => void;
 }
 
 const STORAGE_KEY = 'hamesh.ui.theme';
 const LOCALE_KEY = 'hamesh.ui.locale';
+const COLLAPSED_KEY = 'hamesh.ui.collapsed-groups';
 
 const readTheme = (): UiTheme => {
   try {
@@ -33,6 +37,19 @@ const readLocale = (): UiLocale => {
   return 'en';
 };
 
+const readCollapsedGroups = (): string[] => {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+};
+
 const resolveTheme = (theme: UiTheme): 'light' | 'dark' => {
   if (theme !== 'system') return theme;
   if (typeof matchMedia !== 'function') return 'light';
@@ -48,6 +65,19 @@ export const applyTheme = (theme: UiTheme): void => {
 export const useUiStore = create<UiStore>((set) => ({
   theme: readTheme(),
   locale: readLocale(),
+  collapsedGroups: readCollapsedGroups(),
+  toggleGroup: (key) =>
+    set((state) => {
+      const next = state.collapsedGroups.includes(key)
+        ? state.collapsedGroups.filter((item) => item !== key)
+        : [...state.collapsedGroups, key];
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next));
+      } catch {
+        // storage may be unavailable; the in-memory value still applies
+      }
+      return { collapsedGroups: next };
+    }),
   setTheme: (theme) => {
     try {
       localStorage.setItem(STORAGE_KEY, theme);

@@ -202,6 +202,56 @@ h1 {
   list-style: none;
 }
 
+.book-groups {
+  display: grid;
+  gap: var(--hamesh-space-4);
+}
+
+.book-group-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hamesh-space-2);
+  margin-block-end: var(--hamesh-space-2);
+  border-block-end: 1px solid var(--hamesh-color-border);
+  padding-block-end: var(--hamesh-space-1);
+}
+
+.book-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--hamesh-space-2);
+  border: 0;
+  background: none;
+  color: var(--hamesh-color-ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: var(--hamesh-space-1) 0;
+  text-align: start;
+}
+
+.book-group-chevron {
+  color: var(--hamesh-color-muted);
+  font-size: 0.8rem;
+}
+
+[dir="rtl"] .book-group-chevron {
+  transform: scaleX(-1);
+}
+
+.book-group-count {
+  color: var(--hamesh-color-muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.book-group-actions {
+  display: flex;
+  gap: var(--hamesh-space-2);
+}
+
 .book-card {
   display: grid;
   gap: var(--hamesh-space-3);

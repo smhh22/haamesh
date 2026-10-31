@@ -21,17 +21,20 @@ const subjects = log ? log.split('\n').filter(Boolean) : [];
 
 const FEATURES = /^feat(\(.+\))?!?:/i;
 const FIXES = /^fix(\(.+\))?!?:/i;
+const PERFORMANCE = /^perf(\(.+\))?!?:/i;
 
 const clean = (subject) => subject.replace(/^[a-z]+(\(.+\))?!?:\s*/i, '');
 const bullet = (subject) => `- ${clean(subject).replace(/\s+\(#\d+\)$/, '')}`;
 
 const features = subjects.filter((s) => FEATURES.test(s) && !FIXES.test(s));
 const fixes = subjects.filter((s) => FIXES.test(s));
-const others = subjects.filter((s) => !FEATURES.test(s) && !FIXES.test(s));
+const performance = subjects.filter((s) => PERFORMANCE.test(s));
+const others = subjects.filter((s) => !FEATURES.test(s) && !FIXES.test(s) && !PERFORMANCE.test(s));
 
 const sections = [];
 if (features.length) sections.push(`## Changes\n${features.map(bullet).join('\n')}`);
 if (fixes.length) sections.push(`## Fixes\n${fixes.map(bullet).join('\n')}`);
+if (performance.length) sections.push(`## Performance\n${performance.map(bullet).join('\n')}`);
 if (others.length) sections.push(`## Other\n${others.map(bullet).join('\n')}`);
 
 const header = `Local-first ebook reader with first-class RTL support. Installers and the signed Android APK are attached.`;

@@ -78,14 +78,40 @@ fn validate_remote_path(path: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Missing-file detection: the protocol status code when the server is
+/// well-behaved, and the status message as a fallback. Some servers report a
+/// missing path as a generic failure whose message is "No such file", which
+/// used to surface as a sync error from `head()`/`exists`.
 fn is_missing(error: &russh_sftp::client::error::Error) -> bool {
+    use russh_sftp::protocol::StatusCode;
+    if matches!(
+        error,
+        russh_sftp::client::error::Error::Status(status)
+            if status.status_code == StatusCode::NoSuchFile
+    ) {
+        return true;
+    }
     let text = error.to_string().to_lowercase();
     text.contains("no such file") || text.contains("not found") || text.contains("enoent")
 }
 
-fn is_exists(error: &russh_sftp::client::error::Error) -> bool {
-    let text = error.to_string().to_lowercase();
-    text.contains("already exists") || text.contains("failure") || text.contains("exists")
+/// Create one directory if it is not already there. The result is verified by
+/// a metadata lookup rather than by matching error text, so permission
+/// failures still surface while duplicate/racy creations are tolerated.
+async fn ensure_dir(sftp: &SftpSession, path: &str) -> Result<(), String> {
+    if sftp.metadata(path.to_string()).await.is_ok() {
+        return Ok(());
+    }
+    match sftp.create_dir(path.to_string()).await {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            if sftp.metadata(path.to_string()).await.is_ok() {
+                Ok(())
+            } else {
+                Err(format!("mkdir {path}: {error}"))
+            }
+        }
+    }
 }
 
 async fn lookup_session(
@@ -112,6 +138,7 @@ pub async fn sftp_connect(
     password: Option<String>,
     key_path: Option<String>,
     key_passphrase: Option<String>,
+    base: Option<String>,
 ) -> Result<String, String> {
     let host = host.trim().to_string();
     if host.is_empty() || host.contains('/') || host.contains(' ') {
@@ -181,6 +208,19 @@ pub async fn sftp_connect(
     let sftp = SftpSession::new(channel.into_stream())
         .await
         .map_err(|error| format!("sftp handshake failed: {error}"))?;
+    // The chosen remote folder must already exist; uploads create their
+    // parents only below it, never system directories above it.
+    if let Some(base) = base.filter(|value| !value.trim().is_empty()) {
+        validate_remote_path(&base)?;
+        match sftp.metadata(base.clone()).await {
+            Ok(metadata) if metadata.is_dir() => {}
+            Ok(_) => return Err(format!("not a folder: {base}")),
+            Err(error) if is_missing(&error) => {
+                return Err(format!("remote folder not found: {base}"));
+            }
+            Err(error) => return Err(format!("cannot check {base}: {error}")),
+        }
+    }
     let id = format!(
         "sftp-{}-{}",
         std::process::id(),
@@ -229,11 +269,7 @@ pub async fn sftp_write(
             continue;
         }
         prefix = format!("{prefix}/{part}");
-        if let Err(error) = sftp.create_dir(prefix.clone()).await {
-            if !is_exists(&error) {
-                return Err(format!("mkdir {prefix}: {error}"));
-            }
-        }
+        ensure_dir(&sftp, &prefix).await?;
     }
     sftp.write(path, &data)
         .await
@@ -254,11 +290,7 @@ pub async fn sftp_mkdir(
             continue;
         }
         prefix = format!("{prefix}/{part}");
-        if let Err(error) = sftp.create_dir(prefix.clone()).await {
-            if !is_exists(&error) {
-                return Err(format!("mkdir {prefix}: {error}"));
-            }
-        }
+        ensure_dir(&sftp, &prefix).await?;
     }
     Ok(())
 }
@@ -271,9 +303,11 @@ pub async fn sftp_exists(
 ) -> Result<bool, String> {
     validate_remote_path(&path)?;
     let sftp = lookup_session(&sessions, &session).await?;
-    sftp.try_exists(path)
-        .await
-        .map_err(|error| error.to_string())
+    match sftp.try_exists(path).await {
+        Ok(exists) => Ok(exists),
+        Err(error) if is_missing(&error) => Ok(false),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 #[tauri::command]

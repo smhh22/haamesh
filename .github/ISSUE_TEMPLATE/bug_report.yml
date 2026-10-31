@@ -1,0 +1,97 @@
+name: Bug report
+description: Something in Hāmesh is broken or behaves unexpectedly.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Please do **not** attach
+        copyrighted books or paste credentials; redact server addresses and
+        any personal data. Security issues go through the private advisory
+        link on the previous page, not here.
+  - type: input
+    id: version
+    attributes:
+      label: Hāmesh version
+      description: Settings → Updates shows the version, or name the release you installed.
+      placeholder: "1.0.4"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is it installed?
+      options:
+        - Linux — deb
+        - Linux — rpm
+        - Linux — AppImage
+        - Windows — installer (exe)
+        - Windows — installer (msi)
+        - Android — APK
+        - Web build
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and version
+      placeholder: "Ubuntu 24.04 / Windows 11 23H2 / Android 13 (WebView 113)"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Library / import
+        - Reading — EPUB
+        - Reading — PDF
+        - Reading — Markdown
+        - Notes, highlights, bookmarks
+        - Search
+        - Sync
+        - Settings / appearance
+        - Updates
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. …
+        2. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the exact error text or a screenshot if there is one.
+    validations:
+      required: true
+  - type: textarea
+    id: book
+    attributes:
+      label: Book details (if a specific file triggers it)
+      description: Format, approximate size, encrypted or not, and where it came from. Do not upload the book itself.
+      placeholder: "EPUB, ~16 MB, no DRM, Persian, 862 pages (PDF)"
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots (optional)
+      description: Redact credentials, server addresses, and book text.
+      render: text
+    validations:
+      required: false

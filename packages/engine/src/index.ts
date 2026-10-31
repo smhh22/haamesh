@@ -10,6 +10,7 @@ export {
 } from './markdown';
 export type { PageTurn } from './navigation';
 export { pageTurnForKey } from './navigation';
+export { ensurePdfWorker } from './pdfWorker';
 export { isSanitizableMediaType, sanitizeEpubHtml } from './sanitize';
 
 /** Placeholder for the foliate-js reader boundary; import is implemented. */

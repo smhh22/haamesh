@@ -65,6 +65,9 @@ export default defineConfig({
       '@hamesh/ui': fromRoot('../../packages/ui/src'),
       '@hamesh/sync': fromRoot('../../packages/sync/src'),
       'foliate-js/view.js': fromRoot('../../vendor/foliate-js/view.js'),
+      'foliate-js/vendor/pdfjs/pdf.worker.mjs': fromRoot(
+        '../../vendor/foliate-js/vendor/pdfjs/pdf.worker.mjs',
+      ),
       'foliate-js/overlayer.js': fromRoot('../../vendor/foliate-js/overlayer.js'),
     },
   },

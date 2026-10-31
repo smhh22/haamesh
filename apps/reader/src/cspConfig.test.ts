@@ -1,4 +1,6 @@
+// @vitest-environment node
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -9,7 +11,7 @@ import { describe, expect, it } from 'vitest';
  * - worker-src blob: pdf.js may wrap its worker in a blob URL.
  */
 const config = JSON.parse(
-  readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'),
+  readFileSync(fileURLToPath(new URL('../src-tauri/tauri.conf.json', import.meta.url)), 'utf8'),
 ) as { app?: { security?: { csp?: string } } };
 
 const csp = config.app?.security?.csp ?? '';

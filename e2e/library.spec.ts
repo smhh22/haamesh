@@ -328,6 +328,43 @@ test('keeps the last failed sync round visible', async ({ page }) => {
   await expect(persian.locator('.sync-last-error')).toContainText('ارتباط با سرور برقرار نشد.');
 });
 
+test('refreshes the sync panel when a background round finishes', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+  await dialog.getByRole('button', { name: 'Sync', exact: true }).click();
+  await expect(dialog.getByText('The last sync round failed:')).toHaveCount(0);
+
+  // A round finishing elsewhere (the auto-sync timer) writes the status and
+  // dispatches an event; the open panel must follow it without remounting.
+  await page.evaluate(() => {
+    localStorage.setItem(
+      'hamesh.sync.status',
+      JSON.stringify({
+        lastSyncAt: Date.now(),
+        lastReport: {
+          ok: false,
+          providers: [
+            {
+              providerId: 'webdav',
+              ok: false,
+              code: 'NETWORK',
+              error: 'boom',
+              pulledRecords: 0,
+              uploadedBlobs: 0,
+              downloadedBlobs: 0,
+            },
+          ],
+        },
+      }),
+    );
+    window.dispatchEvent(new Event('hamesh:sync-status'));
+  });
+
+  await expect(dialog.getByText('The last sync round failed:')).toBeVisible();
+  await expect(dialog.locator('.sync-last-error')).toContainText('Could not reach the server.');
+});
+
 test('shows grouped shortcuts in the settings dialog', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings' }).click();

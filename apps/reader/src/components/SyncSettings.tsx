@@ -1,5 +1,5 @@
 import { dropboxAuthorizeUrl } from '@hamesh/sync';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isLocalFolderAvailable, pickSyncFolder } from '../services/localFolderFs';
 import { isSftpAvailable } from '../services/sftpFs';
@@ -8,6 +8,7 @@ import {
   isProviderConfigured,
   loadSyncConfig,
   newProvider,
+  onSyncStatusChange,
   removeProviderSecrets,
   runSync,
   SYNCTHING_PRESET,
@@ -40,6 +41,17 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
   const initialStatus = syncStatus();
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(initialStatus.lastSyncAt);
   const [lastReport, setLastReport] = useState(initialStatus.lastReport);
+
+  // Auto-sync can finish while this panel is open; follow the stored status.
+  useEffect(
+    () =>
+      onSyncStatusChange(() => {
+        const status = syncStatus();
+        setLastSyncAt(status.lastSyncAt);
+        setLastReport(status.lastReport);
+      }),
+    [],
+  );
 
   const commit = (next: SyncConfig) => {
     setConfig(next);

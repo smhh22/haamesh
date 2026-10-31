@@ -38,6 +38,7 @@ const GeneralSection = () => {
               key={option}
               type="button"
               className={theme === option ? 'reader-action is-selected' : 'reader-action'}
+              aria-pressed={theme === option}
               onClick={() => setTheme(option)}
             >
               {t(`settings.themes.${option}`)}

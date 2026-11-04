@@ -319,6 +319,86 @@ describe('sync engine', () => {
     expect([...(file?.data ?? [])]).toEqual([1, 2, 3]);
   });
 
+  it('recovers to a converged state after a connection drop mid-round', async () => {
+    const provider = createMemoryProvider();
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    await storeA.localEdit(bookRecord('1', 'Book', 1000));
+    blobs.set(
+      '1111111111111111111111111111111111111111111111111111111111111111',
+      new Uint8Array([1, 2, 3]),
+    );
+
+    // Drop the first blob upload, then the first index commit; every later
+    // call goes through. The index is the commit point, so an interrupted
+    // round must leave the remote without it and the next round redoes the
+    // transfer idempotently.
+    let droppedBlobUploads = 0;
+    let indexWriteDropped = false;
+    const dropIndexWrite = (path: string): boolean => {
+      if (path !== 'Hamesh/index.json' || indexWriteDropped) return false;
+      indexWriteDropped = true;
+      return true;
+    };
+    const flaky: StorageProvider = {
+      ...provider,
+      async writeBinary(path, body) {
+        if (droppedBlobUploads++ === 0) throw new ProviderError('connection reset', 'NETWORK');
+        return provider.writeBinary(path, body);
+      },
+      async writeText(path, body) {
+        if (dropIndexWrite(path)) throw new ProviderError('connection reset', 'NETWORK');
+        return provider.writeText(path, body);
+      },
+      async writeTextConditional(path, body, etag) {
+        if (dropIndexWrite(path)) throw new ProviderError('connection reset', 'NETWORK');
+        return provider.writeTextConditional?.(path, body, etag) ?? 'ok';
+      },
+    };
+
+    const engine = () =>
+      createSyncEngine({
+        deviceId: 'device-a',
+        clock: storeA.clock,
+        store: storeA,
+        providers: [flaky],
+      });
+
+    const first = await engine().sync();
+    expect(first.ok).toBe(false);
+    expect(first.providers[0]?.code).toBe('NETWORK');
+    // The commit point never happened.
+    expect(await provider.readText('Hamesh/index.json')).toBeNull();
+
+    const second = await engine().sync();
+    expect(second.ok).toBe(false);
+    expect(second.providers[0]?.code).toBe('NETWORK');
+
+    const third = await engine().sync();
+    expect(third.ok).toBe(true);
+    const index = await provider.readText('Hamesh/index.json');
+    expect(index).not.toBeNull();
+    expect(JSON.parse(index ?? '')).toMatchObject({ schemaVersion: expect.anything() });
+    expect(await provider.head(`Hamesh/books/${'1'.repeat(64)}/book.epub`)).not.toBeNull();
+
+    // Another device converges from the recovered remote state.
+    wall = 5000;
+    const storeB = createMemoryStore('device-b', now);
+    const pulled = await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+    expect(pulled.ok).toBe(true);
+    expect(storeB.records.get('book:1')?.fields.title).toBe('Book');
+    const file = await storeB.bookFile(
+      '1111111111111111111111111111111111111111111111111111111111111111',
+    );
+    expect([...(file?.data ?? [])]).toEqual([1, 2, 3]);
+  });
+
   it('propagates a note tombstone as remove-wins', async () => {
     const provider = createMemoryProvider();
     let wall = 1000;

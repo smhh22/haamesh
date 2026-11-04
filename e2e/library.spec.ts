@@ -263,6 +263,44 @@ test('renames and deletes a category across its books', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
 });
 
+test('creates a category from the toolbar and keeps it when empty', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'New category' }).click();
+  const create = page.getByRole('dialog', { name: 'New category' });
+  await create.getByLabel('Category name').fill('Poetry');
+  await create.getByRole('button', { name: 'Save' }).click();
+
+  // The empty section appears immediately, before any book is assigned.
+  const group = page.locator('.book-group', { hasText: 'Poetry' });
+  await expect(group).toHaveCount(1);
+  await expect(group.locator('.book-group-count')).toHaveText('0 books');
+
+  await page
+    .locator('.book-card', { hasText: 'Sample Book' })
+    .getByRole('button', { name: 'Edit' })
+    .click();
+  const dialog = page.getByRole('dialog', { name: 'Book details' });
+  await dialog.getByLabel('Category').fill('Poetry');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(group.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
+
+  // The created category survives a reload.
+  await page.reload();
+  const reloaded = page.locator('.book-group', { hasText: 'Poetry' });
+  await expect(reloaded).toHaveCount(1);
+  await expect(reloaded.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
+
+  await reloaded.getByRole('button', { name: 'Delete category' }).click();
+  await page
+    .getByRole('dialog', { name: 'Delete this category?' })
+    .getByRole('button', { name: 'Remove' })
+    .click();
+  await expect(page.locator('.book-group', { hasText: 'Poetry' })).toHaveCount(0);
+});
+
 test('collapses category sections and remembers the state', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);

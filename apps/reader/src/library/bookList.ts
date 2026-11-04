@@ -17,16 +17,22 @@ export interface BookGroup {
 }
 
 const UNCATEGORIZED_KEY = '::none';
+const CATEGORY_PREFIX = '::cat:';
 const categoryKey = (category: string | null): string =>
-  category === null ? UNCATEGORIZED_KEY : `::cat:${category}`;
+  category === null ? UNCATEGORIZED_KEY : `${CATEGORY_PREFIX}${category}`;
+const categoryFromKey = (key: string): string | null =>
+  key === UNCATEGORIZED_KEY ? null : key.slice(CATEGORY_PREFIX.length);
 
 /**
  * Group filtered books by category. Named categories sort with the active
- * collator; books without a category always come last.
+ * collator; books without a category always come last. `extraCategories`
+ * renders toolbar-created sections that no book carries yet; duplicates of
+ * categories that do have books are ignored.
  */
 export const groupBooksByCategory = (
   books: BookRecord[],
   collator: Intl.Collator = new Intl.Collator(),
+  extraCategories: string[] = [],
 ): BookGroup[] => {
   const buckets = new Map<string, BookRecord[]>();
   for (const book of books) {
@@ -35,9 +41,13 @@ export const groupBooksByCategory = (
     if (bucket) bucket.push(book);
     else buckets.set(key, [book]);
   }
+  for (const name of extraCategories) {
+    const key = categoryKey(name);
+    if (name !== '' && !buckets.has(key)) buckets.set(key, []);
+  }
   const groups: BookGroup[] = [...buckets.entries()].map(([key, grouped]) => ({
     key,
-    category: key === UNCATEGORIZED_KEY ? null : (grouped[0]?.category ?? null),
+    category: categoryFromKey(key),
     books: grouped,
   }));
   groups.sort((a, b) => {

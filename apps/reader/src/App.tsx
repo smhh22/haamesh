@@ -77,7 +77,7 @@ export const App = () => {
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [removingBookId, setRemovingBookId] = useState<string | null>(null);
   const [categoryAction, setCategoryAction] = useState<{
-    type: 'rename' | 'delete';
+    type: 'create' | 'rename' | 'delete';
     name: string;
   } | null>(null);
   const [tagsOpen, setTagsOpen] = useState(false);
@@ -95,6 +95,10 @@ export const App = () => {
   const updateBook = useLibraryStore((state) => state.updateBook);
   const collapsedGroups = useUiStore((state) => state.collapsedGroups);
   const toggleGroup = useUiStore((state) => state.toggleGroup);
+  const extraCategories = useUiStore((state) => state.extraCategories);
+  const addExtraCategory = useUiStore((state) => state.addExtraCategory);
+  const renameExtraCategory = useUiStore((state) => state.renameExtraCategory);
+  const removeExtraCategory = useUiStore((state) => state.removeExtraCategory);
   const categories = useMemo(
     () =>
       [
@@ -137,10 +141,13 @@ export const App = () => {
     [books, query, sort, collator, tagFilter],
   );
   // Grouped sections only when the library actually uses categories.
-  const hasCategories = useMemo(() => books.some((book) => book.category !== null), [books]);
+  const hasCategories = useMemo(
+    () => books.some((book) => book.category !== null) || extraCategories.length > 0,
+    [books, extraCategories],
+  );
   const bookGroups = useMemo(
-    () => (hasCategories ? groupBooksByCategory(visibleBooks, collator) : []),
-    [hasCategories, visibleBooks, collator],
+    () => (hasCategories ? groupBooksByCategory(visibleBooks, collator, extraCategories) : []),
+    [hasCategories, visibleBooks, collator, extraCategories],
   );
   const direction = directionFor(locale);
 
@@ -229,6 +236,13 @@ export const App = () => {
     void persistBookOrganization(book, organization);
   };
 
+  /** Toolbar-created category; visible immediately, even with no books yet. */
+  const createCategory = (name: string) => {
+    const trimmed = name.trim();
+    if (trimmed === '' || categories.includes(trimmed) || extraCategories.includes(trimmed)) return;
+    addExtraCategory(trimmed);
+  };
+
   const renameCategory = (from: string, to: string) => {
     if (to === from) return;
     for (const book of books.filter((item) => item.category === from)) {
@@ -236,6 +250,8 @@ export const App = () => {
       updateBook(book.id, organization);
       void persistBookOrganization(book, organization);
     }
+    // Empty (toolbar-created) categories live outside the book records.
+    renameExtraCategory(from, to);
   };
 
   const deleteCategory = (name: string) => {
@@ -244,6 +260,7 @@ export const App = () => {
       updateBook(book.id, organization);
       void persistBookOrganization(book, organization);
     }
+    removeExtraCategory(name);
   };
 
   const renameTag = (from: string, to: string) => {
@@ -468,6 +485,15 @@ export const App = () => {
             >
               {viewMode === 'grid' ? t('library.listView') : t('library.gridView')}
             </button>
+            {books.length > 0 ? (
+              <button
+                type="button"
+                className="view-toggle"
+                onClick={() => setCategoryAction({ type: 'create', name: '' })}
+              >
+                {t('library.newCategory')}
+              </button>
+            ) : null}
           </div>
 
           {books.length > 0 ? (
@@ -620,6 +646,17 @@ export const App = () => {
           onRename={renameTag}
           onDelete={deleteTag}
           onClose={() => setTagsOpen(false)}
+        />
+        <PromptDialog
+          open={categoryAction?.type === 'create'}
+          title={t('library.newCategory')}
+          label={t('library.categoryName')}
+          initialValue=""
+          onConfirm={(name) => {
+            if (categoryAction?.type === 'create') createCategory(name);
+            setCategoryAction(null);
+          }}
+          onClose={() => setCategoryAction(null)}
         />
         <PromptDialog
           open={categoryAction?.type === 'rename'}

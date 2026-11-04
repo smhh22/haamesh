@@ -19,6 +19,13 @@ export interface FolderFs {
   list(path: string): Promise<string[]>;
   /** Optional; without it, ensureDir leaves a marker file instead. */
   mkdir?(path: string): Promise<void>;
+  /**
+   * Optional fast paths for network filesystems: a missing file resolves to
+   * null instead of throwing, and a stat costs one round trip. Without them
+   * the provider pays an existence probe before every read.
+   */
+  readFileOrNull?(path: string): Promise<Uint8Array | null>;
+  stat?(path: string): Promise<number | null>;
 }
 
 export const createLocalFolderProvider = (
@@ -53,18 +60,30 @@ export const createLocalFolderProvider = (
 
     async readText(path) {
       const full = join(path);
+      if (fs.readFileOrNull) {
+        const data = await fs.readFileOrNull(full);
+        return data === null ? null : new TextDecoder().decode(data);
+      }
       if (!(await fs.exists(full))) return null;
       return new TextDecoder().decode(await fs.readFile(full));
     },
 
     async readBinary(path) {
       const full = join(path);
+      if (fs.readFileOrNull) {
+        const data = await fs.readFileOrNull(full);
+        return data === null ? null : data.slice().buffer;
+      }
       if (!(await fs.exists(full))) return null;
       return fs.readFile(full).then((data) => data.slice().buffer);
     },
 
     async head(path) {
       const full = join(path);
+      if (fs.stat) {
+        const size = await fs.stat(full);
+        return size === null ? null : { size };
+      }
       if (!(await fs.exists(full))) return null;
       const data = await fs.readFile(full);
       return { size: data.byteLength };

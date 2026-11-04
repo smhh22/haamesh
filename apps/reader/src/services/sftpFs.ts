@@ -103,6 +103,19 @@ export const createSftpFs = (connection: SftpConnection): FolderFs => {
       if (data === null) throw new Error(`ENOENT: ${relative}`);
       return new Uint8Array(data);
     },
+    /** Missing files resolve to null instead of throwing (saves a probe). */
+    async readFileOrNull(relative) {
+      const path = full(relative);
+      const data = await call((id) =>
+        invokeFs<number[] | null>('sftp_read', { session: id, path }),
+      );
+      return data === null ? null : new Uint8Array(data);
+    },
+    /** One metadata round trip; null when the path does not exist. */
+    async stat(relative) {
+      const path = full(relative);
+      return call((id) => invokeFs<number | null>('sftp_size', { session: id, path }));
+    },
     async writeFile(relative, data) {
       const path = full(relative);
       await call((id) =>

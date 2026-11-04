@@ -72,6 +72,44 @@ const createFakeFs = (): FolderFs & { dirs: Set<string> } => {
 describe('local folder provider', () => {
   describeProviderConformance(() => createLocalFolderProvider(createFakeFs()));
 
+  it('uses the stat fast path for head without an existence probe', async () => {
+    const calls: string[] = [];
+    const fs = createFakeFs();
+    const originalStat = async (path: string): Promise<number | null> => {
+      calls.push(`stat:${path}`);
+      try {
+        return (await fs.readFile(path)).byteLength;
+      } catch {
+        return null;
+      }
+    };
+    const provider = createLocalFolderProvider({ ...fs, stat: originalStat });
+    await provider.writeText('Hamesh/index.json', '{}');
+    expect(await provider.head('Hamesh/index.json')).toEqual({ size: 2 });
+    expect(await provider.head('Hamesh/missing.json')).toBeNull();
+    expect(calls).toEqual(['stat:Hamesh/index.json', 'stat:Hamesh/missing.json']);
+  });
+
+  it('reads through readFileOrNull without an existence probe', async () => {
+    const calls: string[] = [];
+    const fs = createFakeFs();
+    const provider = createLocalFolderProvider({
+      ...fs,
+      readFileOrNull: async (path) => {
+        calls.push(`read:${path}`);
+        try {
+          return await fs.readFile(path);
+        } catch {
+          return null;
+        }
+      },
+    });
+    await provider.writeText('a.txt', 'hello');
+    expect(await provider.readText('a.txt')).toBe('hello');
+    expect(await provider.readText('missing.txt')).toBeNull();
+    expect(calls).toEqual(['read:a.txt', 'read:missing.txt']);
+  });
+
   it('detects directories from filesystem structure', async () => {
     const fs = createFakeFs();
     const provider = createLocalFolderProvider(fs);

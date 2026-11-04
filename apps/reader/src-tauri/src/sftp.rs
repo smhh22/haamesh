@@ -127,6 +127,62 @@ async fn lookup_session(
         .ok_or_else(|| "sftp session not connected".to_string())
 }
 
+/// Create (or truncate) `path` and write `data` through one open, so the
+/// whole file lands behind a rename. russh-sftp's session-level `write()`
+/// opens with the WRITE flag only and fails with SSH_FX_NO_SUCH_FILE on a
+/// path that does not exist yet; `create()` is the create-or-truncate open
+/// the temp file needs.
+async fn write_created(sftp: &SftpSession, path: &str, data: &[u8]) -> Result<(), String> {
+    use tokio::io::AsyncWriteExt as _;
+    let mut file = sftp.create(path).await.map_err(|error| error.to_string())?;
+    let mut failure = file.write_all(data).await.err().map(|error| error.to_string());
+    if let Err(error) = file.close().await
+        && failure.is_none()
+    {
+        failure = Some(error.to_string());
+    }
+    failure.map_or(Ok(()), Err)
+}
+
+/// One atomic file write: create parent folders, write a sibling temp file,
+/// then rename it into place. A dropped connection can leave the temp file
+/// behind but never a truncated final file.
+async fn write_remote_file(sftp: &SftpSession, path: &str, data: &[u8]) -> Result<(), String> {
+    // Create parents implicitly, like the local-folder provider.
+    let mut prefix = String::new();
+    let parts: Vec<&str> = path.split('/').collect();
+    for part in &parts[..parts.len().saturating_sub(1)] {
+        if part.is_empty() {
+            continue;
+        }
+        prefix = format!("{prefix}/{part}");
+        ensure_dir(&sftp, &prefix).await?;
+    }
+    let unique = format!(
+        "{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default()
+    );
+    let temp = format!("{path}.tmp-{unique}");
+    if let Err(error) = write_created(sftp, &temp, data).await {
+        let _ = sftp.remove_file(temp.as_str()).await;
+        return Err(format!("write {temp}: {error}"));
+    }
+    if sftp.rename(temp.as_str(), path).await.is_err() {
+        // SFTP v3 servers may refuse to rename over an existing file; fall
+        // back to replacing it. The new file is already complete.
+        let _ = sftp.remove_file(path).await;
+        if let Err(error) = sftp.rename(temp.as_str(), path).await {
+            let _ = sftp.remove_file(temp.as_str()).await;
+            return Err(format!("rename {temp}: {error}"));
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn sftp_connect(
@@ -261,41 +317,7 @@ pub async fn sftp_write(
 ) -> Result<(), String> {
     validate_remote_path(&path)?;
     let sftp = lookup_session(&sessions, &session).await?;
-    // Create parents implicitly, like the local-folder provider.
-    let mut prefix = String::new();
-    let parts: Vec<&str> = path.split('/').collect();
-    for part in &parts[..parts.len().saturating_sub(1)] {
-        if part.is_empty() {
-            continue;
-        }
-        prefix = format!("{prefix}/{part}");
-        ensure_dir(&sftp, &prefix).await?;
-    }
-    // Write to a sibling temp file and rename, so a dropped connection cannot
-    // leave a truncated index (an empty index used to wedge every later sync).
-    let unique = format!(
-        "{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|duration| duration.as_nanos())
-            .unwrap_or_default()
-    );
-    let temp = format!("{path}.tmp-{unique}");
-    if let Err(error) = sftp.write(&temp, &data).await {
-        let _ = sftp.remove_file(&temp).await;
-        return Err(error.to_string());
-    }
-    if sftp.rename(&temp, &path).await.is_err() {
-        // SFTP v3 servers may refuse to rename over an existing file; fall
-        // back to replacing it. The new file is already complete.
-        let _ = sftp.remove_file(&path).await;
-        if let Err(error) = sftp.rename(&temp, &path).await {
-            let _ = sftp.remove_file(&temp).await;
-            return Err(format!("rename {temp}: {error}"));
-        }
-    }
-    Ok(())
+    write_remote_file(&sftp, &path, &data).await
 }
 
 #[tauri::command]
@@ -422,5 +444,97 @@ mod tests {
     fn host_keys_are_scoped_by_port() {
         assert_eq!(host_key("example.com", 22), "example.com:22");
         assert_ne!(host_key("example.com", 22), host_key("example.com", 2222));
+    }
+
+    /// Path of the OpenSSH standalone SFTP server, when this machine has one.
+    fn sftp_server_path() -> Option<&'static str> {
+        let candidates = [
+            "/usr/lib/openssh/sftp-server",
+            "/usr/lib/sftp-server",
+            "/usr/libexec/sftp-server",
+        ];
+        candidates
+            .into_iter()
+            .find(|path| std::path::Path::new(path).is_file())
+    }
+
+    /// Run `assertions` against a real OpenSSH sftp-server speaking the
+    /// protocol over stdio. The server serves the whole filesystem, so every
+    /// test path must stay under the unique scratch directory.
+    async fn with_sftp_server(assertions: impl AsyncFnOnce(SftpSession, String)) {
+        let Some(server) = sftp_server_path() else {
+            eprintln!("skipping: no standalone sftp-server binary on this machine");
+            return;
+        };
+        let scratch = std::env::temp_dir().join(format!(
+            "hamesh-sftp-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default()
+        ));
+        std::fs::create_dir_all(&scratch).expect("scratch dir");
+
+        let mut child = tokio::process::Command::new(server)
+            .arg("-e") // log to stderr, not syslog
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("spawn sftp-server");
+        let mut stdin = child.stdin.take().expect("stdin");
+        let mut stdout = child.stdout.take().expect("stdout");
+        let (client, server_side) = tokio::io::duplex(64 * 1024);
+        let (mut server_read, mut server_write) = tokio::io::split(server_side);
+        let downstream = tokio::spawn(async move {
+            let _ = tokio::io::copy(&mut server_read, &mut stdin).await;
+        });
+        let upstream = tokio::spawn(async move {
+            let _ = tokio::io::copy(&mut stdout, &mut server_write).await;
+        });
+        let sftp = SftpSession::new(client)
+            .await
+            .expect("sftp handshake with sftp-server");
+
+        assertions(sftp, scratch.to_string_lossy().into_owned()).await;
+
+        child.kill().await.ok();
+        downstream.abort();
+        upstream.abort();
+        let _ = tokio::fs::remove_dir_all(&scratch).await;
+    }
+
+    #[tokio::test]
+    async fn writes_creates_replaces_and_deletes_through_a_real_server() {
+        with_sftp_server(async |sftp, scratch| {
+            let path = format!("{scratch}/Hamesh/index.json");
+            write_remote_file(&sftp, &path, b"first").await.expect("fresh write");
+            assert_eq!(sftp.read(path.as_str()).await.expect("read back"), b"first");
+
+            // Replacing an existing file exercises the rename fallback.
+            write_remote_file(&sftp, &path, b"second version").await.expect("replace");
+            assert_eq!(sftp.read(path.as_str()).await.expect("read back"), b"second version");
+
+            // Deep paths get their parents implicitly.
+            let deep = format!("{scratch}/Hamesh/books/deadbeef/book.epub");
+            write_remote_file(&sftp, &deep, b"book bytes").await.expect("deep write");
+            assert_eq!(sftp.read(deep.as_str()).await.expect("read back"), b"book bytes");
+
+            // A missing file reads as absent, not as an error.
+            let missing = sftp.read(format!("{scratch}/Hamesh/nope.json")).await;
+            assert!(missing.is_err() && is_missing(&missing.unwrap_err()));
+
+            // No temp files are left behind.
+            let entries = sftp.read_dir(format!("{scratch}/Hamesh")).await.expect("list");
+            let names: Vec<String> =
+                entries.map(|entry| entry.file_name()).filter(|n| !n.starts_with('.')).collect();
+            assert!(names.contains(&"index.json".to_string()));
+            assert!(
+                names.iter().all(|name| !name.contains(".tmp-")),
+                "leftover temp files: {names:?}"
+            );
+        })
+        .await;
     }
 }

@@ -20,7 +20,9 @@ export const SCHEMA_VERSION = 2 as const;
  * needs no entry — decoding already tolerates unknown keys — and exists here
  * only to document the chain.
  */
-export const SCHEMA_MIGRATIONS: Readonly<Record<number, (doc: Record<string, unknown>) => Record<string, unknown>>> = {
+export const SCHEMA_MIGRATIONS: Readonly<
+  Record<number, (doc: Record<string, unknown>) => Record<string, unknown>>
+> = {
   // v1 → v2: categories and tags became ordinary record fields, so no
   // structural change is needed; recorded to keep the chain explicit.
   1: (doc) => doc,

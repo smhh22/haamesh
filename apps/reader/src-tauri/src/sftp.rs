@@ -135,7 +135,11 @@ async fn lookup_session(
 async fn write_created(sftp: &SftpSession, path: &str, data: &[u8]) -> Result<(), String> {
     use tokio::io::AsyncWriteExt as _;
     let mut file = sftp.create(path).await.map_err(|error| error.to_string())?;
-    let mut failure = file.write_all(data).await.err().map(|error| error.to_string());
+    let mut failure = file
+        .write_all(data)
+        .await
+        .err()
+        .map(|error| error.to_string());
     if let Err(error) = file.close().await
         && failure.is_none()
     {
@@ -509,26 +513,43 @@ mod tests {
     async fn writes_creates_replaces_and_deletes_through_a_real_server() {
         with_sftp_server(async |sftp, scratch| {
             let path = format!("{scratch}/Hamesh/index.json");
-            write_remote_file(&sftp, &path, b"first").await.expect("fresh write");
+            write_remote_file(&sftp, &path, b"first")
+                .await
+                .expect("fresh write");
             assert_eq!(sftp.read(path.as_str()).await.expect("read back"), b"first");
 
             // Replacing an existing file exercises the rename fallback.
-            write_remote_file(&sftp, &path, b"second version").await.expect("replace");
-            assert_eq!(sftp.read(path.as_str()).await.expect("read back"), b"second version");
+            write_remote_file(&sftp, &path, b"second version")
+                .await
+                .expect("replace");
+            assert_eq!(
+                sftp.read(path.as_str()).await.expect("read back"),
+                b"second version"
+            );
 
             // Deep paths get their parents implicitly.
             let deep = format!("{scratch}/Hamesh/books/deadbeef/book.epub");
-            write_remote_file(&sftp, &deep, b"book bytes").await.expect("deep write");
-            assert_eq!(sftp.read(deep.as_str()).await.expect("read back"), b"book bytes");
+            write_remote_file(&sftp, &deep, b"book bytes")
+                .await
+                .expect("deep write");
+            assert_eq!(
+                sftp.read(deep.as_str()).await.expect("read back"),
+                b"book bytes"
+            );
 
             // A missing file reads as absent, not as an error.
             let missing = sftp.read(format!("{scratch}/Hamesh/nope.json")).await;
             assert!(missing.is_err() && is_missing(&missing.unwrap_err()));
 
             // No temp files are left behind.
-            let entries = sftp.read_dir(format!("{scratch}/Hamesh")).await.expect("list");
-            let names: Vec<String> =
-                entries.map(|entry| entry.file_name()).filter(|n| !n.starts_with('.')).collect();
+            let entries = sftp
+                .read_dir(format!("{scratch}/Hamesh"))
+                .await
+                .expect("list");
+            let names: Vec<String> = entries
+                .map(|entry| entry.file_name())
+                .filter(|n| !n.starts_with('.'))
+                .collect();
             assert!(names.contains(&"index.json".to_string()));
             assert!(
                 names.iter().all(|name| !name.contains(".tmp-")),

@@ -22,6 +22,8 @@ import { sha256Hex } from './providers/awsV4';
 
 /** Downloads larger than this are rejected before they reach storage. */
 const MAX_BLOB_BYTES = 1024 * 1024 * 1024;
+/** Covers are thumbnails; anything larger is skipped rather than synced. */
+const MAX_COVER_BYTES = 512 * 1024;
 
 export type SyncKind = 'book' | 'reading' | 'note';
 
@@ -64,6 +66,9 @@ export interface SyncStore {
   setFieldClocks(entries: Array<readonly [string, string, string]>): Promise<void>;
   bookFile(sha256: string): Promise<{ ext: string; data: Uint8Array } | null>;
   saveBookFile(sha256: string, ext: string, data: Uint8Array): Promise<void>;
+  /** Cover image bytes for the book, or null when this device has none. */
+  coverFile(sha256: string): Promise<{ mime: string; data: Uint8Array } | null>;
+  saveCoverFile(sha256: string, mime: string, data: Uint8Array): Promise<void>;
 }
 
 export interface SyncOptions {
@@ -368,6 +373,23 @@ export const createSyncEngine = (options: SyncOptions) => {
             }
             await store.saveBookFile(sha256, ext, bytes);
             report.downloadedBlobs += 1;
+          }
+
+          // Covers are small, content-addressed images; they sync like blobs
+          // so every device gets the artwork its record references.
+          const remoteCover = await provider.head(`${REMOTE_ROOT}/covers/${sha256}`);
+          const localCover = await store.coverFile(sha256);
+          const coverMime =
+            typeof entry.fields.coverMime?.v === 'string' ? entry.fields.coverMime.v : 'image/jpeg';
+          if (!remoteCover && localCover) {
+            const copy = new Uint8Array(localCover.data.byteLength);
+            copy.set(localCover.data);
+            await provider.writeBinary(`${REMOTE_ROOT}/covers/${sha256}`, copy.buffer);
+          } else if (remoteCover && !localCover) {
+            const data = await provider.readBinary(`${REMOTE_ROOT}/covers/${sha256}`);
+            if (data && data.byteLength <= MAX_COVER_BYTES) {
+              await store.saveCoverFile(sha256, coverMime, new Uint8Array(data));
+            }
           }
         }
 

@@ -374,6 +374,29 @@ export const ReaderView = ({
         };
         doc.addEventListener('selectionchange', onPdfSelection);
         doc.addEventListener('pointerup', onPdfSelection);
+        // Right-click over a selection must offer the same actions as the
+        // selection popover instead of the browser menu.
+        doc.addEventListener('contextmenu', (event) => {
+          const selected = doc.getSelection();
+          if (!selected || selected.isCollapsed || selected.rangeCount === 0) return;
+          if (!selected.toString().trim()) return;
+          event.preventDefault();
+          capturePdfSelection();
+        });
+        // Ctrl+wheel zooms the page like the +/- keys; the listener lives on
+        // the page document because iframe wheel events never reach the
+        // parent window, and it must be cancellable to beat browser zoom.
+        doc.addEventListener(
+          'wheel',
+          (event) => {
+            if (!event.ctrlKey && !event.metaKey) return;
+            event.preventDefault();
+            const zoom = useReaderSettings.getState();
+            if (event.deltaY < 0) zoom.zoomIn();
+            else zoom.zoomOut();
+          },
+          { passive: false },
+        );
         return;
       }
 
@@ -418,6 +441,15 @@ export const ReaderView = ({
 
       doc.addEventListener('selectionchange', onChange);
       doc.addEventListener('pointerup', onChange);
+      // Right-click over a selection must offer the same actions as the
+      // selection popover instead of the browser menu.
+      doc.addEventListener('contextmenu', (event) => {
+        const selected = doc.getSelection();
+        if (!selected || selected.isCollapsed || selected.rangeCount === 0) return;
+        if (!selected.toString().trim()) return;
+        event.preventDefault();
+        captureSelection();
+      });
     };
 
     const onShowAnnotation = (event: Event) => {

@@ -179,6 +179,40 @@ h1 {
   outline-offset: 2px;
 }
 
+.library-import-actions {
+  display: flex;
+  gap: var(--hamesh-space-2);
+}
+
+/* A URL button is secondary to the main file import. */
+button.import-button {
+  background: var(--hamesh-color-surface);
+  color: var(--hamesh-color-ink);
+}
+
+.url-sync-choice {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--hamesh-space-2);
+}
+
+.url-sync-choice legend {
+  font-weight: 600;
+  padding-block-end: var(--hamesh-space-1);
+}
+
+.url-sync-option {
+  display: flex;
+  align-items: start;
+  gap: var(--hamesh-space-2);
+}
+
+.url-sync-option input {
+  margin-block-start: 0.3rem;
+}
+
 .visually-hidden {
   position: absolute;
   inline-size: 1px;

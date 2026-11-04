@@ -22,6 +22,8 @@ import { sha256Hex } from './providers/awsV4';
 
 /** Downloads larger than this are rejected before they reach storage. */
 const MAX_BLOB_BYTES = 1024 * 1024 * 1024;
+/** Covers are thumbnails; anything larger is skipped rather than synced. */
+const MAX_COVER_BYTES = 512 * 1024;
 
 export type SyncKind = 'book' | 'reading' | 'note';
 
@@ -64,6 +66,9 @@ export interface SyncStore {
   setFieldClocks(entries: Array<readonly [string, string, string]>): Promise<void>;
   bookFile(sha256: string): Promise<{ ext: string; data: Uint8Array } | null>;
   saveBookFile(sha256: string, ext: string, data: Uint8Array): Promise<void>;
+  /** Cover image bytes for the book, or null when this device has none. */
+  coverFile(sha256: string): Promise<{ mime: string; data: Uint8Array } | null>;
+  saveCoverFile(sha256: string, mime: string, data: Uint8Array): Promise<void>;
 }
 
 export interface SyncOptions {
@@ -71,6 +76,12 @@ export interface SyncOptions {
   clock: HybridLogicalClock;
   store: SyncStore;
   providers: StorageProvider[];
+  /**
+   * Fetcher for URL-sourced books (ADR-0019): a device missing the file of a
+   * `syncVia: 'url'` book downloads it from the record's sourceUrl. The app
+   * supplies a proxy-aware, scheme-allowlisted fetch; tests supply fakes.
+   */
+  fetchUrl?: (url: string) => Promise<ArrayBuffer>;
 }
 
 export interface SyncProviderReport {
@@ -172,7 +183,7 @@ const splitBookFields = (
 };
 
 export const createSyncEngine = (options: SyncOptions) => {
-  const { deviceId, clock, store, providers } = options;
+  const { deviceId, clock, store, providers, fetchUrl } = options;
 
   const INDEX_WRITE_ATTEMPTS = 3;
 
@@ -291,7 +302,18 @@ export const createSyncEngine = (options: SyncOptions) => {
           const blobPath = bookBlobPath(sha256, ext);
           const remoteBlob = await provider.head(blobPath);
           const localBlob = await store.bookFile(sha256);
-          if (!remoteBlob && localBlob) {
+          // URL-sourced books (ADR-0019) carry their provenance in the
+          // identifiers object: { sourceUrl, syncVia: 'url' }. They do not
+          // push their bytes; the link is the transfer path. A provider blob
+          // that already exists (an older client uploaded one) stays the
+          // preferred source.
+          const identifiers = entry.fields.identifiers?.v;
+          const meta =
+            typeof identifiers === 'object' && identifiers !== null
+              ? (identifiers as Record<string, unknown>)
+              : {};
+          const syncViaUrl = meta.syncVia === 'url';
+          if (!remoteBlob && localBlob && !syncViaUrl) {
             const copy = new Uint8Array(localBlob.data.byteLength);
             copy.set(localBlob.data);
             await provider.writeBinary(blobPath, copy.buffer);
@@ -318,6 +340,55 @@ export const createSyncEngine = (options: SyncOptions) => {
               }
               await store.saveBookFile(sha256, ext, new Uint8Array(data));
               report.downloadedBlobs += 1;
+            }
+          } else if (!remoteBlob && !localBlob && syncViaUrl && fetchUrl) {
+            const sourceUrl = meta.sourceUrl;
+            if (typeof sourceUrl !== 'string' || !/^https?:\/\//i.test(sourceUrl)) continue;
+            let data: ArrayBuffer;
+            try {
+              data = await fetchUrl(sourceUrl);
+            } catch {
+              // A dead link is not a data conflict: the record stays, the file
+              // can be fetched on a later round.
+              report.ok = false;
+              report.error = `could not download from the book's link: ${id}`;
+              report.code = 'NETWORK';
+              continue;
+            }
+            if (data.byteLength > MAX_BLOB_BYTES) {
+              report.ok = false;
+              report.error = `blob too large: ${sha256}`;
+              report.code = 'INTEGRITY';
+              continue;
+            }
+            const bytes = new Uint8Array(data);
+            // The link's content must match the recorded identity exactly; a
+            // changed file keeps local state untouched (ADR-0019).
+            const digest = await sha256Hex(bytes);
+            if (digest !== sha256) {
+              report.ok = false;
+              report.error = `downloaded book does not match its recorded hash: ${id}`;
+              report.code = 'INTEGRITY';
+              continue;
+            }
+            await store.saveBookFile(sha256, ext, bytes);
+            report.downloadedBlobs += 1;
+          }
+
+          // Covers are small, content-addressed images; they sync like blobs
+          // so every device gets the artwork its record references.
+          const remoteCover = await provider.head(`${REMOTE_ROOT}/covers/${sha256}`);
+          const localCover = await store.coverFile(sha256);
+          const coverMime =
+            typeof entry.fields.coverMime?.v === 'string' ? entry.fields.coverMime.v : 'image/jpeg';
+          if (!remoteCover && localCover) {
+            const copy = new Uint8Array(localCover.data.byteLength);
+            copy.set(localCover.data);
+            await provider.writeBinary(`${REMOTE_ROOT}/covers/${sha256}`, copy.buffer);
+          } else if (remoteCover && !localCover) {
+            const data = await provider.readBinary(`${REMOTE_ROOT}/covers/${sha256}`);
+            if (data && data.byteLength <= MAX_COVER_BYTES) {
+              await store.saveCoverFile(sha256, coverMime, new Uint8Array(data));
             }
           }
         }

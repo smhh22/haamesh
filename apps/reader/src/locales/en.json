@@ -42,7 +42,9 @@
       "PARSE_FAILED": "This file could not be read.",
       "BOOK_FILE_MISSING": "This book's file is missing from Hāmesh storage. Import it again.",
       "OPEN_FAILED": "This book could not be opened.",
-      "UNKNOWN": "Something went wrong while importing."
+      "UNKNOWN": "Something went wrong while importing.",
+      "URL_INVALID": "That link is not a valid http(s) address.",
+      "URL_FAILED": "The download failed. Check the link and try again."
     },
     "contentMatches": "In book contents",
     "removeTitle": "Remove this book?",
@@ -70,6 +72,12 @@
     "syncing": "Syncing…",
     "syncDone": "Synced",
     "syncFailed": "Sync failed",
+    "addFromUrl": "Add from URL",
+    "bookUrl": "Book URL",
+    "urlSyncQuestion": "How should this book sync?",
+    "urlSyncFile": "Sync the book file through my storage",
+    "urlSyncLink": "Sync only the link; other devices download it from the source",
+    "urlSyncHint": "The link's content is verified against the book's hash on every device.",
     "newCategoryOption": "New category…",
     "newCategoryName": "New category name",
     "moveCategoryUp": "Move category up",

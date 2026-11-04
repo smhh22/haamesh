@@ -60,7 +60,8 @@
     "renameTag": "تغییر نام",
     "deleteTag": "حذف",
     "deleteTagQuestion": "«{{name}}» از همهٔ کتاب‌ها حذف شود؟",
-    "tagUsedIn": "{{count}} کتاب"
+    "tagUsedIn": "{{count}} کتاب",
+    "newCategory": "دسته‌بندی جدید"
   },
   "reader": {
     "back": "کتابخانه",

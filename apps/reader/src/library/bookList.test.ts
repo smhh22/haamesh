@@ -107,4 +107,16 @@ describe('groupBooksByCategory', () => {
     expect(groups).toHaveLength(2);
     expect(new Set(groups.map((group) => group.key)).size).toBe(2);
   });
+
+  it('renders toolbar-created categories that no book carries yet', () => {
+    const groups = groupBooksByCategory(organized, new Intl.Collator('en'), ['Poetry', 'Studies']);
+    expect(groups.map((group) => group.category)).toEqual(['Fiction', 'Poetry', 'Studies', null]);
+    expect(groups[1]?.books).toHaveLength(0);
+    expect(groups[1]?.key).toBe('::cat:Poetry');
+  });
+
+  it('keeps an empty created category even when nothing matches the filter', () => {
+    const groups = groupBooksByCategory([], new Intl.Collator('en'), ['Poetry']);
+    expect(groups.map((group) => group.category)).toEqual(['Poetry']);
+  });
 });

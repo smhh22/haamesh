@@ -9,14 +9,24 @@ interface UiStore {
   locale: UiLocale;
   /** Library category sections the user collapsed (device-local). */
   collapsedGroups: string[];
+  /**
+   * Categories created from the library toolbar that no book carries yet;
+   * categories are derived from books, so these need their own registry
+   * (device-local, like collapsed state).
+   */
+  extraCategories: string[];
   setTheme: (theme: UiTheme) => void;
   setLocale: (locale: UiLocale) => void;
   toggleGroup: (key: string) => void;
+  addExtraCategory: (name: string) => void;
+  renameExtraCategory: (from: string, to: string) => void;
+  removeExtraCategory: (name: string) => void;
 }
 
 const STORAGE_KEY = 'hamesh.ui.theme';
 const LOCALE_KEY = 'hamesh.ui.locale';
 const COLLAPSED_KEY = 'hamesh.ui.collapsed-groups';
+const EXTRA_CATEGORIES_KEY = 'hamesh.ui.extra-categories';
 
 const readTheme = (): UiTheme => {
   try {
@@ -37,9 +47,9 @@ const readLocale = (): UiLocale => {
   return 'en';
 };
 
-const readCollapsedGroups = (): string[] => {
+const readStringList = (key: string): string[] => {
   try {
-    const raw = localStorage.getItem(COLLAPSED_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed)
@@ -65,7 +75,8 @@ export const applyTheme = (theme: UiTheme): void => {
 export const useUiStore = create<UiStore>((set) => ({
   theme: readTheme(),
   locale: readLocale(),
-  collapsedGroups: readCollapsedGroups(),
+  collapsedGroups: readStringList(COLLAPSED_KEY),
+  extraCategories: readStringList(EXTRA_CATEGORIES_KEY),
   toggleGroup: (key) =>
     set((state) => {
       const next = state.collapsedGroups.includes(key)
@@ -77,6 +88,44 @@ export const useUiStore = create<UiStore>((set) => ({
         // storage may be unavailable; the in-memory value still applies
       }
       return { collapsedGroups: next };
+    }),
+  addExtraCategory: (name) =>
+    set((state) => {
+      const trimmed = name.trim();
+      if (trimmed === '' || state.extraCategories.includes(trimmed)) return {};
+      const next = [...state.extraCategories, trimmed];
+      try {
+        localStorage.setItem(EXTRA_CATEGORIES_KEY, JSON.stringify(next));
+      } catch {
+        // storage may be unavailable; the in-memory value still applies
+      }
+      return { extraCategories: next };
+    }),
+  renameExtraCategory: (from, to) =>
+    set((state) => {
+      if (!state.extraCategories.includes(from)) return {};
+      const trimmed = to.trim();
+      const next =
+        trimmed !== '' && !state.extraCategories.includes(trimmed)
+          ? state.extraCategories.map((item) => (item === from ? trimmed : item))
+          : state.extraCategories.filter((item) => item !== from);
+      try {
+        localStorage.setItem(EXTRA_CATEGORIES_KEY, JSON.stringify(next));
+      } catch {
+        // storage may be unavailable; the in-memory value still applies
+      }
+      return { extraCategories: next };
+    }),
+  removeExtraCategory: (name) =>
+    set((state) => {
+      if (!state.extraCategories.includes(name)) return {};
+      const next = state.extraCategories.filter((item) => item !== name);
+      try {
+        localStorage.setItem(EXTRA_CATEGORIES_KEY, JSON.stringify(next));
+      } catch {
+        // storage may be unavailable; the in-memory value still applies
+      }
+      return { extraCategories: next };
     }),
   setTheme: (theme) => {
     try {

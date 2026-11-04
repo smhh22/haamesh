@@ -148,20 +148,12 @@ async fn write_created(sftp: &SftpSession, path: &str, data: &[u8]) -> Result<()
     failure.map_or(Ok(()), Err)
 }
 
-/// One atomic file write: create parent folders, write a sibling temp file,
-/// then rename it into place. A dropped connection can leave the temp file
-/// behind but never a truncated final file.
+/// One atomic file write: write a sibling temp file, then rename it into
+/// place. A dropped connection can leave the temp file behind but never a
+/// truncated final file. Parent folders are created only when the temp open
+/// reports a missing path — the common case (existing folder) is one round
+/// trip instead of one metadata lookup per ancestor.
 async fn write_remote_file(sftp: &SftpSession, path: &str, data: &[u8]) -> Result<(), String> {
-    // Create parents implicitly, like the local-folder provider.
-    let mut prefix = String::new();
-    let parts: Vec<&str> = path.split('/').collect();
-    for part in &parts[..parts.len().saturating_sub(1)] {
-        if part.is_empty() {
-            continue;
-        }
-        prefix = format!("{prefix}/{part}");
-        ensure_dir(&sftp, &prefix).await?;
-    }
     let unique = format!(
         "{}-{}",
         std::process::id(),
@@ -171,9 +163,14 @@ async fn write_remote_file(sftp: &SftpSession, path: &str, data: &[u8]) -> Resul
             .unwrap_or_default()
     );
     let temp = format!("{path}.tmp-{unique}");
-    if let Err(error) = write_created(sftp, &temp, data).await {
-        let _ = sftp.remove_file(temp.as_str()).await;
-        return Err(format!("write {temp}: {error}"));
+    if let Err(error) = write_created(sftp, temp.as_str(), data).await {
+        // The open failed because an ancestor is missing, not because of the
+        // write itself: create the parents and retry once.
+        ensure_parents(sftp, path).await?;
+        if let Err(error) = write_created(sftp, temp.as_str(), data).await {
+            let _ = sftp.remove_file(temp.as_str()).await;
+            return Err(format!("write {temp}: {error}"));
+        }
     }
     if sftp.rename(temp.as_str(), path).await.is_err() {
         // SFTP v3 servers may refuse to rename over an existing file; fall
@@ -183,6 +180,20 @@ async fn write_remote_file(sftp: &SftpSession, path: &str, data: &[u8]) -> Resul
             let _ = sftp.remove_file(temp.as_str()).await;
             return Err(format!("rename {temp}: {error}"));
         }
+    }
+    Ok(())
+}
+
+/// Create every missing ancestor of `path` (absolute path components only).
+async fn ensure_parents(sftp: &SftpSession, path: &str) -> Result<(), String> {
+    let mut prefix = String::new();
+    let parts: Vec<&str> = path.split('/').collect();
+    for part in &parts[..parts.len().saturating_sub(1)] {
+        if part.is_empty() {
+            continue;
+        }
+        prefix = format!("{prefix}/{part}");
+        ensure_dir(sftp, &prefix).await?;
     }
     Ok(())
 }
@@ -354,6 +365,23 @@ pub async fn sftp_exists(
     match sftp.try_exists(path).await {
         Ok(exists) => Ok(exists),
         Err(error) if is_missing(&error) => Ok(false),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+/// Size of a remote file, or `None` when it does not exist. One metadata
+/// round trip, so the sync engine's per-book HEAD probes stay cheap.
+#[tauri::command]
+pub async fn sftp_size(
+    sessions: tauri::State<'_, SftpSessions>,
+    session: String,
+    path: String,
+) -> Result<Option<u64>, String> {
+    validate_remote_path(&path)?;
+    let sftp = lookup_session(&sessions, &session).await?;
+    match sftp.metadata(path).await {
+        Ok(metadata) => Ok(Some(metadata.size.unwrap_or(0))),
+        Err(error) if is_missing(&error) => Ok(None),
         Err(error) => Err(error.to_string()),
     }
 }

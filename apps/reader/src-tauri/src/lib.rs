@@ -739,6 +739,7 @@ pub fn run() {
             sftp::sftp_write,
             sftp::sftp_mkdir,
             sftp::sftp_exists,
+            sftp::sftp_size,
             sftp::sftp_remove,
             sftp::sftp_list,
             sftp::sftp_disconnect,

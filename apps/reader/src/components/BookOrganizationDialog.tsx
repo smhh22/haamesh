@@ -1,12 +1,20 @@
+import type { Direction } from '@hamesh/core';
 import type { BookRecord } from '@hamesh/storage';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 
+export interface BookOrganization {
+  category: string | null;
+  tags: string[];
+  language: string | null;
+  direction: Direction;
+}
+
 interface BookOrganizationDialogProps {
   book: BookRecord | null;
   categories: string[];
-  onSave: (organization: { category: string | null; tags: string[] }) => void;
+  onSave: (organization: BookOrganization) => void;
   onClose: () => void;
 }
 
@@ -18,6 +26,22 @@ export const parseTags = (value: string): string[] => {
     .filter((tag) => tag.length > 0);
   return [...new Set(tags)];
 };
+
+/** Common language tags for the suggestions list; any BCP 47 tag is accepted. */
+const LANGUAGE_SUGGESTIONS = [
+  'fa',
+  'en',
+  'ar',
+  'he',
+  'ur',
+  'tr',
+  'fr',
+  'de',
+  'ru',
+  'zh',
+  'ja',
+  'ko',
+];
 
 /**
  * Category and tag editor for one book. Categories are free text with
@@ -47,6 +71,8 @@ const BookOrganizationDialogContent = ({
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const [category, setCategory] = useState(book.category ?? '');
   const [tags, setTags] = useState((book.tags ?? []).join('، '));
+  const [language, setLanguage] = useState(book.language ?? '');
+  const [direction, setDirection] = useState<Direction>(book.direction);
   const onCloseRef = useRef(onClose);
   useDialogFocus(true, dialogRef);
 
@@ -64,7 +90,13 @@ const BookOrganizationDialogContent = ({
 
   const submit = () => {
     const trimmed = category.trim();
-    onSave({ category: trimmed.length > 0 ? trimmed : null, tags: parseTags(tags) });
+    const trimmedLanguage = language.trim();
+    onSave({
+      category: trimmed.length > 0 ? trimmed : null,
+      tags: parseTags(tags),
+      language: trimmedLanguage.length > 0 ? trimmedLanguage : null,
+      direction,
+    });
   };
 
   return (
@@ -120,6 +152,36 @@ const BookOrganizationDialogContent = ({
               placeholder={t('library.tagsHint')}
               onChange={(event) => setTags(event.target.value)}
             />
+          </div>
+          <div className="setting-row is-field">
+            <label htmlFor="book-language">{t('library.language')}</label>
+            <input
+              className="text-input"
+              id="book-language"
+              type="text"
+              list="book-language-options"
+              value={language}
+              dir="auto"
+              placeholder={t('library.languageHint')}
+              onChange={(event) => setLanguage(event.target.value)}
+            />
+            <datalist id="book-language-options">
+              {LANGUAGE_SUGGESTIONS.map((tag) => (
+                <option key={tag} value={tag} />
+              ))}
+            </datalist>
+          </div>
+          <div className="setting-row is-field">
+            <label htmlFor="book-direction">{t('library.direction')}</label>
+            <select
+              className="sort-select"
+              id="book-direction"
+              value={direction}
+              onChange={(event) => setDirection(event.target.value === 'rtl' ? 'rtl' : 'ltr')}
+            >
+              <option value="ltr">{t('library.directionLtr')}</option>
+              <option value="rtl">{t('library.directionRtl')}</option>
+            </select>
           </div>
           <div className="setting-row">
             <span />

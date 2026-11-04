@@ -1,3 +1,4 @@
+import type { Direction } from '@hamesh/core';
 import { HybridLogicalClock } from '@hamesh/core';
 import type { DataStorePort } from '@hamesh/platform';
 import type { BookNoteRecord, BookRecord, LibrarySnapshot, ReadingState } from '@hamesh/storage';
@@ -160,19 +161,48 @@ export const persistBook = async (
 };
 
 /**
- * Persist a category/tag edit (ADR-0013). Only those two fields are stamped,
- * so a concurrent progress write on another device is not clobbered.
+ * Persist a book details edit (ADR-0013, plus language/direction overrides).
+ * Only the fields present in `organization` are stamped, so a concurrent
+ * progress write on another device is not clobbered.
  */
 export const persistBookOrganization = async (
   book: BookRecord,
-  organization: { category: string | null; tags: string[] },
+  organization: {
+    category: string | null;
+    tags: string[];
+    language?: string | null;
+    direction?: Direction;
+  },
 ): Promise<void> => {
   const updated: BookRecord = { ...book, ...organization, updatedAt: Date.now() };
   await activeStorage?.storage.books.upsert(updated);
   if (activeStorage && syncClock) {
+    const stamped: string[] = ['category', 'tags'];
+    if (organization.language !== undefined) stamped.push('language');
+    if (organization.direction !== undefined) stamped.push('direction');
+    await stampFieldClocks(activeStorage.clocks, syncClock, `book:${book.id}`, stamped);
+  }
+  await activeStorage?.flush();
+  // The JSON manifest remains the reload fallback; keep it in step.
+  await persistNow();
+};
+
+/**
+ * Persist a detected (or manually edited) language and direction. Only those
+ * two fields are stamped, so a concurrent progress write on another device is
+ * not clobbered.
+ */
+export const persistBookLanguage = async (
+  book: BookRecord,
+  language: string,
+  direction: Direction,
+): Promise<void> => {
+  const updated: BookRecord = { ...book, language, direction, updatedAt: Date.now() };
+  await activeStorage?.storage.books.upsert(updated);
+  if (activeStorage && syncClock) {
     await stampFieldClocks(activeStorage.clocks, syncClock, `book:${book.id}`, [
-      'category',
-      'tags',
+      'language',
+      'direction',
     ]);
   }
   await activeStorage?.flush();

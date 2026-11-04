@@ -61,7 +61,11 @@
     "deleteTag": "حذف",
     "deleteTagQuestion": "«{{name}}» از همهٔ کتاب‌ها حذف شود؟",
     "tagUsedIn": "{{count}} کتاب",
-    "newCategory": "دسته‌بندی جدید"
+    "newCategory": "دسته‌بندی جدید",
+    "languageHint": "خالی بگذارید تا هنگام باز کردن کتاب تشخیص داده شود",
+    "direction": "جهت خواندن",
+    "directionLtr": "چپ به راست",
+    "directionRtl": "راست به چپ"
   },
   "reader": {
     "back": "کتابخانه",

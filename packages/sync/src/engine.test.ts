@@ -4,6 +4,7 @@ import type { SyncRecord, SyncStore } from './engine';
 import { buildLocalDoc, createSyncEngine } from './engine';
 import type { StorageProvider } from './provider';
 import { ProviderError } from './provider';
+import { sha256Hex } from './providers/awsV4';
 import { createMemoryProvider } from './providers/memory';
 
 interface MemoryStore extends SyncStore {
@@ -121,6 +122,108 @@ const bookRecord = (id: string, title: string, updatedAt: number): SyncRecord =>
   },
   deleted: false,
   updatedAt,
+});
+
+describe('url-sourced books', () => {
+  it('syncs the link instead of the bytes and verifies downloads', async () => {
+    const provider = createMemoryProvider();
+    const bytes = new Uint8Array([7, 7, 7]);
+    // The identity is the hash of the actual bytes, like a real import.
+    const sha1 = await sha256Hex(bytes);
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    await storeA.localEdit({
+      ...bookRecord('1', 'Linked Book', 1000),
+      fields: {
+        ...bookRecord('1', 'Linked Book', 1000).fields,
+        sha256: sha1,
+        identifiers: {
+          sourceUrl: 'https://books.example/linked.epub',
+          syncVia: 'url',
+        },
+      },
+    });
+    blobs.set(sha1, bytes);
+    const fetches: string[] = [];
+    const fetchOk = async (url: string): Promise<ArrayBuffer> => {
+      fetches.push(url);
+      const blobBytes = blobs.get(sha1) ?? new Uint8Array();
+      const copy = new ArrayBuffer(blobBytes.byteLength);
+      new Uint8Array(copy).set(blobBytes);
+      return copy;
+    };
+
+    // Device A holds the file but must not upload it: the link is the path.
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+      fetchUrl: fetchOk,
+    }).sync();
+    expect(await provider.head(`Hamesh/books/${sha1}/book.epub`)).toBeNull();
+
+    // Device B has no file and fetches it from the link; the bytes verify.
+    wall = 2000;
+    const storeB = createMemoryStore('device-b', now, new Map());
+    const roundB = await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+      fetchUrl: fetchOk,
+    }).sync();
+    expect(roundB.ok).toBe(true);
+    expect(fetches).toEqual(['https://books.example/linked.epub']);
+    const file = await storeB.bookFile(sha1);
+    expect([...(file?.data ?? [])]).toEqual([7, 7, 7]);
+
+    // A link whose content no longer matches the identity is refused.
+    wall = 3000;
+    const storeC = createMemoryStore('device-c', now, new Map());
+    const fetchWrong = async (): Promise<ArrayBuffer> =>
+      new Uint8Array([9, 9, 9]).buffer as ArrayBuffer;
+    const roundC = await createSyncEngine({
+      deviceId: 'device-c',
+      clock: storeC.clock,
+      store: storeC,
+      providers: [provider],
+      fetchUrl: fetchWrong,
+    }).sync();
+    expect(roundC.ok).toBe(false);
+    expect(roundC.providers[0]?.code).toBe('INTEGRITY');
+    expect(await storeC.bookFile(sha1)).toBeNull();
+  });
+
+  it('ignores url sync for books without a fetcher', async () => {
+    const provider = createMemoryProvider();
+    const bytes = new Uint8Array([1]);
+    const sha2 = await sha256Hex(bytes);
+    const wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    await storeA.localEdit({
+      ...bookRecord('2', 'Linked Book', 1000),
+      fields: {
+        ...bookRecord('2', 'Linked Book', 1000).fields,
+        sha256: sha2,
+        identifiers: { syncVia: 'url' },
+      },
+    });
+    blobs.set(sha2, bytes);
+
+    // No fetchUrl injected: the engine neither uploads (no consent to sync
+    // bytes) nor fetches (no port), and the round still succeeds.
+    const report = await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    expect(report.ok).toBe(true);
+    expect(await provider.head(`Hamesh/books/${sha2}/book.epub`)).toBeNull();
+  });
 });
 
 describe('cover syncing', () => {

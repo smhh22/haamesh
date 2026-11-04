@@ -7,7 +7,6 @@
 import { formatHlc, type HybridLogicalClock } from '@hamesh/core';
 import type { Envelope } from './envelope';
 import type { IndexDoc, RecordDoc } from './indexDoc';
-import { SyncError } from './indexDoc';
 import {
   decodeIndexDoc,
   diffPull,
@@ -15,6 +14,7 @@ import {
   encodeIndexDoc,
   mergeIndexDoc,
   SCHEMA_VERSION,
+  SyncError,
 } from './indexDoc';
 import type { StorageProvider } from './provider';
 import { ProviderError } from './provider';

@@ -10,9 +10,9 @@ import {
   mergeAllIndexDocs,
   mergeIndexDoc,
   SCHEMA_MIGRATIONS,
+  SCHEMA_VERSION,
   SUPPORTED_SCHEMA_VERSIONS,
   SyncError,
-  SCHEMA_VERSION,
 } from './indexDoc';
 
 const deviceArb = fc.constantFrom('device-a', 'device-b', 'device-c');

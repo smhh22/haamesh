@@ -840,6 +840,46 @@ test('lets the reader override PDF language and direction', async ({ page }) => 
   await expect(reopened.getByLabel('Reading direction')).toHaveValue('rtl');
 });
 
+test('zooms a PDF with ctrl+wheel and shows highlight actions on right-click', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(pdfFixture);
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
+
+  const frame = page.frames().find((item) => item.url().startsWith('blob:'));
+  expect(frame).toBeTruthy();
+  await frame!.waitForSelector('.textLayer span');
+
+  // Ctrl+wheel up zooms from the default fit mode to the first step.
+  await frame!.evaluate(() => {
+    const span = document.querySelector('.textLayer span');
+    if (!span) throw new Error('no text layer span');
+    span.dispatchEvent(
+      new WheelEvent('wheel', { deltaY: -120, ctrlKey: true, bubbles: true, cancelable: true }),
+    );
+  });
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-zoom', '1.25');
+
+  // Right-click over a selection opens the highlight popover instead of the
+  // native menu.
+  await frame!.evaluate(() => {
+    const span = document.querySelector('.textLayer span');
+    if (!span) throw new Error('no text layer span');
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    span.dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }),
+    );
+  });
+  await expect(page.locator('.selection-popover')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Yellow' })).toBeVisible();
+});
+
 test('highlights PDF text and redraws it after reload', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(pdfFixture);

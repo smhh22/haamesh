@@ -29,6 +29,18 @@ describe('isProviderConfigured', () => {
       isProviderConfigured({ ...sftp, baseUrl: 'host', username: 'u', hasPassword: true }),
     ).toBe(true);
     expect(isProviderConfigured({ ...sftp, baseUrl: 'host', username: 'u' })).toBe(false);
+    // A picked key file also satisfies the credential requirement (Android).
+    expect(
+      isProviderConfigured({
+        ...sftp,
+        baseUrl: 'host',
+        username: 'u',
+        sftpKeyData: '-----BEGIN OPENSSH PRIVATE KEY-----',
+      }),
+    ).toBe(true);
+    expect(
+      isProviderConfigured({ ...sftp, baseUrl: 'host', username: 'u', hasSftpKeyData: true }),
+    ).toBe(true);
 
     const s3 = newProvider('s3');
     expect(isProviderConfigured(s3)).toBe(false);

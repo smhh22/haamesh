@@ -7,7 +7,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use russh::client::{self, AuthResult, Handle};
-use russh::keys::{HashAlg, PrivateKeyWithHashAlg, PublicKeyOrCertificate, load_secret_key};
+use russh::keys::{
+    HashAlg, PrivateKeyWithHashAlg, PublicKeyOrCertificate, decode_secret_key, load_secret_key,
+};
 use russh_sftp::client::SftpSession;
 use tauri::Manager;
 
@@ -208,6 +210,7 @@ pub async fn sftp_connect(
     username: String,
     password: Option<String>,
     key_path: Option<String>,
+    key_data: Option<String>,
     key_passphrase: Option<String>,
     base: Option<String>,
 ) -> Result<String, String> {
@@ -231,12 +234,29 @@ pub async fn sftp_connect(
         .await
         .map_err(|error| format!("connect failed: {error}"))?;
 
-    let auth = match (password.as_deref(), key_path.as_deref()) {
-        (Some(password), _) if !password.is_empty() => handle
+    // A picked key file arrives as data (works on Android sandboxes where the
+    // app cannot read arbitrary paths); a typed path stays for desktop users.
+    let auth = match (
+        password.as_deref(),
+        key_data.as_deref(),
+        key_path.as_deref(),
+    ) {
+        (Some(password), _, _) if !password.is_empty() => handle
             .authenticate_password(username.clone(), password)
             .await
             .map_err(|error| error.to_string())?,
-        (_, Some(path)) if !path.is_empty() => {
+        (_, Some(data), _) if !data.trim().is_empty() => {
+            let secret = decode_secret_key(data, key_passphrase.as_deref())
+                .map_err(|error| format!("cannot parse private key: {error}"))?;
+            handle
+                .authenticate_publickey(
+                    username.clone(),
+                    PrivateKeyWithHashAlg::new(Arc::new(secret), Some(HashAlg::Sha256)),
+                )
+                .await
+                .map_err(|error| error.to_string())?
+        }
+        (_, _, Some(path)) if !path.is_empty() => {
             let secret = load_secret_key(PathBuf::from(path), key_passphrase.as_deref())
                 .map_err(|error| format!("cannot read private key: {error}"))?;
             handle

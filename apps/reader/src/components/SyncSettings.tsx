@@ -360,6 +360,34 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
                   />
                 </div>
                 <div className="setting-row is-field">
+                  <label htmlFor={`sync-sftp-key-file-${provider.id}`}>
+                    {t('sync.sftpKeyFile')}
+                  </label>
+                  <input
+                    className="visually-hidden"
+                    id={`sync-sftp-key-file-${provider.id}`}
+                    type="file"
+                    onChange={async (event) => {
+                      const file = event.currentTarget.files?.[0];
+                      if (file) {
+                        // The key text goes to the OS keychain on save; on
+                        // Android the sandbox cannot read typed paths, so the
+                        // picked file is the only workable source there.
+                        patchProvider(provider.id, {
+                          sftpKeyData: await file.text(),
+                          hasSftpKeyData: false,
+                        });
+                      }
+                      event.currentTarget.value = '';
+                    }}
+                  />
+                  <label className="text-button" htmlFor={`sync-sftp-key-file-${provider.id}`}>
+                    {provider.sftpKeyData
+                      ? t('sync.sftpKeyFilePicked')
+                      : t('sync.sftpKeyFileChoose')}
+                  </label>
+                </div>
+                <div className="setting-row is-field">
                   <label htmlFor={`sync-sftp-base-${provider.id}`}>
                     {t('sync.sftpRemoteBase')}
                   </label>

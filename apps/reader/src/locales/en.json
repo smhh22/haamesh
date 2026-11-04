@@ -77,7 +77,11 @@
     "urlSyncQuestion": "How should this book sync?",
     "urlSyncFile": "Sync the book file through my storage",
     "urlSyncLink": "Sync only the link; other devices download it from the source",
-    "urlSyncHint": "The link's content is verified against the book's hash on every device."
+    "urlSyncHint": "The link's content is verified against the book's hash on every device.",
+    "newCategoryOption": "New category…",
+    "newCategoryName": "New category name",
+    "moveCategoryUp": "Move category up",
+    "moveCategoryDown": "Move category down"
   },
   "reader": {
     "back": "Library",
@@ -234,7 +238,8 @@
       "INTEGRITY": "A downloaded book failed its integrity check.",
       "NETWORK": "Could not reach the server.",
       "NOT_FOUND": "The remote folder was not found.",
-      "UNKNOWN": "The sync round failed."
+      "UNKNOWN": "The sync round failed.",
+      "SCHEMA": "This storage was written by a newer version of Hāmesh. Update the app, then sync again."
     }
   },
   "update": {

@@ -119,4 +119,11 @@ describe('groupBooksByCategory', () => {
     const groups = groupBooksByCategory([], new Intl.Collator('en'), ['Poetry']);
     expect(groups.map((group) => group.category)).toEqual(['Poetry']);
   });
+
+  it('follows the manual order, then alphabetical for the rest', () => {
+    const groups = groupBooksByCategory(organized, new Intl.Collator('en'), [], ['Studies']);
+    // 'Studies' is pinned first; 'Fiction' (unordered) stays alphabetical
+    // after the ordered ones; uncategorized remains last.
+    expect(groups.map((group) => group.category)).toEqual(['Studies', 'Fiction', null]);
+  });
 });

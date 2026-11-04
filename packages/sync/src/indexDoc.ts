@@ -11,8 +11,49 @@ import { mergeEnvelope, mergeEnvelopeOpt } from './envelope';
 
 export const SCHEMA_VERSION = 2 as const;
 
-/** v1 (pre-categories) documents are read and upgraded on the next write. */
-export const SUPPORTED_SCHEMA_VERSIONS: readonly number[] = [1, 2];
+/**
+ * Stepwise wire-format upgrades. `SCHEMA_MIGRATIONS[v]` upgrades a document
+ * written with schema version `v` to `v + 1`, so an app that only knows
+ * version N still reads every older version and rewrites the index at N.
+ * Each migration must be total: it may reshape known keys, but unknown keys
+ * are preserved by the decoder regardless. A version that only ADDS fields
+ * needs no entry — decoding already tolerates unknown keys — and exists here
+ * only to document the chain.
+ */
+export const SCHEMA_MIGRATIONS: Readonly<
+  Record<number, (doc: Record<string, unknown>) => Record<string, unknown>>
+> = {
+  // v1 → v2: categories and tags became ordinary record fields, so no
+  // structural change is needed; recorded to keep the chain explicit.
+  1: (doc) => doc,
+};
+
+/** Versions this build can read: current and everything the migration chain reaches. */
+export const SUPPORTED_SCHEMA_VERSIONS: readonly number[] = (() => {
+  const supported: number[] = [SCHEMA_VERSION];
+  for (let version = SCHEMA_VERSION - 1; version >= 1; version -= 1) {
+    if (!SCHEMA_MIGRATIONS[version]) break;
+    supported.push(version);
+  }
+  return supported;
+})();
+
+/** Upgrade a parsed document from `fromVersion` to the current schema. */
+const migrateToCurrent = (
+  raw: Record<string, unknown>,
+  fromVersion: number,
+): Record<string, unknown> => {
+  let doc = raw;
+  for (let version = fromVersion; version < SCHEMA_VERSION; version += 1) {
+    const step = SCHEMA_MIGRATIONS[version];
+    if (!step) {
+      throw new SyncError('SCHEMA_VERSION', `no migration from schemaVersion ${version}`);
+    }
+    doc = step(doc);
+    doc.schemaVersion = version + 1;
+  }
+  return doc;
+};
 
 export class SyncError extends Error {
   readonly code: 'SCHEMA_VERSION' | 'MALFORMED';
@@ -107,23 +148,25 @@ export const decodeIndexDoc = (input: unknown): IndexDoc => {
       `unsupported schemaVersion: ${String(raw.schemaVersion)}`,
     );
   }
+  // Older versions upgrade stepwise to the current shape before decoding.
+  const migrated = migrateToCurrent(raw as Record<string, unknown>, raw.schemaVersion);
   const doc = emptyIndexDoc();
   // Unknown top-level keys belong to newer clients; keep them so a rewrite
   // does not silently drop additive data (AGENTS.md wire invariant).
   const known = new Set(['schemaVersion', 'devices', 'books', 'notes']);
   const extra: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries(migrated)) {
     if (!known.has(key)) extra[key] = value;
   }
   if (Object.keys(extra).length > 0) doc.extra = extra;
-  for (const [key, value] of Object.entries((raw.devices ?? {}) as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries((migrated.devices ?? {}) as Record<string, unknown>)) {
     const lastWrite = (value as DeviceDoc | undefined)?.lastWrite;
     doc.devices[key] = { lastWrite: lastWrite && isEnvelope(lastWrite) ? lastWrite : null };
   }
-  for (const [key, value] of Object.entries((raw.books ?? {}) as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries((migrated.books ?? {}) as Record<string, unknown>)) {
     doc.books[key] = decodeRecordDoc(value, `books.${key}`);
   }
-  for (const [key, value] of Object.entries((raw.notes ?? {}) as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries((migrated.notes ?? {}) as Record<string, unknown>)) {
     doc.notes[key] = decodeRecordDoc(value, `notes.${key}`);
   }
   return doc;

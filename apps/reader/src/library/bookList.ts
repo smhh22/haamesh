@@ -24,7 +24,8 @@ const categoryFromKey = (key: string): string | null =>
   key === UNCATEGORIZED_KEY ? null : key.slice(CATEGORY_PREFIX.length);
 
 /**
- * Group filtered books by category. Named categories sort with the active
+ * Group filtered books by category. Named categories follow the user's manual
+ * order where one exists, then the rest alphabetically with the active
  * collator; books without a category always come last. `extraCategories`
  * renders toolbar-created sections that no book carries yet; duplicates of
  * categories that do have books are ignored.
@@ -33,6 +34,7 @@ export const groupBooksByCategory = (
   books: BookRecord[],
   collator: Intl.Collator = new Intl.Collator(),
   extraCategories: string[] = [],
+  order: readonly string[] = [],
 ): BookGroup[] => {
   const buckets = new Map<string, BookRecord[]>();
   for (const book of books) {
@@ -50,10 +52,15 @@ export const groupBooksByCategory = (
     category: categoryFromKey(key),
     books: grouped,
   }));
+  const rank = (category: string): number => {
+    const index = order.indexOf(category);
+    return index === -1 ? order.length : index;
+  };
   groups.sort((a, b) => {
     if (a.category === null) return 1;
     if (b.category === null) return -1;
-    return collator.compare(a.category, b.category);
+    const byOrder = rank(a.category) - rank(b.category);
+    return byOrder !== 0 ? byOrder : collator.compare(a.category, b.category);
   });
   return groups;
 };

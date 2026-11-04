@@ -567,6 +567,16 @@ textarea::placeholder {
   cursor: pointer;
 }
 
+.view-toggle:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.view-toggle.is-sync-failed {
+  border-color: var(--hamesh-color-danger, #eb5757);
+  color: var(--hamesh-color-danger, #eb5757);
+}
+
 .book-grid.is-list {
   grid-template-columns: 1fr;
 }

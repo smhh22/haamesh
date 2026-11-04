@@ -41,6 +41,7 @@ import {
   persistBookOrganization,
   persistReadingState,
 } from './services/libraryPersistence';
+import { isProviderConfigured, loadSyncConfig, runSync } from './services/syncService';
 import { useLibraryStore } from './stores/libraryStore';
 import { useReadingStore } from './stores/readingStore';
 import { type UiLocale as Locale, useUiStore } from './stores/uiStore';
@@ -86,6 +87,9 @@ export const App = () => {
   const [contentMatches, setContentMatches] = useState<ContentMatch[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  /** Library toolbar sync button: idle → syncing → done | failed. */
+  const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'done' | 'failed'>('idle');
+  const [hasSyncProvider, setHasSyncProvider] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [readerSession, setReaderSession] = useState<{
     book: BookRecord;
@@ -156,6 +160,27 @@ export const App = () => {
     document.documentElement.dir = direction;
     void i18n.changeLanguage(locale);
   }, [direction, i18n, locale]);
+
+  // The toolbar sync button exists only when a provider is configured; the
+  // configuration can change while the settings dialog is open, so re-check
+  // when it closes.
+  useEffect(() => {
+    if (settingsOpen) return;
+    const config = loadSyncConfig();
+    setHasSyncProvider(
+      config.providers.some((entry) => entry.enabled && isProviderConfigured(entry)),
+    );
+  }, [settingsOpen]);
+
+  const runLibrarySync = async () => {
+    setSyncState('syncing');
+    try {
+      const report = await runSync(loadSyncConfig());
+      setSyncState(report.ok ? 'done' : 'failed');
+    } catch {
+      setSyncState('failed');
+    }
+  };
 
   const toggleLocale = () => {
     setLocale(locale === 'en' ? 'fa' : 'en');
@@ -489,6 +514,22 @@ export const App = () => {
                 onClick={() => setCategoryAction({ type: 'create', name: '' })}
               >
                 {t('library.newCategory')}
+              </button>
+            ) : null}
+            {hasSyncProvider ? (
+              <button
+                type="button"
+                className={syncState === 'failed' ? 'view-toggle is-sync-failed' : 'view-toggle'}
+                disabled={syncState === 'syncing'}
+                onClick={() => void runLibrarySync()}
+              >
+                {syncState === 'syncing'
+                  ? t('library.syncing')
+                  : syncState === 'done'
+                    ? t('library.syncDone')
+                    : syncState === 'failed'
+                      ? t('library.syncFailed')
+                      : t('library.syncNow')}
               </button>
             ) : null}
           </div>

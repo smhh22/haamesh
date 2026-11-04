@@ -391,6 +391,16 @@ test('keeps the last failed sync round visible', async ({ page }) => {
   await expect(failure).toContainText('network error: TypeError: Failed to fetch');
   await expect(failure).not.toContainText(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/i);
 
+  // The library toolbar carries the same action: run a round and surface the
+  // failure without opening settings.
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  const librarySync = page.locator('.library-tools').getByRole('button', { name: 'Sync now' });
+  await expect(librarySync).toBeVisible();
+  await librarySync.click();
+  await expect(
+    page.locator('.library-tools').getByRole('button', { name: 'Sync failed' }),
+  ).toBeVisible({ timeout: 15_000 });
+
   // The report is persisted, so reopening the app still explains the failure.
   await page.reload();
   await page.getByRole('button', { name: 'Settings' }).click();

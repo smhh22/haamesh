@@ -65,7 +65,11 @@
     "languageHint": "خالی بگذارید تا هنگام باز کردن کتاب تشخیص داده شود",
     "direction": "جهت خواندن",
     "directionLtr": "چپ به راست",
-    "directionRtl": "راست به چپ"
+    "directionRtl": "راست به چپ",
+    "syncNow": "همگام‌سازی",
+    "syncing": "در حال همگام‌سازی…",
+    "syncDone": "همگام‌سازی شد",
+    "syncFailed": "همگام‌سازی نشد"
   },
   "reader": {
     "back": "کتابخانه",

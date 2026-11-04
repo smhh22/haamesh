@@ -9,6 +9,9 @@ import {
   encodeIndexDoc,
   mergeAllIndexDocs,
   mergeIndexDoc,
+  SCHEMA_MIGRATIONS,
+  SUPPORTED_SCHEMA_VERSIONS,
+  SyncError,
   SCHEMA_VERSION,
 } from './indexDoc';
 
@@ -192,5 +195,65 @@ describe('unknown key preservation', () => {
     const doc = decodeIndexDoc(raw);
     const roundTripped = JSON.parse(encodeIndexDoc(doc)) as Record<string, unknown>;
     expect(roundTripped.futureFeature).toEqual({ enabled: true });
+  });
+
+  it('keeps unknown record fields through decode, merge, and encode', () => {
+    const raw = {
+      schemaVersion: SCHEMA_VERSION,
+      devices: {},
+      books: {
+        book1: {
+          fields: {
+            title: { v: 'Book', t: 'a#1' },
+            futureField: { v: 42, t: 'a#2' },
+          },
+          deletedAt: null,
+        },
+      },
+      notes: {},
+    };
+    const doc = decodeIndexDoc(raw);
+    const roundTripped = JSON.parse(encodeIndexDoc(doc)) as {
+      books: Record<string, { fields: Record<string, unknown> }>;
+    };
+    expect(roundTripped.books.book1?.fields.futureField).toEqual({ v: 42, t: 'a#2' });
+  });
+});
+
+describe('schema migrations', () => {
+  it('upgrades a v1 document and rewrites it at the current version', () => {
+    const raw = {
+      schemaVersion: 1,
+      devices: { 'device-a': { lastWrite: { v: 'a#1', t: 'a#1' } } },
+      books: {
+        book1: { fields: { title: { v: 'Old', t: 'a#3' } }, deletedAt: null },
+      },
+      notes: {},
+    };
+    const doc = decodeIndexDoc(raw);
+    expect(doc.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(doc.books.book1?.fields.title).toEqual({ v: 'Old', t: 'a#3' });
+    const roundTripped = JSON.parse(encodeIndexDoc(doc)) as { schemaVersion: number };
+    expect(roundTripped.schemaVersion).toBe(SCHEMA_VERSION);
+  });
+
+  it('lists every version the migration chain reaches as supported', () => {
+    expect(SUPPORTED_SCHEMA_VERSIONS).toContain(1);
+    expect(SUPPORTED_SCHEMA_VERSIONS).toContain(SCHEMA_VERSION);
+    for (let version = 1; version < SCHEMA_VERSION; version += 1) {
+      expect(SCHEMA_MIGRATIONS[version]).toBeTypeOf('function');
+    }
+  });
+
+  it('rejects documents from newer schemas with a distinct error', () => {
+    expect(() => decodeIndexDoc({ schemaVersion: SCHEMA_VERSION + 1 })).toThrowError(
+      /unsupported schemaVersion/,
+    );
+    try {
+      decodeIndexDoc({ schemaVersion: SCHEMA_VERSION + 1 });
+    } catch (error) {
+      expect(error).toBeInstanceOf(SyncError);
+      expect((error as SyncError).code).toBe('SCHEMA_VERSION');
+    }
   });
 });

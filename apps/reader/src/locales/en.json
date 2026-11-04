@@ -226,7 +226,8 @@
       "INTEGRITY": "A downloaded book failed its integrity check.",
       "NETWORK": "Could not reach the server.",
       "NOT_FOUND": "The remote folder was not found.",
-      "UNKNOWN": "The sync round failed."
+      "UNKNOWN": "The sync round failed.",
+      "SCHEMA": "This storage was written by a newer version of Hāmesh. Update the app, then sync again."
     }
   },
   "update": {

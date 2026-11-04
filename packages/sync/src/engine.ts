@@ -7,6 +7,7 @@
 import { formatHlc, type HybridLogicalClock } from '@hamesh/core';
 import type { Envelope } from './envelope';
 import type { IndexDoc, RecordDoc } from './indexDoc';
+import { SyncError } from './indexDoc';
 import {
   decodeIndexDoc,
   diffPull,
@@ -343,7 +344,15 @@ export const createSyncEngine = (options: SyncOptions) => {
     } catch (error) {
       report.ok = false;
       report.error = error instanceof Error ? error.message : String(error);
-      report.code = error instanceof ProviderError ? error.code : 'UNKNOWN';
+      // A schema mismatch means another device wrote with a newer Hāmesh;
+      // surface it distinctly so the UI can ask for an app update instead of
+      // reporting a generic failure.
+      report.code =
+        error instanceof SyncError && error.code === 'SCHEMA_VERSION'
+          ? 'SCHEMA'
+          : error instanceof ProviderError
+            ? error.code
+            : 'UNKNOWN';
       return report;
     }
   };

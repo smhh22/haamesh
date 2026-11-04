@@ -325,7 +325,7 @@ export const createSyncEngine = (options: SyncOptions) => {
           } else if (remoteBlob && !localBlob) {
             // The index is untrusted: refuse before reading so a hostile
             // storage cannot push an oversized body into memory.
-            if (remoteBlob.size > MAX_BLOB_BYTES) {
+            if ((remoteBlob.size ?? 0) > MAX_BLOB_BYTES) {
               report.ok = false;
               report.error = `blob too large: ${sha256}`;
               report.code = 'INTEGRITY';
@@ -394,7 +394,7 @@ export const createSyncEngine = (options: SyncOptions) => {
             copy.set(localCover.data);
             await provider.writeBinary(`${REMOTE_ROOT}/covers/${sha256}`, copy.buffer);
           } else if (remoteCover && !localCover) {
-            if (remoteCover.size <= MAX_COVER_BYTES) {
+            if ((remoteCover.size ?? Infinity) <= MAX_COVER_BYTES) {
               const data = await provider.readBinary(`${REMOTE_ROOT}/covers/${sha256}`);
               if (data && data.byteLength <= MAX_COVER_BYTES) {
                 await store.saveCoverFile(sha256, coverMime, new Uint8Array(data));

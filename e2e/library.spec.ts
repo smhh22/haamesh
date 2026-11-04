@@ -163,6 +163,25 @@ test('configures a Dropbox provider with a user-owned app', async ({ page }) => 
   await expect(dialog.getByText('Needs setup')).toBeVisible();
 });
 
+test('imports a book from a URL and records the sync choice', async ({ page }) => {
+  const epub = await (await import('node:fs/promises')).readFile(fixture);
+  // The app's fetch of the book is answered locally; no network involved.
+  await page.route('https://books.example/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/epub+zip', body: epub }),
+  );
+  await page.goto('/');
+
+  await page.getByRole('button', { name: 'Add from URL' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add from URL' });
+  await dialog.getByLabel('Book URL').fill('https://books.example/persian.epub');
+  await dialog.getByText('Sync only the link; other devices download it from the source').click();
+  await dialog.getByRole('button', { name: 'Import books' }).click();
+  await expect(dialog).toHaveCount(0);
+
+  const card = page.locator('.book-card', { hasText: 'نمونه کتاب' });
+  await expect(card).toBeVisible();
+});
+
 test('organizes books into a category with tags and filters by them', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(fixture);

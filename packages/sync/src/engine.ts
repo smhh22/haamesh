@@ -70,6 +70,12 @@ export interface SyncOptions {
   clock: HybridLogicalClock;
   store: SyncStore;
   providers: StorageProvider[];
+  /**
+   * Fetcher for URL-sourced books (ADR-0019): a device missing the file of a
+   * `syncVia: 'url'` book downloads it from the record's sourceUrl. The app
+   * supplies a proxy-aware, scheme-allowlisted fetch; tests supply fakes.
+   */
+  fetchUrl?: (url: string) => Promise<ArrayBuffer>;
 }
 
 export interface SyncProviderReport {
@@ -171,7 +177,7 @@ const splitBookFields = (
 };
 
 export const createSyncEngine = (options: SyncOptions) => {
-  const { deviceId, clock, store, providers } = options;
+  const { deviceId, clock, store, providers, fetchUrl } = options;
 
   const INDEX_WRITE_ATTEMPTS = 3;
 
@@ -290,7 +296,18 @@ export const createSyncEngine = (options: SyncOptions) => {
           const blobPath = bookBlobPath(sha256, ext);
           const remoteBlob = await provider.head(blobPath);
           const localBlob = await store.bookFile(sha256);
-          if (!remoteBlob && localBlob) {
+          // URL-sourced books (ADR-0019) carry their provenance in the
+          // identifiers object: { sourceUrl, syncVia: 'url' }. They do not
+          // push their bytes; the link is the transfer path. A provider blob
+          // that already exists (an older client uploaded one) stays the
+          // preferred source.
+          const identifiers = entry.fields.identifiers?.v;
+          const meta =
+            typeof identifiers === 'object' && identifiers !== null
+              ? (identifiers as Record<string, unknown>)
+              : {};
+          const syncViaUrl = meta.syncVia === 'url';
+          if (!remoteBlob && localBlob && !syncViaUrl) {
             const copy = new Uint8Array(localBlob.data.byteLength);
             copy.set(localBlob.data);
             await provider.writeBinary(blobPath, copy.buffer);
@@ -318,6 +335,38 @@ export const createSyncEngine = (options: SyncOptions) => {
               await store.saveBookFile(sha256, ext, new Uint8Array(data));
               report.downloadedBlobs += 1;
             }
+          } else if (!remoteBlob && !localBlob && syncViaUrl && fetchUrl) {
+            const sourceUrl = meta.sourceUrl;
+            if (typeof sourceUrl !== 'string' || !/^https?:\/\//i.test(sourceUrl)) continue;
+            let data: ArrayBuffer;
+            try {
+              data = await fetchUrl(sourceUrl);
+            } catch {
+              // A dead link is not a data conflict: the record stays, the file
+              // can be fetched on a later round.
+              report.ok = false;
+              report.error = `could not download from the book's link: ${id}`;
+              report.code = 'NETWORK';
+              continue;
+            }
+            if (data.byteLength > MAX_BLOB_BYTES) {
+              report.ok = false;
+              report.error = `blob too large: ${sha256}`;
+              report.code = 'INTEGRITY';
+              continue;
+            }
+            const bytes = new Uint8Array(data);
+            // The link's content must match the recorded identity exactly; a
+            // changed file keeps local state untouched (ADR-0019).
+            const digest = await sha256Hex(bytes);
+            if (digest !== sha256) {
+              report.ok = false;
+              report.error = `downloaded book does not match its recorded hash: ${id}`;
+              report.code = 'INTEGRITY';
+              continue;
+            }
+            await store.saveBookFile(sha256, ext, bytes);
+            report.downloadedBlobs += 1;
           }
         }
 

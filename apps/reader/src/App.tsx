@@ -20,6 +20,7 @@ import { SettingsDialog } from './components/SettingsDialog';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { type TagSummary, TagsDialog } from './components/TagsDialog';
 import { UpdateBanner } from './components/UpdateBanner';
+import { UrlImportDialog } from './components/UrlImportDialog';
 import {
   type BookSort,
   type BookView,
@@ -33,7 +34,12 @@ import {
   searchBookContent,
   storeBookTexts,
 } from './services/bookTexts';
-import { importBookFile } from './services/importBook';
+import {
+  importBookFile,
+  importBookFromUrl,
+  UrlImportError,
+  type UrlSyncMode,
+} from './services/importBook';
 import {
   deletePersistedBook,
   loadBookFile,
@@ -70,7 +76,13 @@ export const App = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [errorCode, setErrorCode] = useState<
-    ImportErrorCode | 'UNKNOWN' | 'BOOK_FILE_MISSING' | 'OPEN_FAILED' | null
+    | ImportErrorCode
+    | 'UNKNOWN'
+    | 'BOOK_FILE_MISSING'
+    | 'OPEN_FAILED'
+    | 'URL_INVALID'
+    | 'URL_FAILED'
+    | null
   >(null);
   const [openingBookId, setOpeningBookId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -90,6 +102,7 @@ export const App = () => {
   /** Library toolbar sync button: idle → syncing → done | failed. */
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'done' | 'failed'>('idle');
   const [hasSyncProvider, setHasSyncProvider] = useState(false);
+  const [urlImportOpen, setUrlImportOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [readerSession, setReaderSession] = useState<{
     book: BookRecord;
@@ -239,6 +252,29 @@ export const App = () => {
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     void handleFiles(event.currentTarget.files);
     event.currentTarget.value = '';
+  };
+
+  /** Add a book from a link (ADR-0019); the sync mode was chosen in the dialog. */
+  const handleUrlImport = async (url: string, syncVia: UrlSyncMode) => {
+    setUrlImportOpen(false);
+    setIsImporting(true);
+    setErrorCode(null);
+    try {
+      const imported = await importBookFromUrl(url, syncVia);
+      addBook(imported.record);
+      await persistBook(imported.record, imported.file, imported.cover);
+      void storeBookTexts(imported.record.id, imported.file);
+    } catch (error) {
+      setErrorCode(
+        error instanceof UrlImportError
+          ? error.code
+          : error instanceof ImportError
+            ? error.code
+            : 'UNKNOWN',
+      );
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const handleDrop = (event: DragEvent<HTMLElement>) => {
@@ -467,17 +503,27 @@ export const App = () => {
         >
           <div className="library-header">
             <h2 id="library-heading">{t('library.heading')}</h2>
-            <label className="import-button">
-              {t('library.import')}
-              <input
-                className="visually-hidden"
-                type="file"
-                accept=".epub,.pdf,.md,.markdown,application/epub+zip,application/pdf,text/markdown"
-                multiple
+            <div className="library-import-actions">
+              <button
+                type="button"
+                className="import-button"
+                onClick={() => setUrlImportOpen(true)}
                 disabled={isImporting}
-                onChange={handleInputChange}
-              />
-            </label>
+              >
+                {t('library.addFromUrl')}
+              </button>
+              <label className="import-button">
+                {t('library.import')}
+                <input
+                  className="visually-hidden"
+                  type="file"
+                  accept=".epub,.pdf,.md,.markdown,application/epub+zip,application/pdf,text/markdown"
+                  multiple
+                  disabled={isImporting}
+                  onChange={handleInputChange}
+                />
+              </label>
+            </div>
           </div>
 
           <div className="library-tools">
@@ -730,6 +776,11 @@ export const App = () => {
             setRemovingBookId(null);
           }}
           onClose={() => setRemovingBookId(null)}
+        />
+        <UrlImportDialog
+          open={urlImportOpen}
+          onImport={(url, syncVia) => void handleUrlImport(url, syncVia)}
+          onClose={() => setUrlImportOpen(false)}
         />
         <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />

@@ -81,7 +81,8 @@
     "newCategoryOption": "New category…",
     "newCategoryName": "New category name",
     "moveCategoryUp": "Move category up",
-    "moveCategoryDown": "Move category down"
+    "moveCategoryDown": "Move category down",
+    "language": "Language"
   },
   "reader": {
     "back": "Library",
@@ -242,7 +243,8 @@
       "SCHEMA": "This storage was written by a newer version of Hāmesh. Update the app, then sync again."
     },
     "sftpKeyFileChoose": "Choose key file…",
-    "sftpKeyFilePicked": "Key file loaded — save to store it"
+    "sftpKeyFilePicked": "Key file loaded — save to store it",
+    "sftpKeyFile": "Private key file"
   },
   "update": {
     "available": "Hāmesh {{version}} is available.",

@@ -361,6 +361,19 @@ test('reorders category sections and remembers the order', async ({ page }) => {
     .click();
   await expect(names().first()).toHaveText('Zeta');
 
+  // From a fresh order, moving the FIRST category down must swap the two
+  // (regression: a sparse order made this a no-op or jumped rows).
+  await page
+    .locator('.book-group', { hasText: 'Zeta' })
+    .getByRole('button', { name: 'Move category down' })
+    .click();
+  await expect(names().first()).toHaveText('Alpha');
+  await page
+    .locator('.book-group', { hasText: 'Zeta' })
+    .getByRole('button', { name: 'Move category up' })
+    .click();
+  await expect(names().first()).toHaveText('Zeta');
+
   await page.waitForTimeout(500);
   await page.reload();
   await expect(names().first()).toHaveText('Zeta');

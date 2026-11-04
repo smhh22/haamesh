@@ -323,6 +323,14 @@ export const createSyncEngine = (options: SyncOptions) => {
             );
             report.uploadedBlobs += 1;
           } else if (remoteBlob && !localBlob) {
+            // The index is untrusted: refuse before reading so a hostile
+            // storage cannot push an oversized body into memory.
+            if (remoteBlob.size > MAX_BLOB_BYTES) {
+              report.ok = false;
+              report.error = `blob too large: ${sha256}`;
+              report.code = 'INTEGRITY';
+              continue;
+            }
             const data = await provider.readBinary(blobPath);
             if (data) {
               if (data.byteLength > MAX_BLOB_BYTES) {
@@ -386,9 +394,11 @@ export const createSyncEngine = (options: SyncOptions) => {
             copy.set(localCover.data);
             await provider.writeBinary(`${REMOTE_ROOT}/covers/${sha256}`, copy.buffer);
           } else if (remoteCover && !localCover) {
-            const data = await provider.readBinary(`${REMOTE_ROOT}/covers/${sha256}`);
-            if (data && data.byteLength <= MAX_COVER_BYTES) {
-              await store.saveCoverFile(sha256, coverMime, new Uint8Array(data));
+            if (remoteCover.size <= MAX_COVER_BYTES) {
+              const data = await provider.readBinary(`${REMOTE_ROOT}/covers/${sha256}`);
+              if (data && data.byteLength <= MAX_COVER_BYTES) {
+                await store.saveCoverFile(sha256, coverMime, new Uint8Array(data));
+              }
             }
           }
         }

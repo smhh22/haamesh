@@ -115,7 +115,7 @@ export const App = () => {
   const renameExtraCategory = useUiStore((state) => state.renameExtraCategory);
   const removeExtraCategory = useUiStore((state) => state.removeExtraCategory);
   const order = useUiStore((state) => state.categoryOrder);
-  const reorderCategory = useUiStore((state) => state.reorderCategory);
+  const setCategoryOrder = useUiStore((state) => state.setCategoryOrder);
   const renameCategoryOrder = useUiStore((state) => state.renameCategoryOrder);
   const purgeCategoryOrder = useUiStore((state) => state.purgeCategoryOrder);
   const categories = useMemo(
@@ -313,21 +313,34 @@ export const App = () => {
   };
 
   /**
-   * Move a category one position in the DISPLAYED order: the neighbor comes
-   * from the rendered groups, so categories that were never reordered (not in
-   * the manual order yet) move correctly too.
+   * Move a category one position in the DISPLAYED order. The whole displayed
+   * sequence is persisted, so categories that were never reordered move
+   * correctly too (a sparse order would rank every unordered name as one tie).
    */
   const moveCategoryBy = (name: string, delta: number) => {
     const named = bookGroups
       .filter((group) => group.category !== null)
       .map((group) => group.category as string);
     const at = named.indexOf(name);
+    const target = at + delta;
+    if (at === -1 || target < 0 || target >= named.length) return;
+    const next = [...named];
+    next.splice(at, 1);
+    next.splice(target, 0, name);
+    setCategoryOrder(next);
+  };
+
+  /** Drop `name` before `anchor` in the displayed sequence (null = end). */
+  const reorderCategoryBefore = (name: string, anchor: string | null) => {
+    const named = bookGroups
+      .filter((group) => group.category !== null)
+      .map((group) => group.category as string);
+    const at = named.indexOf(name);
     if (at === -1) return;
-    if (delta < 0 && at > 0) {
-      reorderCategory(name, named[at - 1] ?? null);
-    } else if (delta > 0 && at < named.length - 1) {
-      reorderCategory(name, named[at + 2] ?? null);
-    }
+    const next = named.filter((item) => item !== name);
+    const to = anchor === null || anchor === name ? next.length : Math.max(0, next.indexOf(anchor));
+    next.splice(to === -1 ? next.length : to, 0, name);
+    setCategoryOrder(next);
   };
 
   const renameCategory = (from: string, to: string) => {
@@ -684,7 +697,7 @@ export const App = () => {
                       if (dragCategory === null || dragCategory === group.category) return;
                       // Dropping on a group moves the dragged one above it;
                       // dropping on the last header appends after everything.
-                      reorderCategory(dragCategory, group.category);
+                      reorderCategoryBefore(dragCategory, group.category);
                       setDragCategory(null);
                     }}
                   >

@@ -682,7 +682,14 @@ const runSyncRound = async (config: SyncConfig): Promise<SyncReport> => {
 
   const deviceId = await getOrCreateDeviceId(dataStore);
   const store = createSqlSyncStore(storage, dataStore);
-  const engine = createSyncEngine({ deviceId, clock, store, providers });
+  // URL-sourced books (ADR-0019) download through this port; the engine
+  // allowlists http(s) and verifies every download against the record's hash.
+  const fetchUrl = async (url: string): Promise<ArrayBuffer> => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.arrayBuffer();
+  };
+  const engine = createSyncEngine({ deviceId, clock, store, providers, fetchUrl });
   const report = await engine.sync();
   for (const failure of failures) {
     report.ok = false;

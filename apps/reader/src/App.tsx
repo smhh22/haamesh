@@ -12,7 +12,7 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BookOrganizationDialog } from './components/BookOrganizationDialog';
+import { type BookOrganization, BookOrganizationDialog } from './components/BookOrganizationDialog';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { PromptDialog } from './components/PromptDialog';
 import { ReaderView } from './components/ReaderView';
@@ -227,10 +227,7 @@ export const App = () => {
     setIsDragging(true);
   };
 
-  const saveOrganization = (
-    book: BookRecord,
-    organization: { category: string | null; tags: string[] },
-  ) => {
+  const saveOrganization = (book: BookRecord, organization: BookOrganization) => {
     updateBook(book.id, organization);
     setEditingBookId(null);
     void persistBookOrganization(book, organization);

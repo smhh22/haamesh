@@ -18,6 +18,8 @@ export {
   pdfLocatorMatchesPage,
   pdfOccurrenceIndex,
 } from './pdfHighlights';
+export type { TextProfile } from './pdfLanguage';
+export { profilePdfText } from './pdfLanguage';
 export { isSanitizableMediaType, sanitizeEpubHtml } from './sanitize';
 
 /** Placeholder for the foliate-js reader boundary; import is implemented. */

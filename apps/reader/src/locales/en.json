@@ -61,7 +61,11 @@
     "deleteTag": "Delete",
     "deleteTagQuestion": "Delete “{{name}}” from every book?",
     "tagUsedIn": "{{count}} books",
-    "newCategory": "New category"
+    "newCategory": "New category",
+    "languageHint": "Leave empty to detect it when the book is opened",
+    "direction": "Reading direction",
+    "directionLtr": "Left to right",
+    "directionRtl": "Right to left"
   },
   "reader": {
     "back": "Library",

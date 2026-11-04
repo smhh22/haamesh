@@ -7,6 +7,7 @@ import {
   pageTurnForKey,
   pdfLocatorMatchesPage,
   pdfOccurrenceIndex,
+  profilePdfText,
   sanitizeEpubHtml,
 } from '@hamesh/engine';
 import type { BookNoteRecord, BookRecord } from '@hamesh/storage';
@@ -16,7 +17,8 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { locatorFromRelocate, type RelocateDetail } from '../readerLocator';
 import { buildReaderCss } from '../readerStyles';
-import { persistNoteRecord } from '../services/libraryPersistence';
+import { persistBookLanguage, persistNoteRecord } from '../services/libraryPersistence';
+import { useLibraryStore } from '../stores/libraryStore';
 import { notesForBook, useNotesStore } from '../stores/notesStore';
 import { type ResolvedReaderTheme, useReaderSettings } from '../stores/readerSettingsStore';
 import { useResolvedUiTheme } from '../stores/uiStore';
@@ -122,6 +124,10 @@ export const ReaderView = ({
   const settingsCssRef = useRef(buildCss());
   const flowRef = useRef(settings.flow);
   const marginRef = useRef(settings.margin);
+  // Book direction behind a ref, like the settings above: detecting it for a
+  // PDF must not reopen the book (the open effect depends on the ref, not the
+  // record), while page turns and newly loaded pages pick it up immediately.
+  const directionRef = useRef(book.direction);
   const lastCfiRef = useRef<string | null>(null);
   const lastFractionRef = useRef(initialFraction);
   const [progress, setProgress] = useState(initialFraction);
@@ -144,6 +150,55 @@ export const ReaderView = ({
   // Loaded PDF page documents (the fixed-layout renderer does not expose them
   // through getContents); pruned when their iframe detaches.
   const pdfPageDocsRef = useRef<Map<number, Document>>(new Map());
+  // Language/direction detection for PDFs without metadata: the first rendered
+  // text layers are sampled once per session and persisted when confident.
+  const pdfLanguageAttemptsRef = useRef(0);
+  // Latest detection callback; the open-book effect calls it through this ref
+  // so a changed definition never reopens the book.
+  const pdfLanguageDetectRef = useRef<() => void>(() => {});
+  const updateBook = useLibraryStore((state) => state.updateBook);
+  // Mirror of the book record for callbacks that must read the latest
+  // metadata without reopening the book.
+  const bookRef = useRef(book);
+
+  useEffect(() => {
+    bookRef.current = book;
+  }, [book]);
+
+  useEffect(() => {
+    pdfLanguageDetectRef.current = tryDetectPdfLanguage;
+  });
+
+  /**
+   * Sample the first rendered PDF text layers and fill in language and
+   * direction when the record has neither: PDFs rarely carry language
+   * metadata, so the importer leaves them unknown. Runs only while the user
+   * has not set these fields (language unset, importer default direction) and
+   * gives up after a few unconfident samples.
+   */
+  const tryDetectPdfLanguage = (): void => {
+    if (pdfLanguageAttemptsRef.current >= 3) return;
+    const current = bookRef.current;
+    if (current.language !== null || current.direction !== 'ltr') {
+      pdfLanguageAttemptsRef.current = 3;
+      return;
+    }
+    const indices = [...pdfPageDocsRef.current.keys()].sort((a, b) => a - b).slice(0, 2);
+    if (indices.length === 0) return;
+    const sample = indices
+      .map((index) => {
+        const layer = pdfPageDocsRef.current.get(index)?.querySelector('.textLayer');
+        return layer?.textContent ?? '';
+      })
+      .join(' ');
+    if (sample.trim().length < 40) return;
+    pdfLanguageAttemptsRef.current += 1;
+    const profile = profilePdfText(sample);
+    if (profile.language === null) return;
+    pdfLanguageAttemptsRef.current = 3;
+    updateBook(current.id, { language: profile.language, direction: profile.direction });
+    void persistBookLanguage(current, profile.language, profile.direction);
+  };
 
   // Closing a panel unmounts its close button; return focus to the toolbar
   // button that opened it so keyboard users keep their place.
@@ -173,6 +228,10 @@ export const ReaderView = ({
   useEffect(() => {
     notesRef.current = bookNotes;
   }, [bookNotes]);
+
+  useEffect(() => {
+    directionRef.current = book.direction;
+  }, [book.direction]);
 
   // Redraw PDF highlights whenever the note set changes; each page's overlay
   // is rebuilt from the live text layer.
@@ -340,10 +399,14 @@ export const ReaderView = ({
                 target.id === PDF_OVERLAY_ID || Boolean(target.closest?.(`#${PDF_OVERLAY_ID}`))
               );
             });
-            if (!own) applyPdfHighlights(doc, pdfHighlightsRef.current(pageIndex));
+            if (!own) {
+              applyPdfHighlights(doc, pdfHighlightsRef.current(pageIndex));
+              pdfLanguageDetectRef.current();
+            }
           });
           observer.observe(layer, { childList: true, subtree: true });
         }
+        pdfLanguageDetectRef.current();
         let pdfSelectionTimer: number | undefined;
         const capturePdfSelection = () => {
           const selected = doc.getSelection();
@@ -401,9 +464,11 @@ export const ReaderView = ({
       }
 
       // Books without their own dir attribute paginate by our resolved
-      // direction; this runs before the renderer measures layout.
+      // direction; this runs before the renderer measures layout. The ref is
+      // read at page-load time so a mid-session detection applies to pages
+      // opened afterwards without reopening the book.
       if (!doc.documentElement.hasAttribute('dir')) {
-        doc.documentElement.dir = book.direction;
+        doc.documentElement.dir = directionRef.current;
       }
       applyReaderStyle(doc, settingsCssRef.current);
       for (const note of notesRef.current) applyNote(note);
@@ -542,7 +607,7 @@ export const ReaderView = ({
       view.remove();
       viewRef.current = null;
     };
-  }, [file, initialLocation, initialPage, isPdf, book.direction]);
+  }, [file, initialLocation, initialPage, isPdf]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

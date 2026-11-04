@@ -5,6 +5,7 @@ import { expect, test } from '@playwright/test';
 const fixture = fileURLToPath(new URL('./fixtures/sample.epub', import.meta.url));
 const englishFixture = fileURLToPath(new URL('./fixtures/english.epub', import.meta.url));
 const pdfFixture = fileURLToPath(new URL('./fixtures/sample.pdf', import.meta.url));
+const persianPdfFixture = fileURLToPath(new URL('./fixtures/persian.pdf', import.meta.url));
 const nodirFixture = fileURLToPath(new URL('./fixtures/nodir.epub', import.meta.url));
 const markdownFixture = fileURLToPath(new URL('./fixtures/sample.md', import.meta.url));
 
@@ -786,6 +787,57 @@ test('bookmarks PDF pages and lists them', async ({ page }) => {
   await page.getByRole('button', { name: 'Bookmark' }).click();
   await expect(panel.getByText('Page 2')).toBeVisible();
   await expect(panel.locator('.note-item')).toHaveCount(2);
+});
+
+test('detects PDF language and direction from the text layer', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(persianPdfFixture);
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
+
+  // The first rendered pages are sampled and the profile is persisted into
+  // the book record, so the library card shows the detected language.
+  await page.getByRole('button', { name: 'Library' }).click();
+  const card = page.locator('.book-card', { hasText: 'نمونه فارسی' });
+  await expect(card.locator('.badge', { hasText: 'fa' })).toBeVisible({ timeout: 10_000 });
+
+  await page.reload();
+  await expect(
+    page.locator('.book-card', { hasText: 'نمونه فارسی' }).locator('.badge', { hasText: 'fa' }),
+  ).toBeVisible();
+});
+
+test('lets the reader override PDF language and direction', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(pdfFixture);
+  await expect(page.getByRole('heading', { name: 'Hamesh PDF Test' })).toBeVisible();
+
+  await page
+    .locator('.book-card', { hasText: 'Hamesh PDF Test' })
+    .getByRole('button', { name: 'Edit' })
+    .click();
+  const dialog = page.getByRole('dialog', { name: 'Book details' });
+  await dialog.getByLabel('Language').fill('fa');
+  await dialog.getByLabel('Reading direction').selectOption('rtl');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog).toHaveCount(0);
+
+  // The override is the book record: the badge and the dialog keep it. The
+  // persist runs in the background; give it a moment before reloading or a
+  // slow CI disk reloads the pre-save record.
+  await expect(page.locator('.badge', { hasText: 'fa' })).toBeVisible();
+  await page.waitForTimeout(500);
+  await page.reload();
+  await expect(page.locator('.badge', { hasText: 'fa' })).toBeVisible();
+  await page
+    .locator('.book-card', { hasText: 'Hamesh PDF Test' })
+    .getByRole('button', { name: 'Edit' })
+    .click();
+  const reopened = page.getByRole('dialog', { name: 'Book details' });
+  await expect(reopened.getByLabel('Language')).toHaveValue('fa');
+  await expect(reopened.getByLabel('Reading direction')).toHaveValue('rtl');
 });
 
 test('zooms a PDF with ctrl+wheel and shows highlight actions on right-click', async ({ page }) => {

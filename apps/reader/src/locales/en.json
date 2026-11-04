@@ -65,7 +65,11 @@
     "languageHint": "Leave empty to detect it when the book is opened",
     "direction": "Reading direction",
     "directionLtr": "Left to right",
-    "directionRtl": "Right to left"
+    "directionRtl": "Right to left",
+    "syncNow": "Sync now",
+    "syncing": "Syncing…",
+    "syncDone": "Synced",
+    "syncFailed": "Sync failed"
   },
   "reader": {
     "back": "Library",

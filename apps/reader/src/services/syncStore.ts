@@ -57,6 +57,7 @@ export const createSqlSyncStore = (
         tags: book.tags,
         sha256: book.hash,
         ext: book.format,
+        coverMime: book.coverMime,
       },
       deleted: false,
       updatedAt: book.updatedAt,
@@ -155,7 +156,8 @@ export const createSqlSyncStore = (
             : (existing?.tags ?? []),
           filePath: existing?.filePath ?? `books/${hash}.${format}`,
           coverPath: existing?.coverPath ?? null,
-          coverMime: existing?.coverMime ?? null,
+          coverMime:
+            typeof fields.coverMime === 'string' ? fields.coverMime : (existing?.coverMime ?? null),
           addedAt: existing?.addedAt ?? now,
           updatedAt: now,
         };
@@ -240,6 +242,17 @@ export const createSqlSyncStore = (
 
     async saveBookFile(sha256, ext, data) {
       await dataStore.write(`books/${sha256}.${ext}`, data);
+    },
+
+    async coverFile(sha256) {
+      const data = await dataStore.read(`covers/${sha256}`);
+      if (!data) return null;
+      const book = await storage.books.get(sha256);
+      return { mime: book?.coverMime ?? 'image/jpeg', data };
+    },
+
+    async saveCoverFile(sha256, mime, data) {
+      await dataStore.write(`covers/${sha256}`, data);
     },
   };
 };

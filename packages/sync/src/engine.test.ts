@@ -17,7 +17,13 @@ interface MemoryStore extends SyncStore {
  * `localEdit` mirrors the real app write path — every local write stamps the
  * record clock (the engine stamps clocks only for remote pulls).
  */
-const createMemoryStore = (deviceId: string, now: () => number): MemoryStore => {
+const coverMimes = new Map<string, string>();
+
+const createMemoryStore = (
+  deviceId: string,
+  now: () => number,
+  blobMap: Map<string, Uint8Array> = blobs,
+): MemoryStore => {
   const clock = new HybridLogicalClock(deviceId, now);
   const records = new Map<string, SyncRecord>();
   const clocks = new Map<string, string>();
@@ -63,13 +69,21 @@ const createMemoryStore = (deviceId: string, now: () => number): MemoryStore => 
       const record = [...records.values()].find(
         (item) => item.kind === 'book' && item.fields.sha256 === sha256 && !item.deleted,
       );
-      const data = blobs.get(sha256);
+      const data = blobMap.get(sha256);
       if (!record || !data) return null;
       return { ext: String(record.fields.ext ?? 'epub'), data };
     },
     async saveBookFile(sha256: string, ext: string, data: Uint8Array) {
-      blobs.set(sha256, data);
+      blobMap.set(sha256, data);
       void ext;
+    },
+    async coverFile(sha256: string) {
+      const data = blobMap.get(`cover:${sha256}`);
+      return data ? { mime: coverMimes.get(sha256) ?? 'image/jpeg', data } : null;
+    },
+    async saveCoverFile(sha256: string, mime: string, data: Uint8Array) {
+      blobMap.set(`cover:${sha256}`, data);
+      coverMimes.set(sha256, mime);
     },
     /** Local write: merges the given fields and stamps exactly those (ADR-0011). */
     async localEdit(record: SyncRecord) {
@@ -107,6 +121,44 @@ const bookRecord = (id: string, title: string, updatedAt: number): SyncRecord =>
   },
   deleted: false,
   updatedAt,
+});
+
+describe('cover syncing', () => {
+  it('uploads the local cover and downloads it on devices without one', async () => {
+    const provider = createMemoryProvider();
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    await storeA.localEdit({
+      ...bookRecord('1', 'Book', 1000),
+      fields: { ...bookRecord('1', 'Book', 1000).fields, coverMime: 'image/png' },
+    });
+    blobs.set(`cover:${'1'.repeat(64)}`, new Uint8Array([9, 9, 9]));
+    coverMimes.set('1'.repeat(64), 'image/png');
+
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    const remoteCover = await provider.head(`Hamesh/covers/${'1'.repeat(64)}`);
+    expect(remoteCover).not.toBeNull();
+    // The mime travels as a book field so receivers can rebuild the blob.
+    const stored = JSON.parse((await provider.readText('Hamesh/index.json')) ?? '{}');
+    expect(stored.books?.['1']?.fields?.coverMime?.v).toBe('image/png');
+
+    wall = 2000;
+    const storeB = createMemoryStore('device-b', now, new Map());
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+    const cover = await storeB.coverFile('1'.repeat(64));
+    expect([...(cover?.data ?? [])]).toEqual([9, 9, 9]);
+  });
 });
 
 describe('sync engine', () => {

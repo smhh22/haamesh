@@ -7,6 +7,9 @@ export type UiLocale = 'en' | 'fa';
 interface UiStore {
   theme: UiTheme;
   locale: UiLocale;
+  /** Library shelf layout; list is the default so more books fit a screen. */
+  viewMode: 'grid' | 'list';
+  setViewMode: (view: 'grid' | 'list') => void;
   /** Library category sections the user collapsed (device-local). */
   collapsedGroups: string[];
   /**
@@ -15,18 +18,33 @@ interface UiStore {
    * (device-local, like collapsed state).
    */
   extraCategories: string[];
+  /** Manual section order (device-local); names missing from it sort last. */
+  categoryOrder: string[];
   setTheme: (theme: UiTheme) => void;
   setLocale: (locale: UiLocale) => void;
   toggleGroup: (key: string) => void;
   addExtraCategory: (name: string) => void;
   renameExtraCategory: (from: string, to: string) => void;
   removeExtraCategory: (name: string) => void;
+  reorderCategory: (name: string, before: string | null) => void;
+  renameCategoryOrder: (from: string, to: string) => void;
+  purgeCategoryOrder: (name: string) => void;
 }
 
 const STORAGE_KEY = 'hamesh.ui.theme';
 const LOCALE_KEY = 'hamesh.ui.locale';
 const COLLAPSED_KEY = 'hamesh.ui.collapsed-groups';
 const EXTRA_CATEGORIES_KEY = 'hamesh.ui.extra-categories';
+const CATEGORY_ORDER_KEY = 'hamesh.ui.category-order';
+const VIEW_KEY = 'hamesh.ui.view';
+
+const readViewMode = (): 'grid' | 'list' => {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'list';
+  } catch {
+    return 'list';
+  }
+};
 
 const readTheme = (): UiTheme => {
   try {
@@ -77,6 +95,16 @@ export const useUiStore = create<UiStore>((set) => ({
   locale: readLocale(),
   collapsedGroups: readStringList(COLLAPSED_KEY),
   extraCategories: readStringList(EXTRA_CATEGORIES_KEY),
+  categoryOrder: readStringList(CATEGORY_ORDER_KEY),
+  viewMode: readViewMode(),
+  setViewMode: (view) => {
+    try {
+      localStorage.setItem(VIEW_KEY, view);
+    } catch {
+      // storage may be unavailable; the in-memory value still applies
+    }
+    set({ viewMode: view });
+  },
   toggleGroup: (key) =>
     set((state) => {
       const next = state.collapsedGroups.includes(key)
@@ -126,6 +154,48 @@ export const useUiStore = create<UiStore>((set) => ({
         // storage may be unavailable; the in-memory value still applies
       }
       return { extraCategories: next };
+    }),
+  /** Drop `name` before `before` (null = end of the ordered list). */
+  reorderCategory: (name, before) =>
+    set((state) => {
+      if (before === name) return {};
+      const without = state.categoryOrder.filter((item) => item !== name);
+      const at = before === null ? without.length : without.indexOf(before);
+      const next = [...without];
+      next.splice(at === -1 ? next.length : at, 0, name);
+      if (next.join('\u0000') === state.categoryOrder.join('\u0000')) return {};
+      try {
+        localStorage.setItem(CATEGORY_ORDER_KEY, JSON.stringify(next));
+      } catch {
+        // storage may be unavailable; the in-memory value still applies
+      }
+      return { categoryOrder: next };
+    }),
+  renameCategoryOrder: (from, to) =>
+    set((state) => {
+      if (!state.categoryOrder.includes(from)) return {};
+      const trimmed = to.trim();
+      const next =
+        trimmed !== '' && !state.categoryOrder.includes(trimmed)
+          ? state.categoryOrder.map((item) => (item === from ? trimmed : item))
+          : state.categoryOrder.filter((item) => item !== from);
+      try {
+        localStorage.setItem(CATEGORY_ORDER_KEY, JSON.stringify(next));
+      } catch {
+        // storage may be unavailable; the in-memory value still applies
+      }
+      return { categoryOrder: next };
+    }),
+  purgeCategoryOrder: (name) =>
+    set((state) => {
+      if (!state.categoryOrder.includes(name)) return {};
+      const next = state.categoryOrder.filter((item) => item !== name);
+      try {
+        localStorage.setItem(CATEGORY_ORDER_KEY, JSON.stringify(next));
+      } catch {
+        // storage may be unavailable; the in-memory value still applies
+      }
+      return { categoryOrder: next };
     }),
   setTheme: (theme) => {
     try {

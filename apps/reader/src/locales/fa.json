@@ -69,7 +69,11 @@
     "syncNow": "همگام‌سازی",
     "syncing": "در حال همگام‌سازی…",
     "syncDone": "همگام‌سازی شد",
-    "syncFailed": "همگام‌سازی نشد"
+    "syncFailed": "همگام‌سازی نشد",
+    "newCategoryOption": "دستهٔ جدید…",
+    "newCategoryName": "نام دستهٔ جدید",
+    "moveCategoryUp": "انتقال دسته به بالا",
+    "moveCategoryDown": "انتقال دسته به پایین"
   },
   "reader": {
     "back": "کتابخانه",

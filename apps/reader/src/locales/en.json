@@ -69,7 +69,11 @@
     "syncNow": "Sync now",
     "syncing": "Syncing…",
     "syncDone": "Synced",
-    "syncFailed": "Sync failed"
+    "syncFailed": "Sync failed",
+    "newCategoryOption": "New category…",
+    "newCategoryName": "New category name",
+    "moveCategoryUp": "Move category up",
+    "moveCategoryDown": "Move category down"
   },
   "reader": {
     "back": "Library",

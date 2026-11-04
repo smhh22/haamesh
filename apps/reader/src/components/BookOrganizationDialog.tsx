@@ -43,10 +43,14 @@ const LANGUAGE_SUGGESTIONS = [
   'ko',
 ];
 
+/** Sentinel select value for typing a category that does not exist yet. */
+const NEW_CATEGORY = '__new__';
+
 /**
- * Category and tag editor for one book. Categories are free text with
- * suggestions from the library; tags are comma-separated and synced as one
- * field (ADR-0013).
+ * Category and tag editor for one book. The category is a dropdown over the
+ * library's categories (plus a New… entry that reveals a name field), so a
+ * book never needs its category retyped; tags are comma-separated and synced
+ * as one field (ADR-0013).
  *
  * The body mounts per book (keyed by id) and initializes its fields once.
  * A store update that replaces the book object — a sync reload, for example —
@@ -69,7 +73,12 @@ const BookOrganizationDialogContent = ({
 }: BookOrganizationDialogContentProps) => {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  const [category, setCategory] = useState(book.category ?? '');
+  const [category, setCategory] = useState(
+    book.category === null ? '' : categories.includes(book.category) ? book.category : NEW_CATEGORY,
+  );
+  const [customCategory, setCustomCategory] = useState(
+    book.category !== null && !categories.includes(book.category) ? book.category : '',
+  );
   const [tags, setTags] = useState((book.tags ?? []).join('، '));
   const [language, setLanguage] = useState(book.language ?? '');
   const [direction, setDirection] = useState<Direction>(book.direction);
@@ -89,7 +98,8 @@ const BookOrganizationDialogContent = ({
   }, []);
 
   const submit = () => {
-    const trimmed = category.trim();
+    const chosen = category === NEW_CATEGORY ? customCategory : category;
+    const trimmed = chosen.trim();
     const trimmedLanguage = language.trim();
     onSave({
       category: trimmed.length > 0 ? trimmed : null,
@@ -126,21 +136,34 @@ const BookOrganizationDialogContent = ({
           </p>
           <div className="setting-row is-field">
             <label htmlFor="book-category">{t('library.category')}</label>
-            <input
-              className="text-input"
+            <select
+              className="sort-select"
               id="book-category"
-              type="text"
-              list="book-category-options"
               value={category}
-              dir="auto"
               onChange={(event) => setCategory(event.target.value)}
-            />
-            <datalist id="book-category-options">
+            >
+              <option value="">{t('library.uncategorized')}</option>
               {categories.map((name) => (
-                <option key={name} value={name} />
+                <option key={name} value={name}>
+                  {name}
+                </option>
               ))}
-            </datalist>
+              <option value={NEW_CATEGORY}>{t('library.newCategoryOption')}</option>
+            </select>
           </div>
+          {category === NEW_CATEGORY ? (
+            <div className="setting-row is-field">
+              <label htmlFor="book-category-new">{t('library.newCategoryName')}</label>
+              <input
+                className="text-input"
+                id="book-category-new"
+                type="text"
+                value={customCategory}
+                dir="auto"
+                onChange={(event) => setCustomCategory(event.target.value)}
+              />
+            </div>
+          ) : null}
           <div className="setting-row is-field">
             <label htmlFor="book-tags">{t('library.tags')}</label>
             <input

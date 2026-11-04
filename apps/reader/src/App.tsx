@@ -20,12 +20,7 @@ import { SettingsDialog } from './components/SettingsDialog';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { type TagSummary, TagsDialog } from './components/TagsDialog';
 import { UpdateBanner } from './components/UpdateBanner';
-import {
-  type BookSort,
-  type BookView,
-  filterAndSortBooks,
-  groupBooksByCategory,
-} from './library/bookList';
+import { type BookSort, filterAndSortBooks, groupBooksByCategory } from './library/bookList';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
 import {
   type ContentMatch,
@@ -81,9 +76,12 @@ export const App = () => {
     type: 'create' | 'rename' | 'delete';
     name: string;
   } | null>(null);
+  /** Category name being drag-and-dropped between group headers. */
+  const [dragCategory, setDragCategory] = useState<string | null>(null);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [sort, setSort] = useState<BookSort>('recent');
-  const [viewMode, setViewMode] = useState<BookView>('grid');
+  const viewMode = useUiStore((state) => state.viewMode);
+  const setViewMode = useUiStore((state) => state.setViewMode);
   const [contentMatches, setContentMatches] = useState<ContentMatch[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -103,6 +101,10 @@ export const App = () => {
   const addExtraCategory = useUiStore((state) => state.addExtraCategory);
   const renameExtraCategory = useUiStore((state) => state.renameExtraCategory);
   const removeExtraCategory = useUiStore((state) => state.removeExtraCategory);
+  const order = useUiStore((state) => state.categoryOrder);
+  const reorderCategory = useUiStore((state) => state.reorderCategory);
+  const renameCategoryOrder = useUiStore((state) => state.renameCategoryOrder);
+  const purgeCategoryOrder = useUiStore((state) => state.purgeCategoryOrder);
   const categories = useMemo(
     () =>
       [
@@ -111,6 +113,14 @@ export const App = () => {
         ),
       ].sort((a, b) => new Intl.Collator(locale).compare(a, b)),
     [books, locale],
+  );
+  /** Dropdown choices in the book dialog: book categories + created ones. */
+  const categoryChoices = useMemo(
+    () =>
+      [...new Set([...categories, ...extraCategories])].sort((a, b) =>
+        new Intl.Collator(locale).compare(a, b),
+      ),
+    [categories, extraCategories, locale],
   );
   const tagSummaries = useMemo<TagSummary[]>(() => {
     const counts = new Map<string, number>();
@@ -150,8 +160,9 @@ export const App = () => {
     [books, extraCategories],
   );
   const bookGroups = useMemo(
-    () => (hasCategories ? groupBooksByCategory(visibleBooks, collator, extraCategories) : []),
-    [hasCategories, visibleBooks, collator, extraCategories],
+    () =>
+      hasCategories ? groupBooksByCategory(visibleBooks, collator, extraCategories, order) : [],
+    [hasCategories, visibleBooks, collator, extraCategories, order],
   );
   const direction = directionFor(locale);
 
@@ -265,6 +276,24 @@ export const App = () => {
     addExtraCategory(trimmed);
   };
 
+  /**
+   * Move a category one position in the DISPLAYED order: the neighbor comes
+   * from the rendered groups, so categories that were never reordered (not in
+   * the manual order yet) move correctly too.
+   */
+  const moveCategoryBy = (name: string, delta: number) => {
+    const named = bookGroups
+      .filter((group) => group.category !== null)
+      .map((group) => group.category as string);
+    const at = named.indexOf(name);
+    if (at === -1) return;
+    if (delta < 0 && at > 0) {
+      reorderCategory(name, named[at - 1] ?? null);
+    } else if (delta > 0 && at < named.length - 1) {
+      reorderCategory(name, named[at + 2] ?? null);
+    }
+  };
+
   const renameCategory = (from: string, to: string) => {
     if (to === from) return;
     for (const book of books.filter((item) => item.category === from)) {
@@ -272,8 +301,10 @@ export const App = () => {
       updateBook(book.id, organization);
       void persistBookOrganization(book, organization);
     }
-    // Empty (toolbar-created) categories live outside the book records.
+    // Empty (toolbar-created) categories live outside the book records, and
+    // the manual order keeps its position across the rename.
     renameExtraCategory(from, to);
+    renameCategoryOrder(from, to);
   };
 
   const deleteCategory = (name: string) => {
@@ -283,6 +314,7 @@ export const App = () => {
       void persistBookOrganization(book, organization);
     }
     removeExtraCategory(name);
+    purgeCategoryOrder(name);
   };
 
   const renameTag = (from: string, to: string) => {
@@ -503,7 +535,7 @@ export const App = () => {
             <button
               type="button"
               className="view-toggle"
-              onClick={() => setViewMode((mode) => (mode === 'grid' ? 'list' : 'grid'))}
+              onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
             >
               {viewMode === 'grid' ? t('library.listView') : t('library.gridView')}
             </button>
@@ -590,13 +622,42 @@ export const App = () => {
               {bookGroups.map((group) => {
                 const collapsed = collapsedGroups.includes(group.key);
                 const label = group.category ?? t('library.uncategorized');
+                // The section is a drag-and-drop target, not a control;
+                // keyboard and touch users reorder with the move buttons.
                 return (
-                  <section key={group.key} className="book-group">
+                  // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop target
+                  <section
+                    key={group.key}
+                    className="book-group"
+                    onDragOver={(event) => {
+                      if (dragCategory === null || dragCategory === group.category) return;
+                      event.preventDefault();
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (dragCategory === null || dragCategory === group.category) return;
+                      // Dropping on a group moves the dragged one above it;
+                      // dropping on the last header appends after everything.
+                      reorderCategory(dragCategory, group.category);
+                      setDragCategory(null);
+                    }}
+                  >
                     <div className="book-group-header">
                       <button
                         type="button"
                         className="book-group-toggle"
                         aria-expanded={!collapsed}
+                        draggable={group.category !== null}
+                        onDragStart={(event) => {
+                          if (group.category === null) {
+                            event.preventDefault();
+                            return;
+                          }
+                          setDragCategory(group.category);
+                          event.dataTransfer.effectAllowed = 'move';
+                          event.dataTransfer.setData('text/plain', group.category);
+                        }}
+                        onDragEnd={() => setDragCategory(null)}
                         onClick={() => toggleGroup(group.key)}
                       >
                         <span className="book-group-chevron" aria-hidden="true">
@@ -611,6 +672,22 @@ export const App = () => {
                       </button>
                       {group.category !== null ? (
                         <div className="book-group-actions">
+                          <button
+                            type="button"
+                            className="text-button"
+                            aria-label={t('library.moveCategoryUp')}
+                            onClick={() => moveCategoryBy(group.category ?? '', -1)}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="text-button"
+                            aria-label={t('library.moveCategoryDown')}
+                            onClick={() => moveCategoryBy(group.category ?? '', 1)}
+                          >
+                            ↓
+                          </button>
                           <button
                             type="button"
                             className="text-button"
@@ -672,7 +749,7 @@ export const App = () => {
 
         <BookOrganizationDialog
           book={editingBook}
-          categories={categories}
+          categories={categoryChoices}
           onSave={(organization) => {
             if (editingBook) saveOrganization(editingBook, organization);
           }}

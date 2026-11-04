@@ -170,7 +170,8 @@ test('organizes books into a category with tags and filters by them', async ({ p
 
   await page.getByRole('button', { name: 'Edit' }).click();
   const dialog = page.getByRole('dialog', { name: 'Book details' });
-  await dialog.getByLabel('Category').fill('Persian classics');
+  await dialog.getByLabel('Category').selectOption('__new__');
+  await dialog.getByLabel('New category name').fill('Persian classics');
   await dialog.getByLabel('Tags').fill('history، persian');
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(dialog).toHaveCount(0);
@@ -201,7 +202,10 @@ test('lays out a real mobile shelf and reader', async ({ page }) => {
   await page.locator('input[type="file"]').setInputFiles(pdfFixture);
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
 
-  // Two-column shelf instead of the desktop minmax(14rem) single column.
+  // Two-column shelf instead of the desktop minmax(14rem) single column;
+  // switch to the grid layout first, since list is the default.
+  await page.getByRole('button', { name: 'Grid view' }).click();
+  await expect(page.locator('.book-grid')).not.toHaveClass(/is-list/);
   const columns = await page.locator('.book-grid').evaluate((element) => {
     const value = getComputedStyle(element).gridTemplateColumns;
     return value.trim().split(/\s+/).length;
@@ -226,18 +230,23 @@ test('renames and deletes a category across its books', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
 
-  const assign = async (title: string) => {
+  const assign = async (title: string, existing: boolean) => {
     await page
       .locator('.book-card', { hasText: title })
       .getByRole('button', { name: 'Edit' })
       .click();
     const dialog = page.getByRole('dialog', { name: 'Book details' });
-    await dialog.getByLabel('Category').fill('Classics');
+    if (existing) {
+      await dialog.getByLabel('Category').selectOption('Classics');
+    } else {
+      await dialog.getByLabel('Category').selectOption('__new__');
+      await dialog.getByLabel('New category name').fill('Classics');
+    }
     await dialog.getByRole('button', { name: 'Save' }).click();
     await expect(dialog).toHaveCount(0);
   };
-  await assign('نمونه کتاب');
-  await assign('Sample Book');
+  await assign('نمونه کتاب', false);
+  await assign('Sample Book', true);
 
   const group = page.locator('.book-group', { hasText: 'Classics' });
   await expect(group.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
@@ -284,11 +293,13 @@ test('creates a category from the toolbar and keeps it when empty', async ({ pag
     .getByRole('button', { name: 'Edit' })
     .click();
   const dialog = page.getByRole('dialog', { name: 'Book details' });
-  await dialog.getByLabel('Category').fill('Poetry');
+  await dialog.getByLabel('Category').selectOption('Poetry');
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(group.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
 
-  // The created category survives a reload.
+  // The created category survives a reload; the persist runs in the
+  // background, so give it a moment or a slow disk reloads the old record.
+  await page.waitForTimeout(500);
   await page.reload();
   const reloaded = page.locator('.book-group', { hasText: 'Poetry' });
   await expect(reloaded).toHaveCount(1);
@@ -302,21 +313,60 @@ test('creates a category from the toolbar and keeps it when empty', async ({ pag
   await expect(page.locator('.book-group', { hasText: 'Poetry' })).toHaveCount(0);
 });
 
-test('collapses category sections and remembers the state', async ({ page }) => {
+test('reorders category sections and remembers the order', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
-  const assign = async (title: string) => {
+
+  const assign = async (title: string, category: string) => {
     await page
       .locator('.book-card', { hasText: title })
       .getByRole('button', { name: 'Edit' })
       .click();
     const dialog = page.getByRole('dialog', { name: 'Book details' });
-    await dialog.getByLabel('Category').fill('Classics');
+    await dialog.getByLabel('Category').selectOption('__new__');
+    await dialog.getByLabel('New category name').fill(category);
     await dialog.getByRole('button', { name: 'Save' }).click();
     await expect(dialog).toHaveCount(0);
   };
-  await assign('نمونه کتاب');
-  await assign('Sample Book');
+  await assign('Sample Book', 'Zeta');
+  await assign('نمونه کتاب', 'Alpha');
+
+  // Alphabetical: Alpha before Zeta.
+  const names = () => page.locator('.book-group-toggle span[dir="auto"]');
+  await expect(names().first()).toHaveText('Alpha');
+
+  // Move Zeta above Alpha with the button; the order survives a reload.
+  await page
+    .locator('.book-group', { hasText: 'Zeta' })
+    .getByRole('button', { name: 'Move category up' })
+    .click();
+  await expect(names().first()).toHaveText('Zeta');
+
+  await page.waitForTimeout(500);
+  await page.reload();
+  await expect(names().first()).toHaveText('Zeta');
+});
+
+test('collapses category sections and remembers the state', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+  const assign = async (title: string, existing: boolean) => {
+    await page
+      .locator('.book-card', { hasText: title })
+      .getByRole('button', { name: 'Edit' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Book details' });
+    if (existing) {
+      await dialog.getByLabel('Category').selectOption('Classics');
+    } else {
+      await dialog.getByLabel('Category').selectOption('__new__');
+      await dialog.getByLabel('New category name').fill('Classics');
+    }
+    await dialog.getByRole('button', { name: 'Save' }).click();
+    await expect(dialog).toHaveCount(0);
+  };
+  await assign('نمونه کتاب', false);
+  await assign('Sample Book', true);
 
   const toggle = page.locator('.book-group', { hasText: 'Classics' }).locator('.book-group-toggle');
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
@@ -324,6 +374,7 @@ test('collapses category sections and remembers the state', async ({ page }) => 
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByRole('heading', { name: 'Sample Book' })).toHaveCount(0);
 
+  await page.waitForTimeout(500);
   await page.reload();
   const reloaded = page
     .locator('.book-group', { hasText: 'Classics' })
@@ -579,10 +630,15 @@ test('filters the library and switches to list view', async ({ page }) => {
   await search.fill('');
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'List view' }).click();
+  // List is the default; the toggle goes to grid and back, and the choice
+  // persists across a reload.
   await expect(page.locator('.book-grid')).toHaveClass(/is-list/);
   await page.getByRole('button', { name: 'Grid view' }).click();
   await expect(page.locator('.book-grid')).not.toHaveClass(/is-list/);
+  await page.getByRole('button', { name: 'List view' }).click();
+  await expect(page.locator('.book-grid')).toHaveClass(/is-list/);
+  await page.reload();
+  await expect(page.locator('.book-grid')).toHaveClass(/is-list/);
 
   await page.getByLabel('Sort books').selectOption('title');
   await expect(page.locator('.book-grid .book-card')).toHaveCount(2);

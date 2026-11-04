@@ -42,6 +42,9 @@ export interface SyncProviderConfig {
   /** SFTP (desktop): host lives in baseUrl, credentials in username/password */
   sftpPort: number;
   sftpKeyPath: string;
+  /** Runtime-only private key text from a picked file (ADR-0019 note: SFTP). */
+  sftpKeyData: string;
+  hasSftpKeyData: boolean;
   sftpRemoteBase: string;
   /** S3-compatible */
   endpoint: string;
@@ -107,6 +110,8 @@ export const newProvider = (
   localFolder: '',
   sftpPort: 22,
   sftpKeyPath: '',
+  sftpKeyData: '',
+  hasSftpKeyData: false,
   sftpRemoteBase: '/',
   endpoint: '',
   region: kind === 's3' ? 'us-east-1' : '',
@@ -154,6 +159,7 @@ export const WEBDAV_PRESETS: readonly WebdavPreset[] = [
 export const SYNCTHING_PRESET = 'syncthing';
 
 const passwordKey = (providerId: string): string => `sync.webdav.password.${providerId}`;
+const sftpKeyDataKey = (providerId: string): string => `sync.sftp.key.${providerId}`;
 const secretKey = (providerId: string): string => `sync.s3.secret.${providerId}`;
 const appSecretKey = (providerId: string): string => `sync.dropbox.appSecret.${providerId}`;
 const refreshTokenKey = (providerId: string): string => `sync.dropbox.refreshToken.${providerId}`;
@@ -184,6 +190,8 @@ const migrateLegacy = (legacy: LegacyConfig): SyncConfig => {
         localFolder: legacy.localFolder ?? '',
         sftpPort: 22,
         sftpKeyPath: '',
+        sftpKeyData: '',
+        hasSftpKeyData: false,
         sftpRemoteBase: '/',
         endpoint: '',
         region: '',
@@ -241,6 +249,7 @@ export const removeProviderSecrets = (providerId: string): void => {
     await keychainDelete(secretKey(providerId));
     await keychainDelete(appSecretKey(providerId));
     await keychainDelete(refreshTokenKey(providerId));
+    await keychainDelete(sftpKeyDataKey(providerId));
   });
 };
 
@@ -287,10 +296,21 @@ export const saveSyncConfig = (config: SyncConfig): void => {
       } else if (!provider.hasPassword) {
         queueSecret(() => keychainDelete(passwordKey(provider.id)));
       }
+      if (provider.kind === 'sftp' && provider.sftpKeyData) {
+        queueSecret(() => keychainSet(sftpKeyDataKey(provider.id), provider.sftpKeyData));
+      } else if (provider.kind === 'sftp' && !provider.hasSftpKeyData) {
+        queueSecret(() => keychainDelete(sftpKeyDataKey(provider.id)));
+      }
       return {
         ...provider,
         password: '',
         hasPassword: provider.hasPassword || Boolean(provider.password),
+        ...(provider.kind === 'sftp'
+          ? {
+              sftpKeyData: '',
+              hasSftpKeyData: provider.hasSftpKeyData || Boolean(provider.sftpKeyData),
+            }
+          : {}),
       };
     }),
   };
@@ -314,6 +334,14 @@ const resolveSecrets = async (provider: SyncProviderConfig): Promise<SyncProvide
     if (provider.secretAccessKey || !provider.hasSecretKey) return provider;
     const secret = (await keychainGet(secretKey(provider.id))) ?? '';
     return { ...provider, secretAccessKey: secret };
+  }
+  if (provider.kind === 'sftp') {
+    const withPassword =
+      provider.password || !provider.hasPassword
+        ? provider
+        : { ...provider, password: (await keychainGet(passwordKey(provider.id))) ?? '' };
+    if (withPassword.sftpKeyData || !withPassword.hasSftpKeyData) return withPassword;
+    return { ...withPassword, sftpKeyData: (await keychainGet(sftpKeyDataKey(provider.id))) ?? '' };
   }
   if (provider.password || !provider.hasPassword) return provider;
   const password = (await keychainGet(passwordKey(provider.id))) ?? '';
@@ -382,7 +410,11 @@ export const isProviderConfigured = (provider: SyncProviderConfig): boolean => {
       return Boolean(
         provider.baseUrl &&
           provider.username &&
-          (provider.password || provider.hasPassword || provider.sftpKeyPath),
+          (provider.password ||
+            provider.hasPassword ||
+            provider.sftpKeyPath ||
+            provider.sftpKeyData ||
+            provider.hasSftpKeyData),
       );
     default:
       return false;
@@ -403,6 +435,7 @@ const buildSftpProvider = async (provider: SyncProviderConfig): Promise<StorageP
     provider.username,
     provider.password,
     provider.sftpKeyPath,
+    provider.sftpKeyData,
     provider.sftpRemoteBase || '/',
   ]);
   const cached = sftpProviders.get(provider.id);
@@ -414,6 +447,7 @@ const buildSftpProvider = async (provider: SyncProviderConfig): Promise<StorageP
     username: provider.username,
     password: provider.password,
     keyPath: provider.sftpKeyPath,
+    keyData: provider.sftpKeyData,
     keyPassphrase: '',
     base: provider.sftpRemoteBase || '/',
   });

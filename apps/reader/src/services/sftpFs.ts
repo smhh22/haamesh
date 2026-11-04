@@ -20,6 +20,8 @@ export interface SftpConnection {
   username: string;
   password: string;
   keyPath: string;
+  /** Private key text (a picked file), so sandboxed devices need no path. */
+  keyData: string;
   keyPassphrase: string;
   /** Folder on the server that must already exist. */
   base: string;
@@ -33,6 +35,7 @@ export const connectSftp = async (connection: SftpConnection): Promise<string> =
     username: connection.username,
     password: connection.password || null,
     keyPath: connection.keyPath || null,
+    keyData: connection.keyData || null,
     keyPassphrase: connection.keyPassphrase || null,
     base: connection.base || null,
   });

@@ -26,7 +26,8 @@ interface UiStore {
   addExtraCategory: (name: string) => void;
   renameExtraCategory: (from: string, to: string) => void;
   removeExtraCategory: (name: string) => void;
-  reorderCategory: (name: string, before: string | null) => void;
+  /** Persist the full displayed sequence (named categories only). */
+  setCategoryOrder: (order: string[]) => void;
   renameCategoryOrder: (from: string, to: string) => void;
   purgeCategoryOrder: (name: string) => void;
 }
@@ -156,21 +157,14 @@ export const useUiStore = create<UiStore>((set) => ({
       return { extraCategories: next };
     }),
   /** Drop `name` before `before` (null = end of the ordered list). */
-  reorderCategory: (name, before) =>
-    set((state) => {
-      if (before === name) return {};
-      const without = state.categoryOrder.filter((item) => item !== name);
-      const at = before === null ? without.length : without.indexOf(before);
-      const next = [...without];
-      next.splice(at === -1 ? next.length : at, 0, name);
-      if (next.join('\u0000') === state.categoryOrder.join('\u0000')) return {};
-      try {
-        localStorage.setItem(CATEGORY_ORDER_KEY, JSON.stringify(next));
-      } catch {
-        // storage may be unavailable; the in-memory value still applies
-      }
-      return { categoryOrder: next };
-    }),
+  setCategoryOrder: (order) => {
+    try {
+      localStorage.setItem(CATEGORY_ORDER_KEY, JSON.stringify(order));
+    } catch {
+      // storage may be unavailable; the in-memory value still applies
+    }
+    set({ categoryOrder: [...order] });
+  },
   renameCategoryOrder: (from, to) =>
     set((state) => {
       if (!state.categoryOrder.includes(from)) return {};

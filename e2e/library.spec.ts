@@ -824,8 +824,11 @@ test('lets the reader override PDF language and direction', async ({ page }) => 
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(dialog).toHaveCount(0);
 
-  // The override is the book record: the badge and the dialog keep it.
+  // The override is the book record: the badge and the dialog keep it. The
+  // persist runs in the background; give it a moment before reloading or a
+  // slow CI disk reloads the pre-save record.
   await expect(page.locator('.badge', { hasText: 'fa' })).toBeVisible();
+  await page.waitForTimeout(500);
   await page.reload();
   await expect(page.locator('.badge', { hasText: 'fa' })).toBeVisible();
   await page

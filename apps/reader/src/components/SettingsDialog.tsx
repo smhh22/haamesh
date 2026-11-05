@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDialogFocus } from '../hooks/useDialogFocus';
+import { readAppProxy, saveAppProxy } from '../services/httpFetch';
 import { checkForUpdate, installUpdate, supportsInAppUpdate } from '../services/updater';
 import { type UiTheme, useUiStore } from '../stores/uiStore';
 import { MarkdownView } from './MarkdownView';
@@ -31,8 +32,29 @@ const GeneralSection = () => {
   const locale = useUiStore((state) => state.locale);
   const setLocale = useUiStore((state) => state.setLocale);
 
+  // The app-level proxy backs every sync/translation connection that has no
+  // per-provider value; read at each request, so it applies without a restart
+  // (the updater's own client is separate and documented as not proxied).
+  const [proxyDraft, setProxyDraft] = useState(() => readAppProxy());
+
   return (
     <>
+      <div className="setting-row is-field">
+        <label htmlFor="app-proxy">{t('settings.networkProxy')}</label>
+        <input
+          id="app-proxy"
+          className="text-input"
+          type="text"
+          dir="ltr"
+          value={proxyDraft}
+          placeholder="socks5h://127.0.0.1:2080"
+          onChange={(event) => {
+            setProxyDraft(event.currentTarget.value);
+            saveAppProxy(event.currentTarget.value);
+          }}
+        />
+      </div>
+      <p className="hint">{t('settings.networkProxyHint')}</p>
       <div className="setting-row">
         <span>{t('settings.theme')}</span>
         <div className="setting-controls">

@@ -21,11 +21,18 @@ export const UpdateBanner = () => {
 
   useEffect(() => {
     if (!supportsInAppUpdate()) return;
-    void checkForUpdate().then((result) => {
-      if (result.status === 'available') {
-        setUpdate({ version: result.version, notes: result.notes });
-      }
-    });
+    // Defer the launch check. The first seconds after the library renders are
+    // the heaviest (WebView warm-up; on Windows, Defender scanning a freshly
+    // updated exe), and a slow round-trip to GitHub made launches feel
+    // frozen. The manual check in Settings stays immediate.
+    const timer = window.setTimeout(() => {
+      void checkForUpdate().then((result) => {
+        if (result.status === 'available') {
+          setUpdate({ version: result.version, notes: result.notes });
+        }
+      });
+    }, 15_000);
+    return () => window.clearTimeout(timer);
   }, []);
 
   if (!update || dismissed) return null;

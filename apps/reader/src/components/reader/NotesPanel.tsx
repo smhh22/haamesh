@@ -1,6 +1,7 @@
 import type { BookNoteRecord } from '@hamesh/storage';
 import i18n from 'i18next';
 import { useTranslation } from 'react-i18next';
+import { MarkdownView } from '../MarkdownView';
 
 interface NotesPanelProps {
   notes: BookNoteRecord[];
@@ -101,9 +102,9 @@ export const NotesPanel = ({
               ) : (
                 <>
                   {note.note ? (
-                    <p className="note-text" dir="auto">
-                      {note.note}
-                    </p>
+                    // Notes may be written in Markdown; rendered inert (no
+                    // clickable links) with the note's own direction.
+                    <MarkdownView source={note.note} className="note-text" />
                   ) : null}
                   <div className="note-actions">
                     <button type="button" className="reader-action" onClick={() => onJump(note)}>

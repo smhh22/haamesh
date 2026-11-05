@@ -310,6 +310,15 @@ export const ReaderView = ({
     // The paginator reads its page margin from this attribute; it must be set
     // before render() measures the columns.
     view.renderer.setAttribute('margin', `${settings.margin}px`);
+    // Scrolled flow caps the text column (design pass): 38em at the current
+    // reader font size, so wide windows get composed lines instead of full-
+    // width ones. Paginated mode keeps the paginator's own column math.
+    if (settings.flow === 'scrolled') {
+      const capPx = Math.round(38 * 16 * (settings.fontSize / 100));
+      view.renderer.setAttribute('max-inline-size', String(capPx));
+    } else {
+      view.renderer.setAttribute('max-inline-size', '720px');
+    }
     view.renderer.render?.();
     // The paginator caches the document background for its gutter and only
     // refreshes it from setStyles(); without this, changing the theme leaves
@@ -613,6 +622,13 @@ export const ReaderView = ({
         if (!isPdf) {
           view.renderer?.setAttribute('flow', flowRef.current);
           view.renderer?.setAttribute('margin', `${marginRef.current}px`);
+          const settings0 = useReaderSettings.getState();
+          if (flowRef.current === 'scrolled') {
+            view.renderer?.setAttribute(
+              'max-inline-size',
+              String(Math.round(38 * 16 * (settings0.fontSize / 100))),
+            );
+          }
           for (const { doc } of view.renderer?.getContents() ?? []) {
             applyReaderStyle(doc, settingsCssRef.current);
           }

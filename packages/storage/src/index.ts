@@ -78,11 +78,19 @@ export interface Storage {
 
 import type { ContentTextRepository } from './sql';
 
-export type { ContentTextRepository, SqlDatabase, SqlValue, SyncClockRepository } from './sql';
+export type {
+  ContentTextRepository,
+  SqlDatabase,
+  SqlValue,
+  SyncClockRepository,
+  TranslationCacheEntry,
+  TranslationCacheRepository,
+} from './sql';
 export {
   createContentTextRepository,
   createSqlStorage,
   createSyncClockRepository,
+  createTranslationCacheRepository,
   migrate,
   migrateJsonSnapshot,
   searchBookTexts,

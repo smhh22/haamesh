@@ -83,6 +83,34 @@ const SYNC_CLOCKS_TABLE = `CREATE TABLE IF NOT EXISTS sync_clocks (
   hlc TEXT NOT NULL
 );`;
 
+// ADR-0016: translation cache is device-local and never synced.
+const AI_TRANSLATION_CACHE_TABLE = `CREATE TABLE IF NOT EXISTS ai_translation_cache (
+  key TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  source_lang TEXT NOT NULL,
+  target_lang TEXT NOT NULL,
+  value TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);`;
+
+export interface TranslationCacheEntry {
+  key: string;
+  provider: string;
+  sourceLang: string;
+  targetLang: string;
+  value: string;
+  createdAt: number;
+}
+
+export interface TranslationCacheRepository {
+  get(key: string): Promise<string | null>;
+  set(entry: TranslationCacheEntry): Promise<void>;
+  /** Drop the oldest rows above `maxEntries`. */
+  prune(maxEntries: number): Promise<void>;
+  count(): Promise<number>;
+  clear(): Promise<void>;
+}
+
 export const migrate = async (db: SqlDatabase): Promise<void> => {
   const rows = await db.all<{ user_version: number }>('PRAGMA user_version');
   const version = Number(rows[0]?.user_version ?? 0);
@@ -113,6 +141,11 @@ export const migrate = async (db: SqlDatabase): Promise<void> => {
       await db.exec("ALTER TABLE books ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'");
     }
     await db.exec('PRAGMA user_version = 5');
+  }
+  // v6 adds the device-local translation cache (ADR-0016).
+  if (version < 6) {
+    await db.exec(AI_TRANSLATION_CACHE_TABLE);
+    await db.exec('PRAGMA user_version = 6');
   }
 };
 
@@ -418,6 +451,41 @@ export interface SyncClockRepository {
   /** Drop record-level clocks (used to clear a tombstone on re-import). */
   remove(keys: string[]): Promise<void>;
 }
+
+export const createTranslationCacheRepository = (db: SqlDatabase): TranslationCacheRepository => ({
+  async get(key) {
+    const rows = await db.all<{ value: string }>(
+      'SELECT value FROM ai_translation_cache WHERE key = ?',
+      [key],
+    );
+    return rows[0]?.value ?? null;
+  },
+  async set(entry) {
+    await db.run(
+      `INSERT INTO ai_translation_cache (key, provider, source_lang, target_lang, value, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, created_at = excluded.created_at`,
+      [entry.key, entry.provider, entry.sourceLang, entry.targetLang, entry.value, entry.createdAt],
+    );
+  },
+  async prune(maxEntries) {
+    await db.run(
+      `DELETE FROM ai_translation_cache WHERE key NOT IN (
+         SELECT key FROM ai_translation_cache ORDER BY created_at DESC LIMIT ?
+       )`,
+      [Math.max(0, maxEntries)],
+    );
+  },
+  async count() {
+    const rows = await db.all<{ total: number }>(
+      'SELECT COUNT(*) AS total FROM ai_translation_cache',
+    );
+    return Number(rows[0]?.total ?? 0);
+  },
+  async clear() {
+    await db.run('DELETE FROM ai_translation_cache');
+  },
+});
 
 export const createSyncClockRepository = (db: SqlDatabase): SyncClockRepository => ({
   async list() {

@@ -236,41 +236,60 @@ pub async fn sftp_connect(
 
     // A picked key file arrives as data (works on Android sandboxes where the
     // app cannot read arbitrary paths); a typed path stays for desktop users.
-    let auth = match (
-        password.as_deref(),
-        key_data.as_deref(),
-        key_path.as_deref(),
-    ) {
-        (Some(password), _, _) if !password.is_empty() => handle
+    // Credentials are tried in order (password, then key) instead of picking
+    // exactly one: a stored password that the server no longer accepts must
+    // not shadow a perfectly good key.
+    let password = password.filter(|value| !value.is_empty());
+    let key_data = key_data.filter(|value| !value.trim().is_empty());
+    let key_path = key_path.filter(|value| !value.is_empty());
+    if password.is_none() && key_data.is_none() && key_path.is_none() {
+        return Err("password or private key required".into());
+    }
+
+    let mut authenticated = false;
+    let mut last_error = "authentication failed".to_string();
+    if let Some(password) = password.as_deref() {
+        match handle
             .authenticate_password(username.clone(), password)
             .await
-            .map_err(|error| error.to_string())?,
-        (_, Some(data), _) if !data.trim().is_empty() => {
-            let secret = decode_secret_key(data, key_passphrase.as_deref())
-                .map_err(|error| format!("cannot parse private key: {error}"))?;
-            handle
+        {
+            Ok(AuthResult::Success) => authenticated = true,
+            Ok(_) => last_error = "password rejected".into(),
+            // A server that closes the connection on a failed method ends the
+            // flow here; a later attempt would only report another error.
+            Err(error) => last_error = format!("password auth failed: {error}"),
+        }
+    }
+    if !authenticated {
+        let secret = if let Some(data) = key_data.as_deref() {
+            Some(
+                decode_secret_key(data, key_passphrase.as_deref())
+                    .map_err(|error| format!("cannot parse private key: {error}"))?,
+            )
+        } else if let Some(path) = key_path.as_deref() {
+            Some(
+                load_secret_key(PathBuf::from(path), key_passphrase.as_deref())
+                    .map_err(|error| format!("cannot read private key: {error}"))?,
+            )
+        } else {
+            None
+        };
+        if let Some(secret) = secret {
+            match handle
                 .authenticate_publickey(
                     username.clone(),
                     PrivateKeyWithHashAlg::new(Arc::new(secret), Some(HashAlg::Sha256)),
                 )
                 .await
-                .map_err(|error| error.to_string())?
+            {
+                Ok(AuthResult::Success) => authenticated = true,
+                Ok(_) => last_error = format!("{last_error}; key rejected"),
+                Err(error) => last_error = format!("{last_error}; key auth failed: {error}"),
+            }
         }
-        (_, _, Some(path)) if !path.is_empty() => {
-            let secret = load_secret_key(PathBuf::from(path), key_passphrase.as_deref())
-                .map_err(|error| format!("cannot read private key: {error}"))?;
-            handle
-                .authenticate_publickey(
-                    username.clone(),
-                    PrivateKeyWithHashAlg::new(Arc::new(secret), Some(HashAlg::Sha256)),
-                )
-                .await
-                .map_err(|error| error.to_string())?
-        }
-        _ => return Err("password or private key required".into()),
-    };
-    if !matches!(auth, AuthResult::Success) {
-        return Err("authentication failed".into());
+    }
+    if !authenticated {
+        return Err(last_error);
     }
 
     // Pin the host key only after successful authentication.

@@ -6,6 +6,7 @@ import {
   supportsInAppUpdate,
   type UpdateInfo,
 } from '../services/updater';
+import { MarkdownView } from './MarkdownView';
 
 /**
  * Update banner: silent check on launch, one-click install for AppImage and
@@ -31,15 +32,16 @@ export const UpdateBanner = () => {
 
   return (
     <div className="update-banner" role="status">
-      <span className="update-summary">
+      <div className="update-summary">
         {t('update.available', { version: update.version })}
         {update.notes ? (
-          <span className="update-notes" id="banner-update-notes" role="tooltip">
+          <div className="update-notes" id="banner-update-notes" role="tooltip">
             <strong>{t('update.notes')}</strong>
-            <span className="update-notes-body">{update.notes}</span>
-          </span>
+            {/* Release notes are English upstream copy; keep them LTR. */}
+            <MarkdownView source={update.notes} dir="ltr" className="update-notes-body" />
+          </div>
         ) : null}
-      </span>
+      </div>
       {supportsInAppUpdate() ? (
         <button
           type="button"

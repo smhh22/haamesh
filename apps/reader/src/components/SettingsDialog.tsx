@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import { checkForUpdate, installUpdate, supportsInAppUpdate } from '../services/updater';
 import { type UiTheme, useUiStore } from '../stores/uiStore';
+import { MarkdownView } from './MarkdownView';
 import { ShortcutsList } from './ShortcutsList';
 import { SyncSettings } from './SyncSettings';
 import { TranslationSettings } from './TranslationSettings';
@@ -126,15 +127,20 @@ const UpdatesSection = () => {
       </div>
       {pendingUpdate ? (
         <div className="setting-row">
-          <span className="update-summary">
+          <div className="update-summary">
             {t('settings.updateAvailable', { version: pendingUpdate.version })}
             {pendingUpdate.notes ? (
-              <span className="update-notes" id="settings-update-notes" role="tooltip">
+              <div className="update-notes" id="settings-update-notes" role="tooltip">
                 <strong>{t('update.notes')}</strong>
-                <span className="update-notes-body">{pendingUpdate.notes}</span>
-              </span>
+                {/* English upstream notes stay LTR in the Persian UI. */}
+                <MarkdownView
+                  source={pendingUpdate.notes}
+                  dir="ltr"
+                  className="update-notes-body"
+                />
+              </div>
             ) : null}
-          </span>
+          </div>
           <button
             type="button"
             className="reader-action is-primary update-install"

@@ -7,6 +7,7 @@ export {
   detectMarkdownDirection,
   isMarkdownFile,
   markdownTitle,
+  markdownToFragment,
 } from './markdown';
 export type { PageTurn } from './navigation';
 export { pageTurnForKey } from './navigation';

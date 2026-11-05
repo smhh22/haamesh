@@ -164,3 +164,34 @@ blockquote { margin-inline: 0; padding-inline-start: 1rem; }`;
   const name = `${file.name.replace(/\.(md|markdown)$/i, '') || 'book'}.epub`;
   return new File([zip], name, { type: EPUB_MIME });
 };
+
+export interface MarkdownFragmentOptions {
+  /**
+   * Render anchors as inert text (no href) so app-rendered content can never
+   * navigate the window. Default true; the reader export keeps links.
+   */
+  stripLinks?: boolean;
+  /** Treat single newlines as line breaks so plain-text notes keep their shape. */
+  breaks?: boolean;
+}
+
+/**
+ * Markdown to a sanitized HTML fragment for app-rendered surfaces (release
+ * notes, user notes). Scripts, handlers, and script URLs never survive the
+ * shared EPUB sanitizer; anchors are neutralized so a click cannot navigate.
+ */
+export const markdownToFragment = (
+  markdown: string,
+  options: MarkdownFragmentOptions = {},
+): string => {
+  const html = marked.parse(markdown, {
+    async: false,
+    gfm: true,
+    breaks: options.breaks ?? true,
+  });
+  const doc = new DOMParser().parseFromString(sanitizeEpubHtml(html), 'text/html');
+  if (options.stripLinks ?? true) {
+    for (const anchor of doc.querySelectorAll('a[href]')) anchor.removeAttribute('href');
+  }
+  return doc.body.innerHTML;
+};

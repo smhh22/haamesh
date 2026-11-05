@@ -10,6 +10,7 @@ const base: ReaderStyleInput = {
   hyphenate: false,
   flow: 'paginated',
   margin: 16,
+  invertImages: false,
 };
 
 describe('buildReaderCss', () => {
@@ -58,5 +59,16 @@ describe('buildReaderCss', () => {
 
   it('disables letter spacing', () => {
     expect(buildReaderCss(base)).toContain('letter-spacing: normal');
+  });
+
+  it('inverts images only in the dark theme when enabled', () => {
+    const dark = buildReaderCss({ ...base, theme: 'dark', invertImages: true });
+    expect(dark).toContain('filter: invert(1) hue-rotate(180deg)');
+
+    const light = buildReaderCss({ ...base, theme: 'light', invertImages: true });
+    expect(light).not.toContain('invert(1)');
+
+    const darkOff = buildReaderCss({ ...base, theme: 'dark', invertImages: false });
+    expect(darkOff).not.toContain('invert(1)');
   });
 });

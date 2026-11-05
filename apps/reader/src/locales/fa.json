@@ -142,6 +142,7 @@
     "pixels": "{{value}} پیکسل",
     "brightness": "روشنایی",
     "hyphenate": "شکستن کلمه در انتهای خط",
+    "invertImages": "وارونه‌کردن تصاویر در تم تاریک",
     "decreaseFont": "کوچک‌تر کردن قلم",
     "increaseFont": "بزرگ‌تر کردن قلم",
     "theme": "پوسته",

@@ -142,6 +142,7 @@
     "pixels": "{{value}} px",
     "brightness": "Brightness",
     "hyphenate": "Hyphenation",
+    "invertImages": "Invert images in dark mode",
     "decreaseFont": "Decrease font size",
     "increaseFont": "Increase font size",
     "theme": "Theme",

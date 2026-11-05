@@ -214,6 +214,22 @@ test('organizes books into a category with tags and filters by them', async ({ p
   await expect(page.locator('.tag-chip', { hasText: 'history' })).toBeVisible();
 });
 
+test('scrolls the library with the mouse wheel', async ({ page }) => {
+  // Guards against document-level CSS (overscroll/touch-action) that once
+  // risked disabling wheel scrolling on WebKitGTK desktops.
+  await page.setViewportSize({ width: 1280, height: 300 });
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+  await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight))
+    .toBe(true);
+  const before = await page.evaluate(() => window.scrollY);
+  await page.mouse.move(640, 150);
+  await page.mouse.wheel(0, 300);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(before);
+});
+
 test('lays out a real mobile shelf and reader', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

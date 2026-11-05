@@ -12,9 +12,6 @@ body,
 }
 
 :root {
-  /* Android WebViews bounce nested scrollers and the foliate paginator must
-     never overscroll; desktops ignore this (Readest hits the same bug). */
-  overscroll-behavior: none;
   --safe-area-inset-top: env(safe-area-inset-top, 0px);
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-inset-inline-start: max(
@@ -28,8 +25,6 @@ body {
   background: var(--hamesh-color-canvas);
   color: var(--hamesh-color-ink);
   font-family: var(--hamesh-font-ui);
-  /* Kill the 300 ms double-tap zoom delay on Android while keeping pinch. */
-  touch-action: manipulation;
 }
 
 .shell {
@@ -397,6 +392,10 @@ button.import-button {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   block-size: 100dvh;
+  /* Reader only: the WebView must never rubber-band the paginated view. The
+     library keeps normal document scrolling (a global overscroll rule was
+     suspected of disabling wheel scrolling on WebKitGTK desktops). */
+  overscroll-behavior: none;
   /* Notched devices: keep the header and footer off the system bars. */
   padding-block-start: var(--safe-area-inset-top);
   padding-block-end: var(--safe-area-inset-bottom);

@@ -50,7 +50,11 @@ jobs:
 
       - name: Open a PR when the screenshots changed
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # A fine-grained PAT (secret SCREENSHOTS_TOKEN) makes the bot's push
+          # trigger CI, so the auto-merge below can complete. GITHUB_TOKEN
+          # pushes never start workflows, which leaves the PR stuck behind
+          # branch protection until someone nudges it.
+          GH_TOKEN: ${{ secrets.SCREENSHOTS_TOKEN || secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail

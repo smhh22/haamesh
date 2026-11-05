@@ -10,6 +10,8 @@ export interface ReaderStyleInput {
   flow: ReaderFlow;
   /** Page padding in px; applied as body padding in scrolled flow. */
   margin: number;
+  /** Dark themes only: invert book images (raster formulas, screenshots). */
+  invertImages: boolean;
 }
 
 const THEMES = {
@@ -79,6 +81,7 @@ export const buildReaderCss = ({
   hyphenate,
   flow,
   margin,
+  invertImages,
 }: ReaderStyleInput): string => {
   const colors = THEMES[theme];
   const alignment = justify ? 'justify' : 'start';
@@ -86,6 +89,12 @@ export const buildReaderCss = ({
   const padding =
     flow === 'scrolled'
       ? `padding-inline: ${margin}px !important; padding-block-end: ${margin}px !important;`
+      : '';
+  // Raster formula images carry a white background baked into their pixels;
+  // no color rule can recolor them, so dark themes offer an explicit invert.
+  const imageFilter =
+    invertImages && theme === 'dark'
+      ? 'img, svg image { filter: invert(1) hue-rotate(180deg) !important; }'
       : '';
 
   return `${FONT_FACES}
@@ -103,6 +112,7 @@ body {
 }
 p, div, li, blockquote { text-align: ${alignment} !important; }
 a { color: ${colors.link} !important; }
+${imageFilter}
 
 /* Tap-to-translate block (ADR-0016), inserted below a tapped paragraph.
    Non-selectable so selections and CFIs never include translated content. */

@@ -50,6 +50,12 @@ export interface ReaderSettings {
   justify: boolean;
   flow: ReaderFlow;
   pdfZoom: PdfZoom;
+  /**
+   * Dark themes only: invert book images so formula/screen shots with white
+   * backgrounds stop glaring (raster formulas cannot recolor any other way).
+   * Opt-in — photos look wrong inverted.
+   */
+  invertImages: boolean;
   increaseFont: () => void;
   decreaseFont: () => void;
   setFontFamily: (font: ReaderFont) => void;
@@ -61,6 +67,7 @@ export interface ReaderSettings {
   toggleJustify: () => void;
   setFlow: (flow: ReaderFlow) => void;
   setPdfZoom: (zoom: PdfZoom) => void;
+  toggleInvertImages: () => void;
   zoomIn: () => void;
   zoomOut: () => void;
 }
@@ -85,6 +92,7 @@ export const useReaderSettings = create<ReaderSettings>()(
       justify: true,
       flow: 'paginated',
       pdfZoom: 'fit-page',
+      invertImages: false,
       increaseFont: () =>
         set((state) => ({ fontSize: clamp(state.fontSize + 10, FONT_SIZE_MIN, FONT_SIZE_MAX) })),
       decreaseFont: () =>
@@ -100,6 +108,7 @@ export const useReaderSettings = create<ReaderSettings>()(
       toggleJustify: () => set((state) => ({ justify: !state.justify })),
       setFlow: (flow) => set({ flow }),
       setPdfZoom: (pdfZoom) => set({ pdfZoom }),
+      toggleInvertImages: () => set((state) => ({ invertImages: !state.invertImages })),
       zoomIn: () =>
         set((state) => {
           const current = typeof state.pdfZoom === 'number' ? state.pdfZoom : 1;

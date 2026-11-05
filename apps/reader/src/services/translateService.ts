@@ -30,8 +30,6 @@ export interface TranslateRequest {
 export interface TranslateOutcome {
   text: string;
   providerId: string;
-  /** Human-readable provider label for the result line. */
-  providerLabel: string;
   /** True when the result came from the local cache (no network). */
   cached: boolean;
 }
@@ -122,9 +120,7 @@ export const runTranslation = async (
     const cacheKey = bookCacheKey(provider, null, request, chunks.length);
     if (cache) {
       const hit = await cache.get(cacheKey).catch(() => null);
-      if (hit !== null) {
-        return { text: hit, providerId: provider.id, providerLabel: provider.label, cached: true };
-      }
+      if (hit !== null) return { text: hit, providerId: provider.id, cached: true };
     }
     try {
       const parts: string[] = [];
@@ -151,7 +147,7 @@ export const runTranslation = async (
           .then(() => cache.prune(CACHE_LIMIT))
           .catch(() => undefined);
       }
-      return { text, providerId: provider.id, providerLabel: provider.label, cached: false };
+      return { text, providerId: provider.id, cached: false };
     } catch (error) {
       const failure =
         error instanceof TranslationError

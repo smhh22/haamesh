@@ -31,6 +31,7 @@ export const createOpenAiCompatibleTranslationProvider = (
 ): TranslationProvider => ({
   id: 'openai-compatible',
   label: 'OpenAI-compatible',
+  model: config.model,
   capabilities: { maxChars: 6000, needsKey: false, worksInWeb: true },
   async translate(request: TranslationRequest): Promise<TranslationResult> {
     if (request.text.length > 6000) {

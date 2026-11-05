@@ -52,6 +52,12 @@ export interface TranslationCapabilities {
 export interface TranslationProvider {
   readonly id: string;
   readonly label: string;
+  /**
+   * Model or backend variant that changes the output (for example the
+   * OpenAI-compatible model name). Part of the cache key: two configs that
+   * share a provider id must not reuse each other's results.
+   */
+  readonly model?: string;
   readonly capabilities: TranslationCapabilities;
   translate(request: TranslationRequest): Promise<TranslationResult>;
 }

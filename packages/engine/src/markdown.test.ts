@@ -6,6 +6,7 @@ import {
   detectMarkdownDirection,
   isMarkdownFile,
   markdownTitle,
+  markdownToFragment,
   stripFrontMatter,
 } from './markdown';
 
@@ -122,5 +123,39 @@ describe('importBook with markdown', () => {
     const importedFirst = await importBook(makeMdFile(content, 'a.md'));
     const importedSecond = await importBook(makeMdFile(content, 'a.md'));
     expect(importedFirst.metadata.hash).toBe(importedSecond.metadata.hash);
+  });
+});
+
+describe('markdownToFragment', () => {
+  it('renders headings, lists, emphasis, and code', () => {
+    const html = markdownToFragment('# Title\n\n- one\n- two\n\n**bold** and `code`');
+    expect(html).toContain('<h1>Title</h1>');
+    expect(html).toContain('<ul>');
+    expect(html).toContain('<strong>bold</strong>');
+    expect(html).toContain('<code>code</code>');
+  });
+
+  it('keeps single newlines as line breaks (plain-text notes survive)', () => {
+    const html = markdownToFragment('first line\nsecond line');
+    expect(html).toContain('<br>');
+  });
+
+  it('neutralizes anchors so a click cannot navigate', () => {
+    const html = markdownToFragment('[site](https://example.com)');
+    expect(html).toContain('<a>site</a>');
+    expect(html).not.toContain('href');
+  });
+
+  it('keeps hrefs when asked (reader-style rendering)', () => {
+    const html = markdownToFragment('[site](https://example.com)', { stripLinks: false });
+    expect(html).toContain('href="https://example.com"');
+  });
+
+  it('never lets scripts or handlers through', () => {
+    const html = markdownToFragment(
+      '<script>alert(1)</script>\n\n<img src="x" onerror="alert(2)">',
+    );
+    expect(html).not.toMatch(/<script/i);
+    expect(html).not.toContain('onerror');
   });
 });

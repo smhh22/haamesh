@@ -679,6 +679,75 @@ textarea::placeholder {
   font-weight: 600;
 }
 
+/* Docked reader sidebar (wide windows): Contents / Notes / Search tabs next
+   to the page instead of over it. The stage reflows to the remaining width;
+   in RTL the sidebar docks on the right because grid columns follow direction. */
+.reader-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.reader-sidebar {
+  display: flex;
+  flex-direction: column;
+  inline-size: clamp(15rem, 20vw, 19rem);
+  min-block-size: 0;
+  border-inline-end: 1px solid var(--hamesh-color-border);
+  background: var(--hamesh-color-surface);
+}
+
+.sidebar-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hamesh-space-1);
+  padding: var(--hamesh-space-2);
+  border-block-end: 1px solid var(--hamesh-color-border);
+}
+
+.sidebar-tabs .sidebar-close {
+  margin-inline-start: auto;
+}
+
+.sidebar-body {
+  min-block-size: 0;
+  overflow: auto;
+  padding: var(--hamesh-space-3);
+}
+
+/* The tabs replace each panel's own header inside the dock. */
+.sidebar-body .panel-header {
+  display: none;
+}
+
+/* Entrance motion (design pass): a short fade/slide, disabled for users who
+   ask for reduced motion. */
+@keyframes hamesh-fade-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+.reader-panel,
+.selection-popover {
+  animation: hamesh-fade-in 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-panel,
+  .selection-popover {
+    animation: none;
+  }
+}
+
 .reader-panel {
   position: absolute;
   inset-block-start: 3.75rem;

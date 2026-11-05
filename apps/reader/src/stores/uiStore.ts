@@ -10,6 +10,12 @@ interface UiStore {
   /** Library shelf layout; list is the default so more books fit a screen. */
   viewMode: 'grid' | 'list';
   setViewMode: (view: 'grid' | 'list') => void;
+  /**
+   * Reader sidebar (Contents / Notes / Search) on wide windows; open by
+   * default, remembered per device. Narrow windows always use sheets.
+   */
+  readerSidebar: boolean;
+  setReaderSidebar: (open: boolean) => void;
   /** Library category sections the user collapsed (device-local). */
   collapsedGroups: string[];
   /**
@@ -38,12 +44,22 @@ const COLLAPSED_KEY = 'hamesh.ui.collapsed-groups';
 const EXTRA_CATEGORIES_KEY = 'hamesh.ui.extra-categories';
 const CATEGORY_ORDER_KEY = 'hamesh.ui.category-order';
 const VIEW_KEY = 'hamesh.ui.view';
+const READER_SIDEBAR_KEY = 'hamesh.ui.reader-sidebar';
 
 const readViewMode = (): 'grid' | 'list' => {
   try {
     return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'list';
   } catch {
     return 'list';
+  }
+};
+
+const readReaderSidebar = (): boolean => {
+  try {
+    // Absent key = the default (open); only an explicit 'closed' hides it.
+    return localStorage.getItem(READER_SIDEBAR_KEY) !== 'closed';
+  } catch {
+    return true;
   }
 };
 
@@ -98,6 +114,7 @@ export const useUiStore = create<UiStore>((set) => ({
   extraCategories: readStringList(EXTRA_CATEGORIES_KEY),
   categoryOrder: readStringList(CATEGORY_ORDER_KEY),
   viewMode: readViewMode(),
+  readerSidebar: readReaderSidebar(),
   setViewMode: (view) => {
     try {
       localStorage.setItem(VIEW_KEY, view);
@@ -105,6 +122,14 @@ export const useUiStore = create<UiStore>((set) => ({
       // storage may be unavailable; the in-memory value still applies
     }
     set({ viewMode: view });
+  },
+  setReaderSidebar: (open) => {
+    try {
+      localStorage.setItem(READER_SIDEBAR_KEY, open ? 'open' : 'closed');
+    } catch {
+      // storage may be unavailable; the in-memory value still applies
+    }
+    set({ readerSidebar: open });
   },
   toggleGroup: (key) =>
     set((state) => {

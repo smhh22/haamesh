@@ -1393,9 +1393,10 @@ test('applies the book direction when documents omit dir', async ({ page }) => {
 test('escape closes panels, then returns to the library', async ({ page }) => {
   await openReader(page);
   await page.getByRole('button', { name: 'Contents' }).click();
-  await expect(page.locator('.toc-panel')).toBeVisible();
+  // Wide windows dock the sidebar instead of floating a sheet.
+  await expect(page.locator('.reader-sidebar')).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.locator('.toc-panel')).toHaveCount(0);
+  await expect(page.locator('.reader-sidebar')).toHaveCount(0);
   await expect(page.locator('.reader-shell')).toBeVisible();
 
   await page.keyboard.press('Escape');

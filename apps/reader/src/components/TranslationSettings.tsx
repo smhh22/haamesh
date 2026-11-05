@@ -4,6 +4,7 @@ import {
   type AiTranslationSettings,
   loadAiSettings,
   newTranslationProvider,
+  resolveAiSecrets,
   saveAiSettings,
   type TranslationProviderConfig,
   type TranslationProviderKind,
@@ -69,7 +70,10 @@ export const TranslationSettings = () => {
       [provider.id]: { testing: true, result: null, detail: '' },
     }));
     try {
-      const built = providerFromConfig(provider, providerFetch(provider.proxy) as never);
+      // A key saved in an earlier session lives in the keychain, not in the
+      // config; resolve it or the test fails with AUTH for working providers.
+      const resolved = await resolveAiSecrets(provider);
+      const built = providerFromConfig(resolved, providerFetch(provider.proxy) as never);
       if (!built) throw new Error('incomplete configuration');
       const result = await built.translate({
         text: 'hello',

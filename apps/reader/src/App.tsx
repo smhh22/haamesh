@@ -123,14 +123,12 @@ export const App = () => {
   // Re-derive which books have local bytes whenever the library changes: a
   // sync round (records only) or a per-book download both land here.
   useEffect(() => {
-    let cancelled = false;
-    void listBookHashes().then((hashes) => {
-      if (!cancelled) setFileHashes(hashes);
-    });
-    return () => {
-      cancelled = true;
+    const refresh = () => {
+      void listBookHashes().then(setFileHashes);
     };
-  }, [books]);
+    refresh();
+    return useLibraryStore.subscribe(refresh);
+  }, []);
   const collapsedGroups = useUiStore((state) => state.collapsedGroups);
   const toggleGroup = useUiStore((state) => state.toggleGroup);
   const extraCategories = useUiStore((state) => state.extraCategories);

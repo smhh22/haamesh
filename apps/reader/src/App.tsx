@@ -725,6 +725,7 @@ export const App = () => {
                         <span dir="auto">{label}</span>
                         <span className="book-group-count">
                           {t('library.groupCount', {
+                            count: group.books.length,
                             total: numberFormat.format(group.books.length),
                           })}
                         </span>

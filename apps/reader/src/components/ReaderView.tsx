@@ -763,7 +763,7 @@ export const ReaderView = ({
       setTranslation({
         status: 'done',
         text: outcome.text,
-        providerId: outcome.providerId,
+        providerLabel: outcome.providerLabel,
       });
     } catch (error) {
       const code =

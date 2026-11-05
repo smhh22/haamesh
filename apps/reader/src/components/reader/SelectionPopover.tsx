@@ -12,7 +12,7 @@ export const HIGHLIGHT_COLORS = [
 export interface SelectionTranslationState {
   status: 'loading' | 'done' | 'error';
   text?: string;
-  providerId?: string;
+  providerLabel?: string;
   errorCode?: string;
 }
 
@@ -124,9 +124,9 @@ export const SelectionPopover = ({
                     >
                       {t('reader.copy')}
                     </button>
-                    {translation.providerId ? (
+                    {translation.providerLabel ? (
                       <span className="hint" dir="ltr">
-                        {translation.providerId}
+                        {translation.providerLabel}
                       </span>
                     ) : null}
                   </div>

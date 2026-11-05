@@ -222,6 +222,18 @@ export const SettingsPanel = ({ settings, isPdf, onClose }: SettingsPanelProps) 
             </button>
           </div>
           <div className="setting-row">
+            <span>{t('reader.invertImages')}</span>
+            <button
+              type="button"
+              className={settings.invertImages ? 'reader-action is-selected' : 'reader-action'}
+              aria-label={t('reader.invertImages')}
+              aria-pressed={settings.invertImages}
+              onClick={settings.toggleInvertImages}
+            >
+              {settings.invertImages ? t('reader.on') : t('reader.off')}
+            </button>
+          </div>
+          <div className="setting-row">
             <span>{t('reader.flow')}</span>
             <div className="setting-controls">
               <button

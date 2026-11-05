@@ -139,6 +139,7 @@ export const ReaderView = ({
       hyphenate: settings.hyphenate,
       flow: settings.flow,
       margin: settings.margin,
+      invertImages: settings.invertImages,
     });
   const settingsCssRef = useRef(buildCss());
   const flowRef = useRef(settings.flow);
@@ -300,6 +301,7 @@ export const ReaderView = ({
       hyphenate: settings.hyphenate,
       flow: settings.flow,
       margin: settings.margin,
+      invertImages: settings.invertImages,
     });
     settingsCssRef.current = css;
     flowRef.current = settings.flow;

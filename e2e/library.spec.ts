@@ -713,9 +713,13 @@ test('navigates the TOC and changes reader settings', async ({ page }) => {
   await expect(shell).toHaveAttribute('data-font-size', '100');
   await page.getByRole('button', { name: 'Increase font size' }).click();
   await expect(shell).toHaveAttribute('data-font-size', '110');
-  await page.getByRole('button', { name: 'Dark' }).click();
+  // exact: true — the invert-images row's label contains the word "dark" too.
+  await page.getByRole('button', { name: 'Dark', exact: true }).click();
   await expect(shell).toHaveAttribute('data-theme', 'dark');
-  await expect(page.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Dark', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await expect(page.getByRole('button', { name: 'Sepia' })).toHaveAttribute(
     'aria-pressed',
     'false',

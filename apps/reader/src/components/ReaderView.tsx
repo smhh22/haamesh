@@ -27,6 +27,7 @@ import { Overlayer } from 'foliate-js/overlayer.js';
 import { type FoliateBook, makeBook } from 'foliate-js/view.js';
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { locatorFromRelocate, type RelocateDetail } from '../readerLocator';
 import { buildReaderCss } from '../readerStyles';
 import { loadAiSettings } from '../services/aiSettings';
@@ -106,6 +107,11 @@ export const ReaderView = ({
 }: ReaderViewProps) => {
   const { t, i18n } = useTranslation();
   const settings = useReaderSettings();
+  // Docked sidebar on wide windows (device-local preference; design pass).
+  const wideWindow = useMediaQuery('(min-width: 64rem)');
+  const sidebarOpen = useUiStore((state) => state.readerSidebar);
+  const setReaderSidebar = useUiStore((state) => state.setReaderSidebar);
+  const sidebarVisible = wideWindow && sidebarOpen;
   const allNotes = useNotesStore((state) => state.notes);
   const addNote = useNotesStore((state) => state.add);
   const updateNote = useNotesStore((state) => state.update);
@@ -660,7 +666,12 @@ export const ReaderView = ({
       if (target?.closest('[role="dialog"]')) return;
 
       if (event.key === 'Escape') {
-        if (panel) {
+        if (panel && !sidebarVisible) {
+          setPanel(null);
+          viewRef.current?.clearSearch();
+          event.preventDefault();
+        } else if (sidebarVisible) {
+          setReaderSidebar(false);
           setPanel(null);
           viewRef.current?.clearSearch();
           event.preventDefault();
@@ -700,7 +711,7 @@ export const ReaderView = ({
     keyHandlerRef.current = onKeyDown;
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [panel, onClose, book.direction, isPdf]);
+  }, [panel, onClose, book.direction, isPdf, sidebarVisible, setReaderSidebar]);
 
   const turn = (action: 'next' | 'prev') => {
     const view = viewRef.current;
@@ -717,12 +728,28 @@ export const ReaderView = ({
 
   const togglePanel = (next: Exclude<ReaderPanel, null>) => {
     if (panel === 'search' && next !== 'search') viewRef.current?.clearSearch();
+    if (sidebarVisible) {
+      // Docked mode: the toolbar switches tabs; clicking the active tab
+      // hides the sidebar.
+      if (panel === next) setReaderSidebar(false);
+      else setPanel(next);
+      return;
+    }
     if (panel === next && next === 'search') viewRef.current?.clearSearch();
-    setPanel((current) => (current === next ? null : next));
+    if (panel === next) {
+      setPanel(null);
+      return;
+    }
+    // Re-opening on a wide window docks it again.
+    setPanel(next);
+    if (wideWindow) setReaderSidebar(true);
   };
 
   const closePanel = () => {
     if (panel === 'search') viewRef.current?.clearSearch();
+    // Hiding the dock also clears the active tab so the focus-return effect
+    // (panel -> null) hands focus back to the toolbar button.
+    setReaderSidebar(false);
     setPanel(null);
   };
 
@@ -1133,7 +1160,7 @@ export const ReaderView = ({
         </span>
       </header>
 
-      {panel === 'toc' ? (
+      {panel === 'toc' && !sidebarVisible ? (
         <aside className="reader-panel toc-panel" aria-label={t('reader.contents')}>
           <div className="panel-header">
             <h2>{t('reader.contents')}</h2>
@@ -1149,7 +1176,7 @@ export const ReaderView = ({
         </aside>
       ) : null}
 
-      {panel === 'notes' ? (
+      {panel === 'notes' && !sidebarVisible ? (
         <NotesPanel
           notes={bookNotes}
           editingNoteId={editingNoteId}
@@ -1175,7 +1202,7 @@ export const ReaderView = ({
         />
       ) : null}
 
-      {panel === 'search' ? (
+      {panel === 'search' && !sidebarVisible ? (
         <SearchPanel
           query={searchQuery}
           results={searchResults}
@@ -1215,12 +1242,103 @@ export const ReaderView = ({
         />
       ) : null}
 
-      <div className="reader-stage" ref={stageRef}>
-        {failed ? (
-          <p className="error" role="alert">
-            {t('reader.error')}
-          </p>
+      <div className="reader-main">
+        {sidebarVisible ? (
+          <aside
+            className={`reader-sidebar${panel ? ` is-${panel}` : ' is-toc'}`}
+            aria-label={t('reader.contents')}
+          >
+            <div className="sidebar-tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={panel === 'toc'}
+                className={panel === 'toc' ? 'reader-action is-selected' : 'reader-action'}
+                onClick={() => setPanel('toc')}
+              >
+                {t('reader.contents')}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={panel === 'notes'}
+                className={panel === 'notes' ? 'reader-action is-selected' : 'reader-action'}
+                onClick={() => setPanel('notes')}
+              >
+                {t('reader.notes')}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={panel === 'search'}
+                className={panel === 'search' ? 'reader-action is-selected' : 'reader-action'}
+                onClick={() => setPanel('search')}
+              >
+                {t('reader.search')}
+              </button>
+              <button
+                type="button"
+                className="text-button sidebar-close"
+                aria-label={t('reader.close')}
+                onClick={closePanel}
+              >
+                {t('reader.close')}
+              </button>
+            </div>
+            <div className="sidebar-body">
+              {panel === 'notes' ? (
+                <NotesPanel
+                  notes={bookNotes}
+                  editingNoteId={editingNoteId}
+                  editDraft={editDraft}
+                  onEditDraftChange={setEditDraft}
+                  onEdit={(note) => {
+                    setEditingNoteId(note.id);
+                    setEditDraft(note.note ?? '');
+                  }}
+                  onSaveEdit={saveNoteEdit}
+                  onCancelEdit={() => {
+                    setEditingNoteId(null);
+                    setEditDraft('');
+                  }}
+                  onDelete={(noteId: string) => {
+                    const note = bookNotes.find((item) => item.id === noteId);
+                    if (note) deleteBookNote(note);
+                  }}
+                  onJump={jumpToNote}
+                  onExportMarkdown={() => exportNotes('markdown')}
+                  onExportJson={() => exportNotes('json')}
+                  onClose={closePanel}
+                />
+              ) : null}
+              {panel === 'search' ? (
+                <SearchPanel
+                  query={searchQuery}
+                  results={searchResults}
+                  searching={searching}
+                  onQueryChange={setSearchQuery}
+                  onSubmit={runSearch}
+                  onGoTo={(cfi) => void viewRef.current?.goTo(cfi)}
+                  onClose={closePanel}
+                />
+              ) : null}
+              {panel === 'toc' || panel === null ? (
+                toc.length > 0 ? (
+                  <TocTree items={toc} activeHref={activeHref} onSelect={goToToc} />
+                ) : (
+                  <p className="hint">{t('reader.noToc')}</p>
+                )
+              ) : null}
+            </div>
+          </aside>
         ) : null}
+        <div className="reader-stage" ref={stageRef}>
+          {failed ? (
+            <p className="error" role="alert">
+              {t('reader.error')}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <footer className="reader-footer">

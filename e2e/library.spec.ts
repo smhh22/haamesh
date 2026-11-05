@@ -918,6 +918,109 @@ test('translates a tapped paragraph when tap-to-translate is enabled', async ({ 
   await expect(block).toHaveCount(0);
 });
 
+test.describe('phone viewport', () => {
+  test.use({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
+
+  test('keeps the reader toolbar and the translated popover inside the viewport', async ({
+    page,
+  }) => {
+    await page.route('https://api.mymemory.translated.net/**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          responseStatus: 200,
+          responseData: {
+            translatedText:
+              'این ترجمهٔ آزمایشی برای بررسی چیدمان موبایل است و باید در چند خط بشکند تا رفتار متن بلند هم دیده شود.',
+          },
+        }),
+      }),
+    );
+    await page.goto('/');
+    await page.evaluate(() => {
+      localStorage.setItem(
+        'hamesh.ai.translation',
+        JSON.stringify({
+          providers: [
+            {
+              id: 'e2e-mymemory',
+              kind: 'mymemory',
+              label: 'MyMemory',
+              enabled: true,
+              baseUrl: '',
+              model: '',
+              email: '',
+              apiKey: '',
+              hasApiKey: false,
+              proxy: '',
+            },
+          ],
+          targetLang: 'fa',
+          tapToTranslate: false,
+        }),
+      );
+    });
+    await page.locator('input[type="file"]').setInputFiles(fixture);
+    await page.getByRole('button', { name: 'Read' }).click();
+    await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+      timeout: 15_000,
+    });
+
+    // Every toolbar button and the progress read-out must stay on screen; the
+    // mobile layout wraps the actions instead of scrolling them sideways.
+    const viewport = await page.evaluate(() => window.innerWidth);
+    for (const selector of ['.reader-action', '.reader-progress']) {
+      const boxes = await page.locator(selector).evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const rect = node.getBoundingClientRect();
+          return { left: rect.left, right: rect.right };
+        }),
+      );
+      expect(boxes.length).toBeGreaterThan(0);
+      for (const box of boxes) {
+        expect(box.left).toBeGreaterThanOrEqual(0);
+        expect(box.right).toBeLessThanOrEqual(viewport + 0.5);
+      }
+    }
+
+    const frame = page.frames().find((item) => item.url().startsWith('blob:'));
+    expect(frame).toBeTruthy();
+    if (!frame) return;
+    await frame.waitForSelector('p');
+    await frame.evaluate(() => {
+      // A paragraph low on the page: the translated popover would run off the
+      // bottom if it did not flip above the selection.
+      const paragraph = document.querySelectorAll('p')[2];
+      const range = document.createRange();
+      range.selectNodeContents(paragraph);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      document.dispatchEvent(new Event('selectionchange'));
+    });
+
+    const popover = page.locator('.selection-popover');
+    await expect(popover).toBeVisible();
+    await popover.getByRole('button', { name: 'Translate' }).click();
+    await expect(popover.locator('.selection-translation-text')).toHaveText(
+      'این ترجمهٔ آزمایشی برای بررسی چیدمان موبایل است و باید در چند خط بشکند تا رفتار متن بلند هم دیده شود.',
+    );
+
+    const visible = await page.evaluate(() => ({
+      width: window.innerWidth,
+      height: window.innerHeight,
+    }));
+    const box = await popover.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) return;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(visible.width + 0.5);
+    expect(box.y + box.height).toBeLessThanOrEqual(visible.height + 0.5);
+  });
+});
+
 test('imports a Persian markdown file and reads it RTL', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(markdownFixture);

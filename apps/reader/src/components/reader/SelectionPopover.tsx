@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SelectionInfo } from './types';
 
@@ -46,12 +47,57 @@ export const SelectionPopover = ({
   onDismiss,
 }: SelectionPopoverProps) => {
   const { t } = useTranslation();
+  const nodeRef = useRef<HTMLDivElement>(null);
+  const [offset, setOffset] = useState({ x: selection.x, y: selection.y });
+  // The transform already applied, needed to recover the untransformed origin:
+  // CSS may position the popover with insets (full-width sheet on phones).
+  const appliedRef = useRef({ x: selection.x, y: selection.y });
+
+  // The anchor is the selection's bottom + 8px, which is right for the action
+  // row but lets a translation result run off a phone screen. Measure the
+  // rendered popover: keep it below when it fits, otherwise flip it above the
+  // selection; clamp both axes so padding/border never push it off-screen.
+  // Very tall content still scrolls (max-block-size in CSS).
+  useLayoutEffect(() => {
+    const node = nodeRef.current;
+    if (!node) return;
+    const place = () => {
+      const width = node.offsetWidth;
+      const height = node.offsetHeight;
+      const rect = node.getBoundingClientRect();
+      const baseLeft = rect.left - appliedRef.current.x;
+      const baseTop = rect.top - appliedRef.current.y;
+      const desiredLeft = Math.max(8, Math.min(selection.x, window.innerWidth - width - 8));
+      const maxTop = window.innerHeight - height - 8;
+      const desiredTop =
+        selection.y <= maxTop ? Math.max(8, selection.y) : selection.y - 16 - height;
+      const next = {
+        x: desiredLeft - baseLeft,
+        y: Math.max(8, Math.min(desiredTop, maxTop)) - baseTop,
+      };
+      appliedRef.current = next;
+      setOffset(next);
+    };
+    place();
+    window.addEventListener('resize', place);
+    // Content changes (translation result, note draft) change the height
+    // without changing the anchor; re-place whenever the box resizes.
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => place());
+    observer?.observe(node);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', place);
+    };
+  }, [selection.x, selection.y]);
+
   return (
     <div
+      ref={nodeRef}
       className="selection-popover"
       role="dialog"
       aria-label={t('reader.selection')}
-      style={{ transform: `translate(${selection.x}px, ${selection.y}px)` }}
+      style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
     >
       <div className="highlight-colors">
         {HIGHLIGHT_COLORS.map((color) => (

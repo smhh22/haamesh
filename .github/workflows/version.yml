@@ -1,8 +1,11 @@
 name: Version
 
 on:
-  push:
-    branches: [main]
+  # Releases are user-approved (AGENTS.md): nothing tags on push. The user is
+  # asked after each merge; a yes runs this workflow manually
+  # (`gh workflow run version.yml`), which cuts ONE release from everything
+  # accumulated since the previous tag.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -19,29 +22,32 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.sha }}
 
       - id: bump
-        env:
-          MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           set -euo pipefail
-          title=$(printf '%s' "$MESSAGE" | head -n1)
           latest=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -n1)
           latest=${latest:-v0.0.0}
           version=${latest#v}
           IFS=. read -r major minor patch <<< "$version"
-          lower=$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]')
+          subjects=$(git log --pretty=format:%s "${latest}..HEAD")
+          if [ -z "$subjects" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No commits since $latest."
+            exit 0
+          fi
+          lower=$(printf '%s' "$subjects" | tr '[:upper:]' '[:lower:]')
 
-          if printf '%s' "$MESSAGE" | grep -qi 'breaking change' || [[ "$lower" == *'!:'* ]]; then
+          # The strongest signal in the whole batch decides the bump.
+          if printf '%s' "$subjects" | grep -qi 'breaking change' || [[ "$lower" == *'!:'* ]]; then
             major=$((major + 1)); minor=0; patch=0
-          elif [[ "$lower" =~ ^feat(\(.+\))?: ]]; then
+          elif printf '%s\n' "$subjects" | grep -qiE '^feat(\(.+\))?:'; then
             minor=$((minor + 1)); patch=0
-          elif [[ "$lower" =~ ^(fix|perf|refactor)(\(.+\))?: ]]; then
+          elif printf '%s\n' "$subjects" | grep -qiE '^(fix|perf|refactor)(\(.+\))?:'; then
             patch=$((patch + 1))
           else
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "No release for: $title"
+            echo "Only internal commits since $latest; nothing to release."
             exit 0
           fi
 
@@ -53,7 +59,7 @@ jobs:
           fi
           echo "skip=false" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Releasing $tag from $title"
+          echo "Releasing $tag ($(printf '%s' "$subjects" | wc -l) commits since $latest)"
 
       - if: steps.bump.outputs.skip == 'false'
         env:
@@ -61,5 +67,5 @@ jobs:
           TAG: ${{ steps.bump.outputs.tag }}
         run: |
           gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" \
-            -f ref="refs/tags/${TAG}" -f sha="${GITHUB_SHA}"
+            -f ref="refs/tags/${TAG}" -f sha="$(git rev-parse HEAD)"
           gh workflow run release.yml --ref main -f version="${TAG}"

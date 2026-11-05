@@ -689,6 +689,13 @@ textarea::placeholder {
   min-inline-size: 0;
 }
 
+/* The stage always lives in the flexible column: with the dock hidden, an
+   `auto` first track sized by the stage's own 100%-width content collapses
+   to zero and the page renders blank. */
+.reader-main > .reader-stage {
+  grid-column: 2;
+}
+
 .reader-sidebar {
   display: flex;
   flex-direction: column;
@@ -715,6 +722,12 @@ textarea::placeholder {
   min-block-size: 0;
   overflow: auto;
   padding: var(--hamesh-space-3);
+}
+
+/* The dock's tab row owns closing; a panel header's own Close would be a
+   second identical control (its export buttons stay). */
+.sidebar-body .panel-header .text-button {
+  display: none;
 }
 
 /* Panel roots keep their classes (tests, shared styles) but must not float:

@@ -5,7 +5,7 @@ import type { BookNoteRecord, BookRecord, LibrarySnapshot, ReadingState } from '
 import { useLibraryStore } from '../stores/libraryStore';
 import { useNotesStore } from '../stores/notesStore';
 import { useReadingStore } from '../stores/readingStore';
-import { getBookFile, rememberBookFile } from './bookFiles';
+import { cachedBookHashes, getBookFile, rememberBookFile } from './bookFiles';
 import { createDataStore } from './dataStore';
 import { type ActiveStorage, createActiveStorage } from './sqlStorage';
 import { getOrCreateDeviceId, stampFieldClocks, stampRecordClock } from './syncStore';
@@ -89,6 +89,22 @@ export const loadBookFile = async (book: BookRecord): Promise<File | null> => {
   });
   rememberBookFile(book.hash, file);
   return file;
+};
+
+/**
+ * Hashes whose bytes exist locally — the device-local "downloaded" state of
+ * ADR-0020, derived from one directory listing plus the runtime cache (a
+ * freshly imported book has a file before it is ever written to the store).
+ */
+export const listBookHashes = async (): Promise<Set<string>> => {
+  const hashes = cachedBookHashes();
+  if (!store) return hashes;
+  const names = await store.list('books');
+  for (const name of names) {
+    const hash = (name.split('/').pop() ?? '').replace(/\.[a-z0-9]+$/i, '');
+    if (/^[0-9a-f]{64}$/.test(hash)) hashes.add(hash);
+  }
+  return hashes;
 };
 
 /**

@@ -5,6 +5,8 @@
 
 export { HybridLogicalClock } from '@hamesh/core';
 export type {
+  BookDownloadInput,
+  BookDownloadResult,
   SyncEngine,
   SyncKind,
   SyncOptions,
@@ -17,6 +19,7 @@ export {
   bookMetaPath,
   buildLocalDoc,
   createSyncEngine,
+  downloadBookBlobs,
   INDEX_PATH,
   legacyTimestamp,
   REMOTE_ROOT,

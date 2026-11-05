@@ -6,6 +6,7 @@
  * library; the engine merges each with the same rules. No sharding.
  */
 
+import type { BookRecord } from '@hamesh/storage';
 import type { StorageProvider, SyncReport } from '@hamesh/sync';
 import {
   createDropboxProvider,
@@ -13,6 +14,7 @@ import {
   createS3Provider,
   createSyncEngine,
   createWebDavProvider,
+  downloadBookBlobs,
   exchangeDropboxCode,
 } from '@hamesh/sync';
 import { extractMissingBookTexts } from './bookTexts';
@@ -662,15 +664,27 @@ export const initAutoSync = (): (() => void) => {
 // all share the in-flight promise instead of racing the engine.
 let syncInFlight: Promise<SyncReport> | null = null;
 
+export interface SyncRoundOptions {
+  /**
+   * `'metadata'` (default, ADR-0020): rounds merge records and covers but
+   * never pull book bytes; books are fetched explicitly per book. `'all'`
+   * keeps the historical transfer-everything behavior.
+   */
+  blobs?: 'all' | 'metadata';
+}
+
 /** Run one sync round across all enabled providers (deduped while running). */
-export const runSync = (config: SyncConfig): Promise<SyncReport> => {
-  syncInFlight ??= runSyncRound(config).finally(() => {
+export const runSync = (
+  config: SyncConfig,
+  options: SyncRoundOptions = {},
+): Promise<SyncReport> => {
+  syncInFlight ??= runSyncRound(config, options).finally(() => {
     syncInFlight = null;
   });
   return syncInFlight;
 };
 
-const runSyncRound = async (config: SyncConfig): Promise<SyncReport> => {
+const runSyncRound = async (config: SyncConfig, options: SyncRoundOptions): Promise<SyncReport> => {
   const { providers, failures } = await providersFromConfig(config);
   if (providers.length === 0 && failures.length === 0) {
     throw new Error('No sync provider configured.');
@@ -689,7 +703,14 @@ const runSyncRound = async (config: SyncConfig): Promise<SyncReport> => {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.arrayBuffer();
   };
-  const engine = createSyncEngine({ deviceId, clock, store, providers, fetchUrl });
+  const engine = createSyncEngine({
+    deviceId,
+    clock,
+    store,
+    providers,
+    fetchUrl,
+    blobs: options.blobs ?? 'metadata',
+  });
   const report = await engine.sync();
   for (const failure of failures) {
     report.ok = false;
@@ -720,4 +741,52 @@ const runSyncRound = async (config: SyncConfig): Promise<SyncReport> => {
     }
   }
   return report;
+};
+
+export interface BookDownloadOutcome {
+  ok: boolean;
+  /** Machine-readable failure kind (INTEGRITY/NETWORK/NOT_FOUND/CONFIGURATION). */
+  code?: string;
+}
+
+/**
+ * Fetch one book's file on demand (ADR-0020): try every configured provider
+ * (the blob is content-addressed, so any replica works), falling back to the
+ * book's source link for URL-synced books. File presence stays device-local.
+ */
+export const downloadBook = async (book: BookRecord): Promise<BookDownloadOutcome> => {
+  if (book.format !== 'epub' && book.format !== 'pdf') {
+    return { ok: false, code: 'INTEGRITY' };
+  }
+  const { providers } = await providersFromConfig(loadSyncConfig());
+  const storage = getActiveStorage();
+  const dataStore = await createDataStore();
+  if (providers.length === 0 || !storage || !dataStore) {
+    return { ok: false, code: 'CONFIGURATION' };
+  }
+  const store = createSqlSyncStore(storage, dataStore);
+  const fetchUrl = async (url: string): Promise<ArrayBuffer> => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.arrayBuffer();
+  };
+  const sourceUrl = book.identifiers.sourceUrl ?? null;
+  let lastCode: BookDownloadOutcome['code'] = 'NOT_FOUND';
+  for (const provider of providers) {
+    const result = await downloadBookBlobs({
+      provider,
+      store,
+      sha256: book.hash,
+      ext: book.format,
+      sourceUrl,
+      fetchUrl,
+    });
+    if (result.ok) {
+      await reloadLibraryFromStorage();
+      await extractMissingBookTexts();
+      return { ok: true };
+    }
+    lastCode = result.code;
+  }
+  return { ok: false, code: lastCode };
 };

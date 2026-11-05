@@ -37,12 +37,18 @@ import {
 } from './services/importBook';
 import {
   deletePersistedBook,
+  listBookHashes,
   loadBookFile,
   persistBook,
   persistBookOrganization,
   persistReadingState,
 } from './services/libraryPersistence';
-import { isProviderConfigured, loadSyncConfig, runSync } from './services/syncService';
+import {
+  downloadBook,
+  isProviderConfigured,
+  loadSyncConfig,
+  runSync,
+} from './services/syncService';
 import { useLibraryStore } from './stores/libraryStore';
 import { useReadingStore } from './stores/readingStore';
 import { type UiLocale as Locale, useUiStore } from './stores/uiStore';
@@ -77,9 +83,14 @@ export const App = () => {
     | 'OPEN_FAILED'
     | 'URL_INVALID'
     | 'URL_FAILED'
+    | 'DOWNLOAD_FAILED'
     | null
   >(null);
   const [openingBookId, setOpeningBookId] = useState<string | null>(null);
+  // Books whose bytes exist locally (ADR-0020); synced rounds deliver records
+  // and covers only, so a remote-known book starts without its file.
+  const [fileHashes, setFileHashes] = useState<Set<string>>(() => new Set());
+  const [downloadingHash, setDownloadingHash] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
@@ -108,6 +119,18 @@ export const App = () => {
   } | null>(null);
   const books = useLibraryStore((state) => state.books);
   const updateBook = useLibraryStore((state) => state.updateBook);
+
+  // Re-derive which books have local bytes whenever the library changes: a
+  // sync round (records only) or a per-book download both land here.
+  useEffect(() => {
+    let cancelled = false;
+    void listBookHashes().then((hashes) => {
+      if (!cancelled) setFileHashes(hashes);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [books]);
   const collapsedGroups = useUiStore((state) => state.collapsedGroups);
   const toggleGroup = useUiStore((state) => state.toggleGroup);
   const extraCategories = useUiStore((state) => state.extraCategories);
@@ -410,7 +433,23 @@ export const App = () => {
     setOpeningBookId(book.id);
     setErrorCode(null);
     try {
-      const file = await loadBookFile(book);
+      // A freshly imported book still sits in the runtime cache; the derived
+      // set may lag one render behind, so the cache check comes first.
+      let file = getBookFile(book.hash);
+      if (!file && fileHashes.has(book.hash)) {
+        file = await loadBookFile(book);
+      }
+      if (!file) {
+        // On-demand download (ADR-0020): opening a remote-known book fetches
+        // its bytes first, then opens it.
+        const result = await downloadBook(book);
+        if (!result.ok) {
+          setErrorCode('DOWNLOAD_FAILED');
+          return;
+        }
+        setFileHashes((current) => new Set(current).add(book.hash));
+        file = await loadBookFile(book);
+      }
       if (!file) {
         setErrorCode('BOOK_FILE_MISSING');
         return;
@@ -424,6 +463,22 @@ export const App = () => {
     } finally {
       openingRef.current = null;
       setOpeningBookId(null);
+    }
+  };
+
+  const downloadBookFile = async (book: BookRecord) => {
+    if (downloadingHash) return;
+    setDownloadingHash(book.hash);
+    setErrorCode(null);
+    try {
+      const result = await downloadBook(book);
+      if (result.ok) {
+        setFileHashes((current) => new Set(current).add(book.hash));
+      } else {
+        setErrorCode('DOWNLOAD_FAILED');
+      }
+    } finally {
+      setDownloadingHash(null);
     }
   };
 
@@ -470,8 +525,22 @@ export const App = () => {
             disabled={openingBookId !== null}
             onClick={() => void openReader(book)}
           >
-            {openingBookId === book.id ? t('library.opening') : t('library.read')}
+            {openingBookId === book.id
+              ? fileHashes.has(book.hash)
+                ? t('library.opening')
+                : t('library.downloading')
+              : t('library.read')}
           </button>
+          {!fileHashes.has(book.hash) ? (
+            <button
+              type="button"
+              className="text-button"
+              disabled={downloadingHash !== null || openingBookId !== null}
+              onClick={() => void downloadBookFile(book)}
+            >
+              {downloadingHash === book.hash ? t('library.downloading') : t('library.download')}
+            </button>
+          ) : null}
           <button type="button" className="text-button" onClick={() => setEditingBookId(book.id)}>
             {t('library.edit')}
           </button>

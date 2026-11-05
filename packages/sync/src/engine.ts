@@ -82,6 +82,14 @@ export interface SyncOptions {
    * supplies a proxy-aware, scheme-allowlisted fetch; tests supply fakes.
    */
   fetchUrl?: (url: string) => Promise<ArrayBuffer>;
+  /**
+   * `'all'` (default) transfers every book blob both ways — the historical
+   * behavior and what the conformance suite covers. `'metadata'` (ADR-0020)
+   * merges records and covers and still uploads local blobs the remote lacks,
+   * but never downloads book bytes: the app fetches a book explicitly via
+   * `downloadBookBlobs`.
+   */
+  blobs?: 'all' | 'metadata';
 }
 
 export interface SyncProviderReport {
@@ -184,6 +192,7 @@ const splitBookFields = (
 
 export const createSyncEngine = (options: SyncOptions) => {
   const { deviceId, clock, store, providers, fetchUrl } = options;
+  const metadataOnly = options.blobs === 'metadata';
 
   const INDEX_WRITE_ATTEMPTS = 3;
 
@@ -322,6 +331,11 @@ export const createSyncEngine = (options: SyncOptions) => {
               JSON.stringify({ schemaVersion: SCHEMA_VERSION, bookId: id, sha256, ext }),
             );
             report.uploadedBlobs += 1;
+          } else if (metadataOnly) {
+            // Metadata-only rounds (ADR-0020) never pull book bytes; the app
+            // fetches a book explicitly via downloadBookBlobs. Uploading a
+            // local blob the remote lacks still happened above: otherwise the
+            // user's own books would never reach their storage.
           } else if (remoteBlob && !localBlob) {
             // The index is untrusted: refuse before reading so a hostile
             // storage cannot push an oversized body into memory.
@@ -457,3 +471,85 @@ export const createSyncEngine = (options: SyncOptions) => {
 };
 
 export type SyncEngine = ReturnType<typeof createSyncEngine>;
+
+export interface BookDownloadInput {
+  provider: StorageProvider;
+  store: SyncStore;
+  sha256: string;
+  ext: string;
+  /** For link-synced books (ADR-0019) when the provider has no blob. */
+  sourceUrl?: string | null;
+  fetchUrl?: (url: string) => Promise<ArrayBuffer>;
+}
+
+export type BookDownloadResult =
+  | { ok: true }
+  | { ok: false; code: 'INTEGRITY' | 'NETWORK' | 'NOT_FOUND'; error: string };
+
+/**
+ * Fetch one book's bytes on demand (ADR-0020): the provider blob first, the
+ * record's source link for URL-sourced books otherwise. Every path verifies
+ * the SHA-256 before anything is stored, mirroring the round-time gates.
+ */
+export const downloadBookBlobs = async (input: BookDownloadInput): Promise<BookDownloadResult> => {
+  const { provider, store, sha256, ext } = input;
+  if (!/^[0-9a-f]{64}$/.test(sha256)) {
+    return { ok: false, code: 'INTEGRITY', error: `invalid hash: ${sha256}` };
+  }
+  if (!(await store.bookFile(sha256))) {
+    const blobPath = bookBlobPath(sha256, ext);
+    const remoteBlob = await provider.head(blobPath);
+    if (remoteBlob) {
+      // Untrusted storage: refuse before reading so a hostile size cannot
+      // push bytes into memory.
+      if ((remoteBlob.size ?? 0) > MAX_BLOB_BYTES) {
+        return { ok: false, code: 'INTEGRITY', error: `blob too large: ${sha256}` };
+      }
+      const data = await provider.readBinary(blobPath);
+      if (!data) {
+        return { ok: false, code: 'NOT_FOUND', error: `missing blob: ${sha256}` };
+      }
+      if (data.byteLength > MAX_BLOB_BYTES) {
+        return { ok: false, code: 'INTEGRITY', error: `blob too large: ${sha256}` };
+      }
+      const digest = await sha256Hex(new Uint8Array(data));
+      if (digest !== sha256) {
+        return { ok: false, code: 'INTEGRITY', error: `blob hash mismatch: ${sha256}` };
+      }
+      await store.saveBookFile(sha256, ext, new Uint8Array(data));
+      return { ok: true };
+    }
+    const sourceUrl = input.sourceUrl;
+    if (typeof sourceUrl === 'string' && input.fetchUrl) {
+      if (!/^https?:\/\//i.test(sourceUrl)) {
+        return { ok: false, code: 'INTEGRITY', error: `invalid source URL: ${sourceUrl}` };
+      }
+      let data: ArrayBuffer;
+      try {
+        data = await input.fetchUrl(sourceUrl);
+      } catch {
+        return {
+          ok: false,
+          code: 'NETWORK',
+          error: `could not download from the book's link: ${sha256}`,
+        };
+      }
+      if (data.byteLength > MAX_BLOB_BYTES) {
+        return { ok: false, code: 'INTEGRITY', error: `blob too large: ${sha256}` };
+      }
+      const bytes = new Uint8Array(data);
+      const digest = await sha256Hex(bytes);
+      if (digest !== sha256) {
+        return {
+          ok: false,
+          code: 'INTEGRITY',
+          error: `downloaded book does not match its recorded hash: ${sha256}`,
+        };
+      }
+      await store.saveBookFile(sha256, ext, bytes);
+      return { ok: true };
+    }
+    return { ok: false, code: 'NOT_FOUND', error: `no blob and no source link: ${sha256}` };
+  }
+  return { ok: true };
+};

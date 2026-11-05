@@ -1,7 +1,7 @@
 import { formatHlc, HybridLogicalClock } from '@hamesh/core';
 import { describe, expect, it } from 'vitest';
 import type { SyncRecord, SyncStore } from './engine';
-import { buildLocalDoc, createSyncEngine } from './engine';
+import { buildLocalDoc, createSyncEngine, downloadBookBlobs } from './engine';
 import type { StorageProvider } from './provider';
 import { ProviderError } from './provider';
 import { sha256Hex } from './providers/awsV4';
@@ -940,5 +940,90 @@ describe('local document field clocks', () => {
     );
     expect(doc.books.b1?.fields['reading.fraction']?.t).toBe(stamp);
     expect(doc.books.b1?.fields['reading.status']?.t).toBe(stamp);
+  });
+});
+
+describe('metadata-only rounds (ADR-0020)', () => {
+  it('pulls records and covers, uploads local blobs, and never downloads', async () => {
+    const provider = createMemoryProvider();
+    const bytes = new Uint8Array([1, 2, 3]);
+    const sha1 = await sha256Hex(bytes);
+    let wall = 1000;
+    const now = () => wall;
+    const base = bookRecord('1', 'Local Book', 1000);
+    const storeA = createMemoryStore('device-a', now, new Map([[sha1, bytes]]));
+    await storeA.localEdit({ ...base, fields: { ...base.fields, sha256: sha1 } });
+    await storeA.saveCoverFile(sha1, 'image/jpeg', new Uint8Array([9]));
+
+    // Device A runs a full round: the blob and the cover go up.
+    const roundA = await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    expect(roundA.providers[0]?.uploadedBlobs).toBe(1);
+
+    // Device B runs metadata-only: record + cover arrive, bytes do not.
+    wall = 2000;
+    const storeB = createMemoryStore('device-b', now, new Map());
+    const roundB = await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+      blobs: 'metadata',
+    }).sync();
+    expect(roundB.ok).toBe(true);
+    expect(roundB.providers[0]?.downloadedBlobs).toBe(0);
+    expect(await storeB.bookFile(sha1)).toBeNull();
+    const pulled = (await storeB.list()).find((item) => item.kind === 'book');
+    expect(pulled?.fields.title).toBe('Local Book');
+    expect((await storeB.coverFile(sha1))?.data.length).toBe(1);
+  });
+
+  it('downloads one book on demand with hash verification', async () => {
+    const provider = createMemoryProvider();
+    const bytes = new Uint8Array([4, 5, 6]);
+    const sha1 = await sha256Hex(bytes);
+    await provider.writeBinary(`Hamesh/books/${sha1}/book.epub`, bytes.buffer);
+
+    // The record exists (it was pulled); only the bytes are missing.
+    const store = createMemoryStore('device-b', () => 1000, new Map());
+    const base = bookRecord('1', 'Remote Book', 1000);
+    await store.localEdit({ ...base, fields: { ...base.fields, sha256: sha1 } });
+    expect(await store.bookFile(sha1)).toBeNull();
+    expect(await downloadBookBlobs({ provider, store, sha256: sha1, ext: 'epub' })).toEqual({
+      ok: true,
+    });
+    expect([...((await store.bookFile(sha1))?.data ?? [])]).toEqual([4, 5, 6]);
+    // Already present: a second call is a no-op.
+    expect(await downloadBookBlobs({ provider, store, sha256: sha1, ext: 'epub' })).toEqual({
+      ok: true,
+    });
+  });
+
+  it('refuses mismatched bytes and books with neither blob nor link', async () => {
+    const provider = createMemoryProvider();
+    const wrong = new Uint8Array([9, 9, 9]);
+    const shaRight = await sha256Hex(new Uint8Array([1]));
+    await provider.writeBinary(`Hamesh/books/${shaRight}/book.epub`, wrong.buffer);
+
+    const store = createMemoryStore('device-b', () => 1000, new Map());
+    expect(await downloadBookBlobs({ provider, store, sha256: shaRight, ext: 'epub' })).toEqual({
+      ok: false,
+      code: 'INTEGRITY',
+      error: `blob hash mismatch: ${shaRight}`,
+    });
+    expect(await store.bookFile(shaRight)).toBeNull();
+
+    const empty = createMemoryProvider();
+    expect(
+      await downloadBookBlobs({ provider: empty, store, sha256: shaRight, ext: 'epub' }),
+    ).toEqual({
+      ok: false,
+      code: 'NOT_FOUND',
+      error: `no blob and no source link: ${shaRight}`,
+    });
   });
 });

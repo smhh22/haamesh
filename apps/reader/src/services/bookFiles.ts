@@ -30,3 +30,6 @@ export const getBookFile = (hash: string): File | null => {
 export const forgetBookFile = (hash: string): void => {
   files.delete(hash);
 };
+
+/** Hashes currently held in memory (fresh imports, recently opened books). */
+export const cachedBookHashes = (): Set<string> => new Set(files.keys());

@@ -45,8 +45,33 @@ export const createTauriFetch =
     });
   };
 
-/** Provider fetch: proxy-aware bridge on desktop, plain fetch on the web. */
+/** The app-level proxy (Settings), used when a caller sets none. */
+const APP_PROXY_KEY = 'hamesh.network.proxy';
+
+export const readAppProxy = (): string => {
+  try {
+    return localStorage.getItem(APP_PROXY_KEY) ?? '';
+  } catch {
+    return '';
+  }
+};
+
+export const saveAppProxy = (value: string): void => {
+  try {
+    localStorage.setItem(APP_PROXY_KEY, value.trim());
+  } catch {
+    // storage may be unavailable; the in-memory value still applies
+  }
+};
+
+/**
+ * Provider fetch: proxy-aware bridge on desktop, plain fetch on the web.
+ * A caller that sets no per-provider proxy falls back to the app-level one
+ * (Settings), so a single field covers every sync/translation connection.
+ * The updater's own HTTP client is separate and does not take this proxy.
+ */
 export const providerFetch = (proxy: string): FetchLike => {
-  if (isTauriRuntime()) return createTauriFetch(proxy || null);
+  const effective = proxy || readAppProxy();
+  if (isTauriRuntime()) return createTauriFetch(effective || null);
   return (input, init) => fetch(input, init);
 };

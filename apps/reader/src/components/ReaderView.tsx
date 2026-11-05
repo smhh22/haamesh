@@ -17,14 +17,16 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { locatorFromRelocate, type RelocateDetail } from '../readerLocator';
 import { buildReaderCss } from '../readerStyles';
+import { loadAiSettings } from '../services/aiSettings';
 import { persistBookLanguage, persistNoteRecord } from '../services/libraryPersistence';
+import { translateText } from '../services/translateService';
 import { useLibraryStore } from '../stores/libraryStore';
 import { notesForBook, useNotesStore } from '../stores/notesStore';
 import { type ResolvedReaderTheme, useReaderSettings } from '../stores/readerSettingsStore';
-import { useResolvedUiTheme } from '../stores/uiStore';
+import { useResolvedUiTheme, useUiStore } from '../stores/uiStore';
 import { NotesPanel } from './reader/NotesPanel';
 import { SearchPanel } from './reader/SearchPanel';
-import { SelectionPopover } from './reader/SelectionPopover';
+import { SelectionPopover, type SelectionTranslationState } from './reader/SelectionPopover';
 import { SettingsPanel } from './reader/SettingsPanel';
 import { TocTree } from './reader/TocTree';
 
@@ -213,6 +215,7 @@ export const ReaderView = ({
     panelButtonRefs.current[previous]?.focus();
   }, [panel]);
   const [selection, setSelection] = useState<SelectionInfo | null>(null);
+  const [translation, setTranslation] = useState<SelectionTranslationState | null>(null);
   const [noteMode, setNoteMode] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -371,6 +374,8 @@ export const ReaderView = ({
       if (locator?.kind === 'cfi') lastCfiRef.current = locator.cfi;
       if (detail?.tocItem?.href) setActiveHref(detail.tocItem.href);
       setSelection(null);
+      setTranslation(null);
+      setNoteMode(false);
     };
 
     const onLoad = (event: Event) => {
@@ -743,6 +748,38 @@ export const ReaderView = ({
     setNoteDraft('');
   };
 
+  const translateSelection = async () => {
+    if (!selection) return;
+    setTranslation({ status: 'loading' });
+    const settings = loadAiSettings(useUiStore.getState().locale);
+    try {
+      const outcome = await translateText({
+        text: selection.text,
+        sourceLang: book.language ?? 'auto',
+        targetLang: settings.targetLang,
+        bookTitle: book.title,
+        bookAuthor: book.authors[0] ?? null,
+      });
+      setTranslation({
+        status: 'done',
+        text: outcome.text,
+        providerLabel: outcome.providerLabel,
+      });
+    } catch (error) {
+      const code =
+        error && typeof error === 'object' && 'code' in error
+          ? String((error as { code: unknown }).code)
+          : 'PROVIDER_ERROR';
+      setTranslation({ status: 'error', errorCode: code });
+    }
+  };
+
+  const copySelectionTranslation = (text: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      void navigator.clipboard.writeText(text).catch(() => undefined);
+    }
+  };
+
   const saveSelectionNote = () => {
     if (!selection || !noteDraft.trim()) return;
     const locator = selectionLocator();
@@ -1046,7 +1083,10 @@ export const ReaderView = ({
           selection={selection}
           noteMode={noteMode}
           noteDraft={noteDraft}
+          translation={translation}
           onHighlight={saveSelectionHighlight}
+          onTranslate={() => void translateSelection()}
+          onCopyTranslation={copySelectionTranslation}
           onStartNote={() => setNoteMode(true)}
           onSaveNote={saveSelectionNote}
           onCancelNote={() => {
@@ -1054,7 +1094,11 @@ export const ReaderView = ({
             setNoteDraft('');
           }}
           onDraftChange={setNoteDraft}
-          onDismiss={() => setSelection(null)}
+          onDismiss={() => {
+            setSelection(null);
+            setTranslation(null);
+            setNoteMode(false);
+          }}
         />
       ) : null}
 

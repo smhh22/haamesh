@@ -780,7 +780,7 @@ test('formats reader percentages in the active locale', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings' }).click();
   // Brightness and font size both start at 100%.
   await expect(page.locator('.settings-panel').getByText('100%', { exact: true })).toHaveCount(2);
-  await page.getByRole('button', { name: 'Close' }).click();
+  await page.locator('.settings-panel').getByRole('button', { name: 'Close' }).click();
 
   await page.getByRole('button', { name: 'Library' }).click();
   await page.getByRole('button', { name: 'Switch to Persian' }).click();
@@ -1338,7 +1338,7 @@ test('keeps highlights intact after changing font size', async ({ page }) => {
   await page.getByRole('button', { name: 'Increase font size' }).click();
   await expect(shell).toHaveAttribute('data-font-size', '110');
   await page.waitForTimeout(800);
-  await page.getByRole('button', { name: 'Close' }).click();
+  await page.locator('.settings-panel').getByRole('button', { name: 'Close' }).click();
 
   await page.getByRole('button', { name: 'Notes' }).click();
   await expect(page.locator('.note-item')).toHaveCount(2);
@@ -1397,9 +1397,10 @@ test('applies the book direction when documents omit dir', async ({ page }) => {
 test('escape closes panels, then returns to the library', async ({ page }) => {
   await openReader(page);
   await page.getByRole('button', { name: 'Contents' }).click();
-  await expect(page.locator('.toc-panel')).toBeVisible();
+  // Wide windows dock the sidebar instead of floating a sheet.
+  await expect(page.locator('.reader-sidebar')).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.locator('.toc-panel')).toHaveCount(0);
+  await expect(page.locator('.reader-sidebar')).toHaveCount(0);
   await expect(page.locator('.reader-shell')).toBeVisible();
 
   await page.keyboard.press('Escape');

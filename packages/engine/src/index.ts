@@ -1,5 +1,7 @@
 export type { DirectionInput, PageProgression } from './direction';
 export { isRtlLanguage, resolveBookDirection } from './direction';
+export type { ImageMeasurer } from './imageScale';
+export { scaleImagesWithFont } from './imageScale';
 export type { ImportErrorCode, ImportedBook } from './import';
 export { ImportError, importBook, importEpub, importPdf, isPdfFile, sha256Hex } from './import';
 export {

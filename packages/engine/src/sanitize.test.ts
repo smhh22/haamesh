@@ -81,6 +81,30 @@ describe('sanitizeEpubHtml', () => {
     expect(clean).not.toContain('data:text/html');
   });
 
+  it('keeps publisher stylesheets but drops every other link kind', () => {
+    const html = `<html><head>
+      <link rel="stylesheet" type="text/css" href="../stylesheet.css"/>
+      <link rel="import" href="evil.html"/>
+      <link rel="preload" as="script" href="evil.js"/>
+      <link rel="icon" href="favicon.png"/>
+      <link rel="alternate stylesheet" href="alt.css"/>
+    </head><body>x</body></html>`;
+    const clean = sanitizeEpubHtml(html);
+    expect(clean).toContain('<link rel="stylesheet" type="text/css" href="../stylesheet.css"');
+    expect(clean).not.toContain('evil.html');
+    expect(clean).not.toContain('evil.js');
+    expect(clean).not.toContain('favicon.png');
+    expect(clean).not.toContain('alt.css');
+  });
+
+  it('strips a stylesheet link that points at a script URL', () => {
+    const clean = sanitizeEpubHtml(
+      '<html><head><link rel="stylesheet" href="javascript:alert(1)"/></head><body>x</body></html>',
+    );
+    expect(clean).not.toContain('javascript:');
+    expect(clean).not.toContain('<link');
+  });
+
   it('gives headless documents a valid head with the CSP', () => {
     const clean = sanitizeEpubHtml('<p>no head</p>');
     expect(clean).toContain('<head>');

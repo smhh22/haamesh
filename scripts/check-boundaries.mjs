@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 
 const internalDeps = {
+  ai: ['core'],
   core: [],
   platform: ['core'],
   engine: ['core'],
@@ -20,6 +21,7 @@ const forbiddenExternal = {
   platform: [/^react$/, /^react-dom/, /^@tauri-apps\//, /^node:/],
   engine: [/^react$/, /^react-dom/, /^@tauri-apps\//],
   storage: [/^react$/, /^react-dom/, /^@tauri-apps\//],
+  ai: [/^react$/, /^react-dom/, /^@tauri-apps\//, /^node:/, /^fs$/, /^path$/],
   sync: [/^react$/, /^react-dom/, /^@tauri-apps\//, /^node:/],
   ui: [/^@tauri-apps\//, /^node:/],
 };

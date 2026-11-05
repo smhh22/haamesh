@@ -23,7 +23,6 @@ const DANGEROUS_ELEMENTS = [
   'applet',
   'base',
   'form',
-  'link',
   'meta', // re-added below only as our own charset/CSP where needed
 ];
 
@@ -64,6 +63,21 @@ const sanitizeDocument = (doc: Document): Document => {
   // in every engine; a query by local name is.
   for (const element of Array.from(doc.querySelectorAll('script, iframe, object, embed'))) {
     element.remove();
+  }
+  // Stylesheets stay: EPUB publishers size and align content (formula images,
+  // indents) through <link rel="stylesheet"> files, and stripping them breaks
+  // layout. foliate rewrites the hrefs to in-book blob URLs, the URL checks
+  // below still remove script schemes, and the injected CSP blocks any remote
+  // stylesheet (style-src blob: only). Every other link kind still goes.
+  for (const element of Array.from(doc.querySelectorAll('link'))) {
+    const rel = (element.getAttribute('rel') ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+    if (
+      rel.length !== 1 ||
+      rel[0] !== 'stylesheet' ||
+      isDangerousUrl(element.getAttribute('href') ?? '')
+    ) {
+      element.remove();
+    }
   }
   // Malformed markup can produce elements whose names contain '<' (for
   // example <scr<script>), which serialize back into script-looking tags.

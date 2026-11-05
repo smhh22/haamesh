@@ -439,14 +439,16 @@ export const App = () => {
       }
       if (!file) {
         // On-demand download (ADR-0020): opening a remote-known book fetches
-        // its bytes first, then opens it.
+        // its bytes first, then opens it. With no provider configured there is
+        // nothing to fetch from, so fall through to the missing-file report.
         const result = await downloadBook(book);
-        if (!result.ok) {
+        if (result.ok) {
+          setFileHashes((current) => new Set(current).add(book.hash));
+          file = await loadBookFile(book);
+        } else if (result.code !== 'CONFIGURATION') {
           setErrorCode('DOWNLOAD_FAILED');
           return;
         }
-        setFileHashes((current) => new Set(current).add(book.hash));
-        file = await loadBookFile(book);
       }
       if (!file) {
         setErrorCode('BOOK_FILE_MISSING');

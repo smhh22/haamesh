@@ -18,6 +18,7 @@ import {
   profilePdfText,
   removeTranslationBlock,
   sanitizeEpubHtml,
+  scaleImagesWithFont,
   translationBlockAt,
   translationText,
 } from '@hamesh/engine';
@@ -489,6 +490,8 @@ export const ReaderView = ({
         doc.documentElement.dir = directionRef.current;
       }
       applyReaderStyle(doc, settingsCssRef.current);
+      // Publisher px image boxes become em so they scale with the font.
+      scaleImagesWithFont(doc);
       for (const note of notesRef.current) applyNote(note);
 
       let timer: number | undefined;

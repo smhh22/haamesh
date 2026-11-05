@@ -842,6 +842,82 @@ test('creates a highlight and bookmark, then persists them', async ({ page }) =>
   await expect(page.locator('.note-item')).toHaveCount(2);
 });
 
+test('translates a tapped paragraph when tap-to-translate is enabled', async ({ page }) => {
+  // The provider is stubbed: this test covers the tap → block → toggle-off
+  // wiring, not the network implementation (unit-tested in @hamesh/ai).
+  await page.route('https://api.mymemory.translated.net/**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        responseStatus: 200,
+        responseData: { translatedText: 'ترجمهٔ آزمایشی' },
+      }),
+    }),
+  );
+
+  await page.goto('/');
+  await page.evaluate(() => {
+    localStorage.setItem(
+      'hamesh.ai.translation',
+      JSON.stringify({
+        providers: [
+          {
+            id: 'e2e-mymemory',
+            kind: 'mymemory',
+            label: 'MyMemory',
+            enabled: true,
+            baseUrl: '',
+            model: '',
+            email: '',
+            apiKey: '',
+            hasApiKey: false,
+            proxy: '',
+          },
+        ],
+        targetLang: 'fa',
+        tapToTranslate: true,
+      }),
+    );
+  });
+  await page.locator('input[type="file"]').setInputFiles(fixture);
+  await page.getByRole('button', { name: 'Read' }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+
+  const frame = page.frames().find((item) => item.url().startsWith('blob:'));
+  expect(frame).toBeTruthy();
+  if (!frame) return;
+  await frame.waitForSelector('p');
+
+  const tapParagraph = async () => {
+    await frame.evaluate(() => {
+      const paragraph = document.querySelector('p');
+      if (!paragraph) throw new Error('no paragraph');
+      for (const type of ['pointerdown', 'pointerup'] as const) {
+        paragraph.dispatchEvent(
+          new PointerEvent(type, { bubbles: true, button: 0, clientX: 10, clientY: 10 }),
+        );
+      }
+    });
+  };
+
+  await tapParagraph();
+
+  const block = frame.locator('[data-hamesh-translation]');
+  await expect(block).toHaveCount(1);
+  await expect(block.locator('.hamesh-translation-text')).toHaveText('ترجمهٔ آزمایشی');
+  await expect(block.locator('.hamesh-translation-provider')).toHaveText('MyMemory');
+  // The result carries the target language's direction regardless of the book.
+  await expect(block).toHaveAttribute('lang', 'fa');
+  await expect(block).toHaveAttribute('dir', 'rtl');
+
+  // Tapping the same paragraph again removes the block.
+  await tapParagraph();
+  await expect(block).toHaveCount(0);
+});
+
 test('imports a Persian markdown file and reads it RTL', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(markdownFixture);

@@ -165,6 +165,7 @@
     "pageNumber": "Page {{page}}",
     "translate": "Translate",
     "translating": "Translating…",
+    "translation": "Translation",
     "copy": "Copy"
   },
   "sync": {

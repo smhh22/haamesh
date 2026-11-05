@@ -2,9 +2,11 @@
  * Runtime cache of opened book files. The reader holds the File it was given,
  * so evicting an older entry only means the next open reads it again; without
  * a cap, a long session kept every book's bytes (large PDFs included) in
- * memory forever.
+ * memory forever. Two entries cover "current book + the one just switched
+ * from"; WebKit does not return freed heap to the OS promptly, so a lower cap
+ * is the only lever that actually shows in the process's RSS.
  */
-const MAX_CACHED_BOOKS = 4;
+const MAX_CACHED_BOOKS = 2;
 
 const files = new Map<string, File>();
 

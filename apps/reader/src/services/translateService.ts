@@ -88,16 +88,18 @@ export const chunkText = (text: string, maxChars: number): string[] => {
   return chunks;
 };
 
-/** Cache key includes the chunk count so chunked results stay distinguishable. */
+/**
+ * Cache key includes the provider's model and the chunk count so results from
+ * different configs (or different chunkings) stay distinguishable.
+ */
 const bookCacheKey = (
   provider: TranslationProvider,
-  model: string | null,
   request: TranslateRequest,
   chunkCount: number,
 ): string =>
   translationCacheKey({
     provider: provider.id,
-    model,
+    model: provider.model ?? null,
     sourceLang: request.sourceLang,
     targetLang: request.targetLang,
     text: chunkCount > 1 ? `${chunkCount}\u0000${request.text}` : request.text,
@@ -119,7 +121,7 @@ export const runTranslation = async (
   let lastError: TranslationError | null = null;
   for (const provider of providers) {
     const chunks = chunkText(request.text, provider.capabilities.maxChars);
-    const cacheKey = bookCacheKey(provider, null, request, chunks.length);
+    const cacheKey = bookCacheKey(provider, request, chunks.length);
     if (cache) {
       const hit = await cache.get(cacheKey).catch(() => null);
       if (hit !== null) {

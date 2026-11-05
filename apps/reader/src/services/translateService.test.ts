@@ -113,6 +113,24 @@ describe('runTranslation', () => {
     expect(outcome.text).toContain('aaaa');
   });
 
+  it('does not reuse cached results across models of the same provider id', async () => {
+    const cache = memoryCache();
+    let calls = 0;
+    const provider = (model: string) => ({
+      ...fakeProvider('openai-compatible', async () => {
+        calls += 1;
+        return { text: model };
+      }),
+      model,
+    });
+    const first = await runTranslation([provider('model-a')], cache, request);
+    const second = await runTranslation([provider('model-b')], cache, request);
+    expect(first.text).toBe('model-a');
+    expect(second.text).toBe('model-b');
+    expect(calls).toBe(2);
+    expect(cache.store.size).toBe(2);
+  });
+
   it('rejects when no provider is configured', async () => {
     await expect(runTranslation([], null, request)).rejects.toMatchObject({
       code: 'PROVIDER_ERROR',

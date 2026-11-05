@@ -391,6 +391,10 @@ button.import-button {
   position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  /* Without an explicit column the implicit `auto` column can grow to the
+     toolbar's max-content width; the paginated stage is then laid out wider
+     than the viewport and the text is clipped on a phone. */
+  grid-template-columns: minmax(0, 1fr);
   block-size: 100dvh;
   /* Reader only: the WebView must never rubber-band the paginated view. The
      library keeps normal document scrolling (a global overscroll rule was
@@ -814,6 +818,9 @@ textarea::placeholder {
   display: grid;
   gap: var(--hamesh-space-2);
   inline-size: min(16rem, calc(100vw - 2rem));
+  /* Long translations must scroll rather than leave the viewport. */
+  max-block-size: calc(100dvh - 1rem);
+  overflow-y: auto;
   border: 1px solid var(--hamesh-color-border);
   border-radius: var(--hamesh-radius);
   background: var(--hamesh-color-surface);
@@ -1438,7 +1445,8 @@ kbd {
 
   .settings-nav {
     flex-direction: row;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    overflow-x: visible;
     border-inline-end: 0;
     border-block-end: 1px solid var(--hamesh-color-border);
   }
@@ -1449,17 +1457,10 @@ kbd {
 }
 
 @media (max-width: 36rem) {
+  /* The title yields to the toolbar on a phone; the mobile block below
+     arranges Back, progress, and the wrapping actions. */
   .reader-title {
     display: none;
-  }
-
-  .reader-actions {
-    flex: 1 1 auto;
-    justify-content: flex-end;
-  }
-
-  .reader-progress {
-    margin-inline-start: auto;
   }
 }
 
@@ -1569,23 +1570,29 @@ kbd {
     row-gap: var(--hamesh-space-1);
   }
 
-  /* Reader: full-bleed page, actions scroll sideways instead of wrapping. */
+  /* Settings field rows: label above the input instead of a fixed 8rem label
+     column that squeezes the control on a phone. */
+  .setting-row.is-field {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: var(--hamesh-space-1);
+  }
+
+  /* Reader: Back and progress share the first row; the actions get their own
+     full-width row and wrap into as many lines as they need. A sideways
+     scroller hid the progress (and any affordance that more buttons exist). */
   .reader-header {
     gap: var(--hamesh-space-2);
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     padding-inline: var(--hamesh-space-2);
   }
 
   .reader-actions {
-    flex: 1;
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    row-gap: var(--hamesh-space-1);
+    order: 2;
     justify-content: flex-start;
-    scrollbar-width: none;
-  }
-
-  .reader-actions::-webkit-scrollbar {
-    display: none;
   }
 
   .reader-action {
@@ -1594,6 +1601,8 @@ kbd {
 
   .reader-progress {
     flex: none;
+    order: 1;
+    margin-inline-start: auto;
   }
 
   .reader-stage {

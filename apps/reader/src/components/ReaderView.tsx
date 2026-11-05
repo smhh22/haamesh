@@ -1117,15 +1117,15 @@ export const ReaderView = ({
           >
             {t('reader.settings')}
           </button>
-          <span className="reader-progress">
-            {isPdf && pageInfo
-              ? t('reader.pageOf', {
-                  current: numberFormat.format(pageInfo.current),
-                  total: numberFormat.format(pageInfo.total),
-                })
-              : t('reader.progress', { percent })}
-          </span>
         </div>
+        <span className="reader-progress">
+          {isPdf && pageInfo
+            ? t('reader.pageOf', {
+                current: numberFormat.format(pageInfo.current),
+                total: numberFormat.format(pageInfo.total),
+              })
+            : t('reader.progress', { percent })}
+        </span>
       </header>
 
       {panel === 'toc' ? (

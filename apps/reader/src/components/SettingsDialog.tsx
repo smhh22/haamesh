@@ -5,17 +5,19 @@ import { checkForUpdate, installUpdate, supportsInAppUpdate } from '../services/
 import { type UiTheme, useUiStore } from '../stores/uiStore';
 import { ShortcutsList } from './ShortcutsList';
 import { SyncSettings } from './SyncSettings';
+import { TranslationSettings } from './TranslationSettings';
 
 interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
 }
 
-type SettingsSection = 'general' | 'shortcuts' | 'sync' | 'updates' | 'about';
+type SettingsSection = 'general' | 'shortcuts' | 'translation' | 'sync' | 'updates' | 'about';
 
 const SECTIONS: ReadonlyArray<{ id: SettingsSection; labelKey: string }> = [
   { id: 'general', labelKey: 'settings.general' },
   { id: 'shortcuts', labelKey: 'shortcuts.title' },
+  { id: 'translation', labelKey: 'settings.translation' },
   { id: 'sync', labelKey: 'sync.title' },
   { id: 'updates', labelKey: 'settings.updates' },
   { id: 'about', labelKey: 'settings.about' },
@@ -224,6 +226,7 @@ export const SettingsDialog = ({ open, onClose }: SettingsDialogProps) => {
           <section className="settings-content" aria-label={title}>
             {active === 'general' ? <GeneralSection /> : null}
             {active === 'shortcuts' ? <ShortcutsList /> : null}
+            {active === 'translation' ? <TranslationSettings /> : null}
             {active === 'sync' ? <SyncSettings showHeading={false} /> : null}
             {active === 'updates' ? <UpdatesSection /> : null}
             {active === 'about' ? <AboutSection /> : null}

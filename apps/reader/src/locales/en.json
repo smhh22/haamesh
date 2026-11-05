@@ -161,7 +161,10 @@
     "pageOf": "Page {{current}} of {{total}}",
     "paginated": "Paginated",
     "scrolled": "Scrolled",
-    "pageNumber": "Page {{page}}"
+    "pageNumber": "Page {{page}}",
+    "translate": "Translate",
+    "translating": "Translating…",
+    "copy": "Copy"
   },
   "sync": {
     "title": "Sync",
@@ -274,7 +277,8 @@
     "checkFailed": "Couldn't check for updates. Check your connection.",
     "updateAvailable": "Version {{version}} is available.",
     "about": "About",
-    "aboutText": "Hāmesh (هامش) — a local-first ebook reader. Your library stays on your device; sync only uses storage you own. MIT licensed."
+    "aboutText": "Hāmesh (هامش) — a local-first ebook reader. Your library stays on your device; sync only uses storage you own. MIT licensed.",
+    "translation": "Translation"
   },
   "shortcuts": {
     "title": "Keyboard shortcuts",
@@ -288,5 +292,47 @@
     "zoom": "Zoom in / out (PDF only)",
     "escapeLibrary": "Clear the search or close a dialog",
     "escapeReader": "Close the panel, then return to the library"
+  },
+  "ai": {
+    "targetLanguage": "Translation language",
+    "tapToTranslate": "Tap a paragraph to translate it (EPUB)",
+    "providersTitle": "Translation providers",
+    "providersHint": "Tried in order; the first that answers wins. Keys are stored in the OS keychain.",
+    "enabled": "Enabled",
+    "remove": "Remove",
+    "emailOptional": "Contact email (optional, raises the free limit)",
+    "baseUrl": "Base URL",
+    "model": "Model",
+    "apiKey": "API key",
+    "keySaved": "Saved in the keychain",
+    "proxy": "Proxy (optional)",
+    "test": "Test",
+    "testing": "Testing…",
+    "cache": "Translation cache",
+    "cacheCount": "{{count}} entries",
+    "clearCache": "Clear",
+    "privacyNote": "Selected text is sent only to the provider you enable, and results are cached locally. Nothing is synced or logged.",
+    "languages": {
+      "fa": "Persian",
+      "en": "English",
+      "ar": "Arabic",
+      "tr": "Turkish",
+      "fr": "French",
+      "de": "German",
+      "ru": "Russian",
+      "zh": "Chinese",
+      "ja": "Japanese"
+    },
+    "errors": {
+      "AUTH": "The provider rejected the key.",
+      "QUOTA": "The provider's quota is used up.",
+      "RATE_LIMITED": "Too many requests; try again shortly.",
+      "NETWORK": "Could not reach the provider.",
+      "TIMEOUT": "The provider took too long.",
+      "TOO_LONG": "The text is too long for this provider.",
+      "UNSUPPORTED_LANG": "The provider does not support this language pair.",
+      "CANCELLED": "Translation cancelled.",
+      "PROVIDER_ERROR": "The provider returned an error."
+    }
   }
 }

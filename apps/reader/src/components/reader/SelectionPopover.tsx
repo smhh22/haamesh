@@ -9,11 +9,21 @@ export const HIGHLIGHT_COLORS = [
   { value: '#bb6bd9', key: 'purple' },
 ] as const;
 
+export interface SelectionTranslationState {
+  status: 'loading' | 'done' | 'error';
+  text?: string;
+  providerId?: string;
+  errorCode?: string;
+}
+
 interface SelectionPopoverProps {
   selection: SelectionInfo;
   noteMode: boolean;
   noteDraft: string;
+  translation: SelectionTranslationState | null;
   onHighlight: (color: string) => void;
+  onTranslate: () => void;
+  onCopyTranslation: (text: string) => void;
   onStartNote: () => void;
   onSaveNote: () => void;
   onCancelNote: () => void;
@@ -25,7 +35,10 @@ export const SelectionPopover = ({
   selection,
   noteMode,
   noteDraft,
+  translation,
   onHighlight,
+  onTranslate,
+  onCopyTranslation,
   onStartNote,
   onSaveNote,
   onCancelNote,
@@ -78,9 +91,50 @@ export const SelectionPopover = ({
           </div>
         </div>
       ) : (
-        <button type="button" className="reader-action" onClick={onStartNote}>
-          {t('reader.addNote')}
-        </button>
+        <>
+          <div className="selection-actions">
+            <button type="button" className="reader-action" onClick={onStartNote}>
+              {t('reader.addNote')}
+            </button>
+            <button
+              type="button"
+              className="reader-action"
+              onClick={onTranslate}
+              disabled={translation?.status === 'loading'}
+            >
+              {t('reader.translate')}
+            </button>
+          </div>
+          {translation ? (
+            <div className="selection-translation" role="status" dir="auto">
+              {translation.status === 'loading' ? (
+                <p className="hint">{t('reader.translating')}</p>
+              ) : translation.status === 'error' ? (
+                <p className="error">
+                  {t(`ai.errors.${translation.errorCode ?? 'PROVIDER_ERROR'}`)}
+                </p>
+              ) : (
+                <>
+                  <p className="selection-translation-text">{translation.text}</p>
+                  <div className="selection-translation-actions">
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => onCopyTranslation(translation.text ?? '')}
+                    >
+                      {t('reader.copy')}
+                    </button>
+                    {translation.providerId ? (
+                      <span className="hint" dir="ltr">
+                        {translation.providerId}
+                      </span>
+                    ) : null}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   );

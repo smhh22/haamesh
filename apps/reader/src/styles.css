@@ -717,9 +717,17 @@ textarea::placeholder {
   padding: var(--hamesh-space-3);
 }
 
-/* The tabs replace each panel's own header inside the dock. */
-.sidebar-body .panel-header {
-  display: none;
+/* Panel roots keep their classes (tests, shared styles) but must not float:
+   inside the dock they are plain flow content. */
+.sidebar-body .reader-panel {
+  position: static;
+  inset: auto;
+  display: block;
+  inline-size: auto;
+  max-block-size: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
 }
 
 /* Entrance motion (design pass): a short fade/slide, disabled for users who

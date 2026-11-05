@@ -26,6 +26,7 @@ import { Overlayer } from 'foliate-js/overlayer.js';
 import { type FoliateBook, makeBook } from 'foliate-js/view.js';
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { locatorFromRelocate, type RelocateDetail } from '../readerLocator';
 import { buildReaderCss } from '../readerStyles';
 import { loadAiSettings } from '../services/aiSettings';
@@ -35,7 +36,6 @@ import { useLibraryStore } from '../stores/libraryStore';
 import { notesForBook, useNotesStore } from '../stores/notesStore';
 import { type ResolvedReaderTheme, useReaderSettings } from '../stores/readerSettingsStore';
 import { useResolvedUiTheme, useUiStore } from '../stores/uiStore';
-import { useMediaQuery } from '../hooks/useMediaQuery';
 import { NotesPanel } from './reader/NotesPanel';
 import { SearchPanel } from './reader/SearchPanel';
 import { SelectionPopover, type SelectionTranslationState } from './reader/SelectionPopover';
@@ -667,6 +667,8 @@ export const ReaderView = ({
           event.preventDefault();
         } else if (sidebarVisible) {
           setReaderSidebar(false);
+          setPanel(null);
+          viewRef.current?.clearSearch();
           event.preventDefault();
         } else {
           onClose();
@@ -704,7 +706,7 @@ export const ReaderView = ({
     keyHandlerRef.current = onKeyDown;
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [panel, onClose, book.direction, isPdf, sidebarVisible]);
+  }, [panel, onClose, book.direction, isPdf, sidebarVisible, setReaderSidebar]);
 
   const turn = (action: 'next' | 'prev') => {
     const view = viewRef.current;
@@ -1280,46 +1282,40 @@ export const ReaderView = ({
             </div>
             <div className="sidebar-body">
               {panel === 'notes' ? (
-                // The panel class stays on a plain wrapper so library e2e
-                // (and any styling keyed on it) keeps working in the dock.
-                <div className="notes-panel">
-                  <NotesPanel
-                    notes={bookNotes}
-                    editingNoteId={editingNoteId}
-                    editDraft={editDraft}
-                    onEditDraftChange={setEditDraft}
-                    onEdit={(note) => {
-                      setEditingNoteId(note.id);
-                      setEditDraft(note.note ?? '');
-                    }}
-                    onSaveEdit={saveNoteEdit}
-                    onCancelEdit={() => {
-                      setEditingNoteId(null);
-                      setEditDraft('');
-                    }}
-                    onDelete={(noteId: string) => {
-                      const note = bookNotes.find((item) => item.id === noteId);
-                      if (note) deleteBookNote(note);
-                    }}
-                    onJump={jumpToNote}
-                    onExportMarkdown={() => exportNotes('markdown')}
-                    onExportJson={() => exportNotes('json')}
-                    onClose={closePanel}
-                  />
-                </div>
+                <NotesPanel
+                  notes={bookNotes}
+                  editingNoteId={editingNoteId}
+                  editDraft={editDraft}
+                  onEditDraftChange={setEditDraft}
+                  onEdit={(note) => {
+                    setEditingNoteId(note.id);
+                    setEditDraft(note.note ?? '');
+                  }}
+                  onSaveEdit={saveNoteEdit}
+                  onCancelEdit={() => {
+                    setEditingNoteId(null);
+                    setEditDraft('');
+                  }}
+                  onDelete={(noteId: string) => {
+                    const note = bookNotes.find((item) => item.id === noteId);
+                    if (note) deleteBookNote(note);
+                  }}
+                  onJump={jumpToNote}
+                  onExportMarkdown={() => exportNotes('markdown')}
+                  onExportJson={() => exportNotes('json')}
+                  onClose={closePanel}
+                />
               ) : null}
               {panel === 'search' ? (
-                <div className="search-panel">
-                  <SearchPanel
-                    query={searchQuery}
-                    results={searchResults}
-                    searching={searching}
-                    onQueryChange={setSearchQuery}
-                    onSubmit={runSearch}
-                    onGoTo={(cfi) => void viewRef.current?.goTo(cfi)}
-                    onClose={closePanel}
-                  />
-                </div>
+                <SearchPanel
+                  query={searchQuery}
+                  results={searchResults}
+                  searching={searching}
+                  onQueryChange={setSearchQuery}
+                  onSubmit={runSearch}
+                  onGoTo={(cfi) => void viewRef.current?.goTo(cfi)}
+                  onClose={closePanel}
+                />
               ) : null}
               {panel === 'toc' || panel === null ? (
                 toc.length > 0 ? (

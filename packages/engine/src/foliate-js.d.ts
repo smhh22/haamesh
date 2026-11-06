@@ -20,11 +20,19 @@ declare module 'foliate-js/view.js' {
     subitems?: FoliateTocItem[] | null;
   }
 
+  /** How the renderer presents fixed layouts (foliate-js fixed-layout.js). */
+  export interface FoliateRendition {
+    layout?: string;
+    spread?: string;
+    viewport?: unknown;
+  }
+
   export interface FoliateBook {
     metadata?: FoliateMetadata;
     dir?: 'ltr' | 'rtl' | 'default' | null;
     sections?: Array<unknown | { createDocument?: () => Promise<Document> }>;
     toc?: FoliateTocItem[];
+    rendition?: FoliateRendition;
     transformTarget?: EventTarget;
     getCover(): Promise<Blob | null>;
     destroy(): void;

@@ -684,6 +684,10 @@ export const ReaderView = ({
           return;
         }
         parsedBook = parsed;
+        // PDFs default to two-page spreads, which parks page 1 on the right
+        // half behind an invisible blank spacer. A single centered page
+        // (Readest-style) is the right presentation for a reader app.
+        if (isPdf) parsed.rendition = { ...parsed.rendition, spread: 'none' };
         parsed.transformTarget?.addEventListener('data', onData);
         setToc((parsed.toc ?? []) as TocItem[]);
 

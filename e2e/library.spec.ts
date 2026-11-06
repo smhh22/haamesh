@@ -947,6 +947,28 @@ test.describe('phone viewport', () => {
     expect(box.x + box.width).toBeLessThanOrEqual(visible.width + 0.5);
     expect(box.y + box.height).toBeLessThanOrEqual(visible.height + 0.5);
   });
+
+  test('turns pages and toggles the chrome with taps', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('input[type="file"]').setInputFiles(fixture);
+    await page.getByRole('button', { name: 'Read' }).click();
+    await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+      timeout: 15_000,
+    });
+
+    // The fixture is an RTL book, so the inline-end (visual left) advances.
+    const progress = page.locator('.reader-progress');
+    const before = await progress.textContent();
+    await page.mouse.click(20, 500);
+    await expect.poll(async () => progress.textContent()).not.toBe(before);
+
+    // Center tap: immersive; again: chrome back.
+    const header = page.locator('.reader-header');
+    await page.mouse.click(206, 500);
+    await expect(header).toBeHidden();
+    await page.mouse.click(206, 500);
+    await expect(header).toBeVisible();
+  });
 });
 
 test('imports a Persian markdown file and reads it RTL', async ({ page }) => {

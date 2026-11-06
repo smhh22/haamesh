@@ -1743,13 +1743,19 @@ kbd {
 
   .settings-nav {
     flex-direction: row;
-    flex-wrap: wrap;
-    overflow-x: visible;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
     border-inline-end: 0;
     border-block-end: 1px solid var(--hamesh-color-border);
   }
 
+  .settings-nav::-webkit-scrollbar {
+    display: none;
+  }
+
   .settings-nav-item {
+    flex: none;
     white-space: nowrap;
   }
 }
@@ -2114,6 +2120,12 @@ body:has(.player-bar) .shell {
     min-block-size: 2.75rem;
     display: inline-flex;
     align-items: center;
+  }
+
+  /* A keyboard-shortcuts tab is noise on a device with no keyboard; the tab
+     stays available on desktop and web. */
+  .settings-nav-item[data-shortcuts] {
+    display: none;
   }
 
   .reader-action,

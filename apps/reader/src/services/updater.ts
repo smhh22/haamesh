@@ -6,6 +6,7 @@
  * apt-get through pkexec.
  */
 import { isTauriRuntime } from './dataStore';
+import { readAppProxy } from './httpFetch';
 import { isNewerVersion } from './version';
 
 export interface UpdateInfo {
@@ -48,7 +49,7 @@ const fetchLatest = async (): Promise<{ version?: string; notes?: string } | nul
       url: LATEST_JSON,
       headers: {},
       body: null,
-      proxy: null,
+      proxy: readAppProxy() || null,
     });
     if (response.status < 200 || response.status >= 300) return null;
     const text = new TextDecoder().decode(Uint8Array.from(response.body));
@@ -75,7 +76,9 @@ export const checkForUpdate = async (): Promise<UpdateCheck> => {
     if (kind === 'deb' || kind === 'package') return await checkViaLatestJson();
     if (kind !== 'appimage' && kind !== 'windows') return { status: 'error' };
     const { check } = await import('@tauri-apps/plugin-updater');
-    const update = await check();
+    // The plugin's check options proxy applies to the check and to the
+    // artifact download it enables (Tauri updater CheckOptions.proxy).
+    const update = await check({ proxy: readAppProxy() || undefined });
     return update
       ? { status: 'available', version: update.version, notes: update.body ?? null }
       : { status: 'current' };
@@ -91,10 +94,10 @@ export const installUpdate = async (version: string): Promise<void> => {
     // Deterministic artifact name from the bundler.
     const url = `https://github.com/smhh22/haamesh/releases/download/v${version}/Hamesh_${version}_amd64.deb`;
     const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('install_deb_update', { url, version });
+    await invoke('install_deb_update', { url, version, proxy: readAppProxy() || null });
   } else if (kind === 'appimage' || kind === 'windows') {
     const { check } = await import('@tauri-apps/plugin-updater');
-    const update = await check();
+    const update = await check({ proxy: readAppProxy() || undefined });
     if (!update) return;
     await update.downloadAndInstall();
   } else {

@@ -47,7 +47,7 @@ const GeneralSection = () => {
           type="text"
           dir="ltr"
           value={proxyDraft}
-          placeholder="socks5h://127.0.0.1:2080"
+          placeholder="socks5h://host:port"
           onChange={(event) => {
             setProxyDraft(event.currentTarget.value);
             saveAppProxy(event.currentTarget.value);
@@ -243,6 +243,7 @@ export const SettingsDialog = ({ open, onClose }: SettingsDialogProps) => {
                 className={
                   active === section.id ? 'settings-nav-item is-active' : 'settings-nav-item'
                 }
+                data-shortcuts={section.id === 'shortcuts' ? 'true' : undefined}
                 aria-current={active === section.id || undefined}
                 onClick={() => setActive(section.id)}
               >

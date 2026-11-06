@@ -1782,12 +1782,26 @@ kbd {
     padding-inline: var(--hamesh-space-3);
   }
 
+  /* One compact header row: title at the start, actions at the end. The
+     eyebrow is desktop furniture; on a phone every pixel above the first
+     book is a scroll. */
   .masthead {
     align-items: center;
   }
 
   .masthead h1 {
-    font-size: 2rem;
+    font-size: 1.5rem;
+  }
+
+  .eyebrow {
+    display: none;
+  }
+
+  .locale-toggle {
+    min-block-size: 2.6rem;
+    padding-block: var(--hamesh-space-1);
+    padding-inline: var(--hamesh-space-3);
+    font-size: 0.9rem;
   }
 
   .lede {
@@ -1806,19 +1820,34 @@ kbd {
     font-size: 1.05rem;
   }
 
-  /* Search takes the full row; sort and view share the next one. */
+  .import-button {
+    min-block-size: 2.6rem;
+    padding-block: var(--hamesh-space-1);
+    padding-inline: var(--hamesh-space-3);
+    font-size: 0.9rem;
+  }
+
+  /* Search takes the full row; sort, view toggle, and New category share the
+     next one instead of each spawning a row. The sync button (when a provider
+     is set) wraps onto its own row after them. */
   .library-tools {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
 
   .search-input {
     grid-column: 1 / -1;
   }
 
+  .sort-select {
+    grid-column: 1;
+    min-inline-size: 0;
+  }
+
   .sort-select,
   .view-toggle {
     min-block-size: 2.6rem;
+    font-size: 0.9rem;
   }
 
   .library-filters {

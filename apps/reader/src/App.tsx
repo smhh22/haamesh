@@ -23,6 +23,7 @@ import { type BookOrganization, BookOrganizationDialog } from './components/Book
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { PromptDialog } from './components/PromptDialog';
 import { ReaderView } from './components/ReaderView';
+import { PlayerBar } from './components/reader/PlayerBar';
 import { SettingsDialog } from './components/SettingsDialog';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { type TagSummary, TagsDialog } from './components/TagsDialog';
@@ -73,7 +74,8 @@ const isSupportedBook = (file: File): boolean =>
   file.type === 'application/epub+zip' ||
   file.type === 'application/pdf' ||
   file.type === 'text/markdown' ||
-  /\.(epub|pdf|md|markdown)$/i.test(file.name);
+  file.type.startsWith('audio/') ||
+  /\.(epub|pdf|md|markdown|mp3|m4b|m4a|flac|ogg|opus)$/i.test(file.name);
 
 const formatAuthors = (authors: string[], locale: Locale): string => {
   if (authors.length === 0) return '';
@@ -135,6 +137,11 @@ export const App = () => {
   const [readerSession, setReaderSession] = useState<{
     book: BookRecord;
     start: ReadingState | null;
+  } | null>(null);
+  /** One audio book plays at a time; the bar overlays any view (ADR-0021). */
+  const [audioSession, setAudioSession] = useState<{
+    book: BookRecord;
+    file: File;
   } | null>(null);
   const books = useLibraryStore((state) => state.books);
   const readingStates = useReadingStore((state) => state.states);
@@ -511,6 +518,12 @@ export const App = () => {
         setErrorCode('BOOK_FILE_MISSING');
         return;
       }
+      // Audio books play through the persistent player bar instead of the
+      // paginated reader (ADR-0021).
+      if (book.format === 'audio') {
+        setAudioSession({ book, file });
+        return;
+      }
       setReaderSession({
         book,
         start: useReadingStore.getState().states[book.id] ?? null,
@@ -600,7 +613,9 @@ export const App = () => {
               ? fileHashes.has(book.hash)
                 ? t('library.opening')
                 : t('library.downloading')
-              : t('library.read')}
+              : book.format === 'audio'
+                ? t('library.listen')
+                : t('library.read')}
           </button>
           {!fileHashes.has(book.hash) ? (
             <button
@@ -648,6 +663,13 @@ export const App = () => {
           }}
           onClose={() => setReaderSession(null)}
         />
+        {audioSession ? (
+          <PlayerBar
+            book={audioSession.book}
+            file={audioSession.file}
+            onClose={() => setAudioSession(null)}
+          />
+        ) : null}
         <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       </DirectionProvider>
     );
@@ -657,6 +679,13 @@ export const App = () => {
     <DirectionProvider dir={direction}>
       <main className="shell">
         <UpdateBanner />
+        {audioSession ? (
+          <PlayerBar
+            book={audioSession.book}
+            file={audioSession.file}
+            onClose={() => setAudioSession(null)}
+          />
+        ) : null}
         <header className="masthead">
           <div>
             <p className="eyebrow">{t('app.eyebrow')}</p>
@@ -702,7 +731,7 @@ export const App = () => {
                 <input
                   className="visually-hidden"
                   type="file"
-                  accept=".epub,.pdf,.md,.markdown,application/epub+zip,application/pdf,text/markdown"
+                  accept=".epub,.pdf,.md,.markdown,.mp3,.m4b,.m4a,.flac,.ogg,.opus,application/epub+zip,application/pdf,text/markdown,audio/*"
                   multiple
                   disabled={isImporting}
                   onChange={handleInputChange}

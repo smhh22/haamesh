@@ -682,6 +682,27 @@ textarea::placeholder {
 /* Docked reader sidebar (wide windows): Contents / Notes / Search tabs next
    to the page instead of over it. The stage reflows to the remaining width;
    in RTL the sidebar docks on the right because grid columns follow direction. */
+/* Explicit rows: the in-flow children keep their tracks when immersive mode
+   hides the header and footer (auto-placement would pull the stage into the
+   zero-height `auto` row and collapse the page). */
+.reader-shell > .reader-header {
+  grid-row: 1;
+}
+
+.reader-shell > .reader-main {
+  grid-row: 2;
+}
+
+.reader-shell > .reader-footer {
+  grid-row: 3;
+}
+
+/* Touch reading: the center tap hides the chrome for a full-page read. */
+.reader-shell.is-immersive .reader-header,
+.reader-shell.is-immersive .reader-footer {
+  display: none;
+}
+
 .reader-main {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

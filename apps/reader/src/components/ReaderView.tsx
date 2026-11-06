@@ -145,6 +145,9 @@ export const ReaderView = ({
   const [pageInfo, setPageInfo] = useState<{ current: number; total: number } | null>(null);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
+  // Immersive reading on touch devices: tap the middle of the page to hide
+  // the toolbar and footer; tap again to bring them back.
+  const [chromeHidden, setChromeHidden] = useState(false);
   const [toc, setToc] = useState<TocItem[]>([]);
   const [activeHref, setActiveHref] = useState<string | null>(null);
   const [panel, setPanel] = useState<ReaderPanel>(null);
@@ -541,6 +544,51 @@ export const ReaderView = ({
         event.preventDefault();
         captureSelection();
       });
+
+      // Touch page-turn zones (Readest-style): a clean tap away from links,
+      // media, and selections turns the page — the inline-end third goes
+      // forward (mirrored automatically for RTL books) and the center third
+      // toggles the chrome. Desktop pointers keep the toolbar/footers/keys.
+      let tapOrigin: { x: number; y: number } | null = null;
+      let tapTimer: number | undefined;
+      doc.addEventListener('pointerdown', (event) => {
+        tapOrigin = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
+      });
+      doc.addEventListener('pointerup', (event) => {
+        const origin = tapOrigin;
+        tapOrigin = null;
+        if (!origin || event.button !== 0) return;
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        if (Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 10) return;
+        const coarse = navigator.maxTouchPoints > 0 || matchMedia('(pointer: coarse)').matches;
+        if (!coarse) return;
+        const target = event.target as Element | null;
+        if (target?.closest('a, button, input, select, textarea, audio, video, svg, img')) return;
+        // The paginated iframe is as wide as all columns combined (the
+        // paginator scrolls its container), so the visible page is derived
+        // from the iframe's rect against the stage width.
+        const frameRect = doc.defaultView?.frameElement?.getBoundingClientRect();
+        const stageWidth = stageRef.current?.clientWidth || frameRect?.width || 1;
+        const visibleLeft = -(frameRect?.left ?? 0);
+        const fraction = (event.clientX - visibleLeft) / stageWidth;
+        window.clearTimeout(tapTimer);
+        tapTimer = window.setTimeout(() => {
+          const selected = doc.getSelection();
+          if (selected && !selected.isCollapsed && selected.toString().trim()) return;
+          const rtl = directionRef.current === 'rtl';
+          const forward = rtl ? fraction < 1 / 3 : fraction > 2 / 3;
+          const backward = rtl ? fraction > 2 / 3 : fraction < 1 / 3;
+          if (forward) {
+            void view.next();
+            return;
+          }
+          if (backward) {
+            void view.prev();
+            return;
+          }
+          setChromeHidden((hidden) => !hidden);
+        }, 60);
+      });
     };
 
     const onShowAnnotation = (event: Event) => {
@@ -649,7 +697,10 @@ export const ReaderView = ({
       if (target?.closest('[role="dialog"]')) return;
 
       if (event.key === 'Escape') {
-        if (panel && !sidebarVisible) {
+        if (chromeHidden) {
+          setChromeHidden(false);
+          event.preventDefault();
+        } else if (panel && !sidebarVisible) {
           setPanel(null);
           viewRef.current?.clearSearch();
           event.preventDefault();
@@ -694,7 +745,7 @@ export const ReaderView = ({
     keyHandlerRef.current = onKeyDown;
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [panel, onClose, book.direction, isPdf, sidebarVisible, setReaderSidebar]);
+  }, [panel, onClose, book.direction, isPdf, sidebarVisible, setReaderSidebar, chromeHidden]);
 
   const turn = (action: 'next' | 'prev') => {
     const view = viewRef.current;
@@ -979,7 +1030,7 @@ export const ReaderView = ({
 
   return (
     <div
-      className="reader-shell"
+      className={chromeHidden ? 'reader-shell is-immersive' : 'reader-shell'}
       data-format={book.format}
       data-ready={ready ? 'true' : 'false'}
       data-failed={failed ? 'true' : 'false'}

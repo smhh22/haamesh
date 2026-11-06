@@ -46,11 +46,6 @@ body {
     grid-template-columns: repeat(auto-fill, minmax(12rem, 16rem));
     justify-content: start;
   }
-
-  /* Full-width list rows read like a spreadsheet; cap them. */
-  .book-grid.is-list {
-    max-inline-size: 72rem;
-  }
 }
 
 .masthead {
@@ -188,6 +183,11 @@ h1 {
 .import-button:focus-within {
   outline: 2px solid var(--hamesh-color-ink);
   outline-offset: 2px;
+}
+
+.import-button.is-busy {
+  opacity: 0.75;
+  cursor: progress;
 }
 
 .library-import-actions {
@@ -340,6 +340,10 @@ button.import-button {
   inline-size: 100%;
   block-size: 100%;
   object-fit: cover;
+  /* A hairline edge so white PDF covers read as a page instead of vanishing
+     into the card (light) or glaring (dark). */
+  border: 1px solid color-mix(in srgb, var(--hamesh-color-ink) 14%, transparent);
+  border-radius: inherit;
 }
 
 .cover-fallback {
@@ -678,8 +682,8 @@ textarea::placeholder {
 }
 
 .book-grid.is-list .book-card {
-  grid-template-columns: 5rem 1fr;
-  align-items: start;
+  grid-template-columns: 5rem minmax(0, 1fr) auto;
+  align-items: center;
 }
 
 .book-grid.is-list .cover {
@@ -689,6 +693,16 @@ textarea::placeholder {
 
 .book-grid.is-list .book-body {
   align-self: center;
+}
+
+/* List rows read like a compact table on a desktop: meta at the start,
+   actions at the inline end. Centered under a cap so a wide window does not
+   stretch a row into a spreadsheet. */
+@media (min-width: 48rem) {
+  .book-grid.is-list {
+    max-inline-size: 60rem;
+    margin-inline: auto;
+  }
 }
 
 .reader-actions {
@@ -1842,7 +1856,12 @@ kbd {
   }
 
   .book-grid.is-list .book-card {
-    grid-template-columns: 4rem 1fr;
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  /* Actions wrap onto their own full-width row under the meta. */
+  .book-grid.is-list .book-actions {
+    grid-column: 1 / -1;
   }
 
   .book-grid.is-list .cover {

@@ -22,7 +22,8 @@ test('imports a Persian EPUB and opens the reader', async ({ page }) => {
 
   await page.locator('input[type="file"]').setInputFiles(fixture);
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
-  await expect(page.getByText('RTL')).toBeVisible();
+  // Direction is no longer a card badge; the Persian language tag is.
+  await expect(page.locator('.book-card').getByText('fa', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Read' }).click();
   await expect(page.getByRole('button', { name: 'Library' })).toBeVisible();
@@ -237,9 +238,8 @@ test('lays out a real mobile shelf and reader', async ({ page }) => {
   await page.locator('input[type="file"]').setInputFiles(pdfFixture);
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
 
-  // Two-column shelf instead of the desktop minmax(14rem) single column;
-  // switch to the grid layout first, since list is the default.
-  await page.getByRole('button', { name: 'Grid view' }).click();
+  // Two-column cover shelf instead of the desktop minmax(14rem) single
+  // column; the grid is the default view.
   await expect(page.locator('.book-grid')).not.toHaveClass(/is-list/);
   const columns = await page.locator('.book-grid').evaluate((element) => {
     const value = getComputedStyle(element).gridTemplateColumns;
@@ -593,7 +593,7 @@ test('persists the library across a reload', async ({ page }) => {
 
   await page.reload();
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
-  await expect(page.getByText('RTL')).toBeVisible();
+  await expect(page.locator('.book-card').getByText('fa', { exact: true })).toBeVisible();
 });
 
 test('reports a missing book file instead of hiding the book', async ({ page }) => {
@@ -680,15 +680,15 @@ test('filters the library and switches to list view', async ({ page }) => {
   await search.fill('');
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
 
-  // List is the default; the toggle goes to grid and back, and the choice
+  // Grid is the default; the toggle goes to list and back, and the choice
   // persists across a reload.
-  await expect(page.locator('.book-grid')).toHaveClass(/is-list/);
-  await page.getByRole('button', { name: 'Grid view' }).click();
   await expect(page.locator('.book-grid')).not.toHaveClass(/is-list/);
   await page.getByRole('button', { name: 'List view' }).click();
   await expect(page.locator('.book-grid')).toHaveClass(/is-list/);
+  await page.getByRole('button', { name: 'Grid view' }).click();
+  await expect(page.locator('.book-grid')).not.toHaveClass(/is-list/);
   await page.reload();
-  await expect(page.locator('.book-grid')).toHaveClass(/is-list/);
+  await expect(page.locator('.book-grid')).not.toHaveClass(/is-list/);
 
   await page.getByLabel('Sort books').selectOption('title');
   await expect(page.locator('.book-grid .book-card')).toHaveCount(2);
@@ -992,7 +992,6 @@ test('imports and reads a PDF', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(pdfFixture);
   await expect(page.getByRole('heading', { name: 'Hamesh PDF Test' })).toBeVisible();
-  await expect(page.getByText('LTR')).toBeVisible();
 
   await page.getByRole('button', { name: 'Read' }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {

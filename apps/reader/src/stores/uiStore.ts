@@ -7,7 +7,7 @@ export type UiLocale = 'en' | 'fa';
 interface UiStore {
   theme: UiTheme;
   locale: UiLocale;
-  /** Library shelf layout; list is the default so more books fit a screen. */
+  /** Library shelf layout; the cover grid is the default (Readest-style). */
   viewMode: 'grid' | 'list';
   setViewMode: (view: 'grid' | 'list') => void;
   /**
@@ -48,9 +48,11 @@ const READER_SIDEBAR_KEY = 'hamesh.ui.reader-sidebar';
 
 const readViewMode = (): 'grid' | 'list' => {
   try {
-    return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'list';
+    // The cover shelf is the default; only an explicit stored choice of list
+    // keeps the dense rows.
+    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid';
   } catch {
-    return 'list';
+    return 'grid';
   }
 };
 

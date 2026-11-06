@@ -51,7 +51,6 @@ export const scaleImagesWithFont = (doc: Document, options: ScaleImagesOptions =
   if (!Number.isFinite(rootPx) || rootPx <= 0) return;
   const measure = options.measure ?? computedBox(doc);
   for (const img of doc.body.querySelectorAll('img')) {
-    if (img.closest('[data-hamesh-translation]')) continue;
     const box = measure(img);
     if (
       !box ||

@@ -43,14 +43,4 @@ describe('scaleImagesWithFont', () => {
     scaleImagesWithFont(doc, { measure: () => null, rootFontSizePx: 16 });
     expect(img.style.width).toBe('');
   });
-
-  it('never touches the translation block', () => {
-    const doc = buildDoc(
-      '<aside data-hamesh-translation=""><img src="small.gif" alt=""></aside>',
-      '16px',
-    );
-    scaleImagesWithFont(doc, { measure: measurePx(20, 10), rootFontSizePx: 16 });
-    const img = doc.querySelector('img') as HTMLImageElement;
-    expect(img.style.width).toBe('');
-  });
 });

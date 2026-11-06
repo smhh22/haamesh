@@ -93,6 +93,23 @@ describe('SQL repositories', () => {
     expect(await storage.books.list()).toHaveLength(1);
   });
 
+  it('round-trips the video format and time locators (ADR-0023)', async () => {
+    const storage = createSqlStorage(await openDb());
+    await storage.books.upsert(book({ id: 'video-1', format: 'video' }));
+    await storage.reading.save({
+      bookId: 'video-1',
+      locator: { kind: 'time', seconds: 128, fraction: 0.4 },
+      fraction: 0.4,
+      status: 'reading',
+      updatedAt: 3,
+    });
+
+    const loaded = await storage.books.get('video-1');
+    expect(loaded?.format).toBe('video');
+    const reading = await storage.reading.get('video-1');
+    expect(reading?.locator).toEqual({ kind: 'time', seconds: 128, fraction: 0.4 });
+  });
+
   it('round-trips the audio format and audio locators (ADR-0021)', async () => {
     const storage = createSqlStorage(await openDb());
     await storage.books.upsert(book({ id: 'audio-1', format: 'audio' }));

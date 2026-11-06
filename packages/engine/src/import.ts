@@ -130,6 +130,20 @@ export const importBook = (file: File): Promise<ImportedBook> => {
   return importEpub(file);
 };
 
+/** Video containers Hāmesh imports (ADR-0023); keys are lowercase extensions. */
+const VIDEO_CONTAINERS = new Map<string, string>([
+  ['.mp4', 'mp4'],
+  ['.mkv', 'mkv'],
+  ['.webm', 'webm'],
+]);
+
+export const isVideoFile = (file: File): boolean =>
+  VIDEO_CONTAINERS.has(file.name.slice(file.name.lastIndexOf('.')).toLowerCase()) ||
+  file.type.startsWith('video/');
+
+const videoContainer = (file: File): string =>
+  VIDEO_CONTAINERS.get(file.name.slice(file.name.lastIndexOf('.')).toLowerCase()) ?? 'video';
+
 /** Audio containers Hāmesh imports (ADR-0021); keys are lowercase extensions. */
 const AUDIO_CONTAINERS = new Map<string, string>([
   ['.mp3', 'mp3'],
@@ -158,6 +172,36 @@ const pictureToBlob = (picture: { data: Uint8Array; format: string }): Blob | nu
   // requires a plain ArrayBuffer under the strict TS 5.9 lib types.
   const bytes = new Uint8Array(picture.data);
   return new Blob([bytes], { type: mime });
+};
+
+/**
+ * Import a video course (ADR-0023): local-only, content-addressed like any
+ * book. Titles come from the file name; the container lands in
+ * `identifiers.container`. No tag parsing in the MVP — mp4 metadata parsing
+ * can ride on music-metadata later if titles prove worth it.
+ */
+export const importVideo = async (file: File): Promise<ImportedBook> => {
+  if (file.size === 0) {
+    throw new ImportError('INVALID_FILE', 'The selected file is empty.');
+  }
+
+  const bytes = Uint8Array.from(new Uint8Array(await file.arrayBuffer()));
+  const hash = await sha256Hex(bytes);
+
+  return {
+    metadata: {
+      hash,
+      format: 'video',
+      title: file.name.replace(/\.[^.]+$/, ''),
+      authors: [],
+      language: null,
+      publisher: null,
+      series: null,
+      identifiers: { container: videoContainer(file) },
+      direction: resolveBookDirection({ language: null }),
+    },
+    cover: null,
+  };
 };
 
 /**

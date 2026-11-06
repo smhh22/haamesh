@@ -13,6 +13,7 @@
     "importing": "Importing…",
     "unknownAuthor": "Unknown author",
     "progress": "{{percent}}% read",
+    "listen": "Listen",
     "remove": "Remove",
     "read": "Read",
     "opening": "Opening…",
@@ -351,5 +352,15 @@
       "CANCELLED": "Translation cancelled.",
       "PROVIDER_ERROR": "The provider returned an error."
     }
+  },
+  "player": {
+    "title": "Audio player",
+    "play": "Play",
+    "pause": "Pause",
+    "back15": "Back 15 seconds",
+    "forward15": "Forward 15 seconds",
+    "seek": "Playback position",
+    "speed": "Playback speed",
+    "close": "Close player"
   }
 }

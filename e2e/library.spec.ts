@@ -8,6 +8,7 @@ const pdfFixture = fileURLToPath(new URL('./fixtures/sample.pdf', import.meta.ur
 const persianPdfFixture = fileURLToPath(new URL('./fixtures/persian.pdf', import.meta.url));
 const nodirFixture = fileURLToPath(new URL('./fixtures/nodir.epub', import.meta.url));
 const markdownFixture = fileURLToPath(new URL('./fixtures/sample.md', import.meta.url));
+const audioFixture = fileURLToPath(new URL('./fixtures/sample.mp3', import.meta.url));
 
 test('imports a Persian EPUB and opens the reader', async ({ page }) => {
   const pageErrors: string[] = [];
@@ -1437,4 +1438,41 @@ test('exposes PDF fit modes as pressed toggles', async ({ page }) => {
   await fitWidth.click();
   await expect(fitWidth).toHaveAttribute('aria-pressed', 'true');
   await expect(fitPage).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('imports an audio book and plays it in the player bar', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(audioFixture);
+  // Title and cover come from the embedded tags (ADR-0021).
+  await expect(page.getByRole('heading', { name: 'Hāmesh Audio Test' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Listen' }).click();
+  const bar = page.locator('.player-bar');
+  await expect(bar).toBeVisible();
+  await expect(page.locator('.player-title')).toHaveText('Hāmesh Audio Test');
+
+  const currentTime = () =>
+    page.evaluate(() => {
+      const audio = document.querySelector('.player-bar audio');
+      return audio instanceof HTMLAudioElement ? audio.currentTime : -1;
+    });
+
+  // exact: "Close player" also contains "Play" as a substring.
+  await bar.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect.poll(currentTime, { timeout: 10_000 }).toBeGreaterThan(0.2);
+  await bar.getByRole('button', { name: 'Pause', exact: true }).click();
+  const pausedAt = await currentTime();
+  expect(pausedAt).toBeGreaterThan(0.2);
+  // Let the async persistence write land before the reload.
+  await page.waitForTimeout(300);
+
+  // The position persists through the reading state and restores on reopen.
+  await page.reload();
+  await page.getByRole('button', { name: 'Listen' }).click();
+  await expect(bar).toBeVisible();
+  await expect.poll(currentTime, { timeout: 10_000 }).toBeGreaterThan(0.1);
+  expect(pageErrors).toEqual([]);
 });

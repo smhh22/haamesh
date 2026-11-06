@@ -1,5 +1,6 @@
 import type { BookFormat, BookMetadata } from '@hamesh/core';
 import { makeBook } from 'foliate-js/view.js';
+import { parseBlob } from 'music-metadata';
 import { resolveBookDirection } from './direction';
 import { ImportError } from './error';
 import { sha256Hex } from './hash';
@@ -127,4 +128,82 @@ export const importBook = (file: File): Promise<ImportedBook> => {
   if (isPdfFile(file)) return importPdf(file);
   if (isMarkdownFile(file)) return importMarkdown(file);
   return importEpub(file);
+};
+
+/** Audio containers Hāmesh imports (ADR-0021); keys are lowercase extensions. */
+const AUDIO_CONTAINERS = new Map<string, string>([
+  ['.mp3', 'mp3'],
+  ['.m4b', 'm4b'],
+  ['.m4a', 'm4a'],
+  ['.flac', 'flac'],
+  ['.ogg', 'ogg'],
+  ['.opus', 'opus'],
+]);
+
+export const isAudioFile = (file: File): boolean =>
+  AUDIO_CONTAINERS.has(file.name.slice(file.name.lastIndexOf('.')).toLowerCase()) ||
+  file.type.startsWith('audio/');
+
+const audioContainer = (file: File): string =>
+  AUDIO_CONTAINERS.get(file.name.slice(file.name.lastIndexOf('.')).toLowerCase()) ?? 'audio';
+
+const pictureToBlob = (picture: { data: Uint8Array; format: string }): Blob | null => {
+  const mime = picture.format?.includes('/')
+    ? picture.format
+    : picture.format
+      ? `image/${picture.format}`
+      : '';
+  if (!mime.startsWith('image/')) return null;
+  // Copy into a fresh buffer: tag data is ArrayBufferLike, and BlobPart
+  // requires a plain ArrayBuffer under the strict TS 5.9 lib types.
+  const bytes = new Uint8Array(picture.data);
+  return new Blob([bytes], { type: mime });
+};
+
+/**
+ * Import an audio book (ADR-0021): the file becomes a normal content-addressed
+ * blob, tags fill title/authors/cover with file-name fallbacks, and the
+ * concrete container lands in `identifiers.container` so the runtime MIME can
+ * be derived without another format field. Tag parsing is best-effort — a
+ * file without tags still imports.
+ */
+export const importAudio = async (file: File): Promise<ImportedBook> => {
+  if (file.size === 0) {
+    throw new ImportError('INVALID_FILE', 'The selected file is empty.');
+  }
+
+  const bytes = Uint8Array.from(new Uint8Array(await file.arrayBuffer()));
+  const hash = await sha256Hex(bytes);
+
+  let title = file.name.replace(/\.[^.]+$/, '');
+  let authors: string[] = [];
+  let language: string | null = null;
+  let cover: Blob | null = null;
+  try {
+    const tags = await parseBlob(file);
+    title = tags.common.title?.trim() || title;
+    authors = [...asArray(tags.common.artist), ...asArray(tags.common.albumartist)]
+      .filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
+      .map((name) => name.trim());
+    language = typeof tags.common.language === 'string' ? tags.common.language : null;
+    const picture = tags.common.picture?.[0];
+    cover = picture ? pictureToBlob(picture) : null;
+  } catch {
+    // Unreadable tags are not an import failure; the file name carries it.
+  }
+
+  return {
+    metadata: {
+      hash,
+      format: 'audio',
+      title,
+      authors,
+      language,
+      publisher: null,
+      series: null,
+      identifiers: { container: audioContainer(file) },
+      direction: resolveBookDirection({ language }),
+    },
+    cover,
+  };
 };

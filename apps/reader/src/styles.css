@@ -1767,6 +1767,120 @@ kbd {
   padding-block-start: calc(var(--hamesh-space-2) + 1.5rem);
 }
 
+/* Audio player bar (ADR-0021): fixed above the app chrome so it survives
+   navigation; the stage/content scrolls underneath it. */
+.player-bar {
+  position: fixed;
+  inset-block-end: 0;
+  inset-inline: 0;
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hamesh-space-3);
+  border-block-start: 1px solid var(--hamesh-color-border);
+  background: var(--hamesh-color-surface);
+  padding-block: var(--hamesh-space-2)
+    calc(var(--hamesh-space-2) + env(safe-area-inset-bottom, 0px));
+  padding-inline: var(--hamesh-space-4);
+  box-shadow: 0 -0.25rem 0.75rem color-mix(in srgb, #000 18%, transparent);
+}
+
+.player-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--hamesh-space-3);
+  min-inline-size: 0;
+}
+
+.player-meta img {
+  inline-size: 3rem;
+  block-size: 4.5rem;
+  object-fit: cover;
+  border-radius: calc(var(--hamesh-radius) * 0.5);
+  border: 1px solid color-mix(in srgb, var(--hamesh-color-ink) 14%, transparent);
+}
+
+.player-titles {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.player-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-time {
+  margin: 0;
+  color: var(--hamesh-color-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
+
+.player-controls {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--hamesh-space-2);
+  min-inline-size: 0;
+}
+
+.player-controls .reader-seek {
+  flex: 1;
+}
+
+.player-skip {
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: calc(var(--hamesh-radius) * 0.5);
+  background: var(--hamesh-color-surface);
+  color: var(--hamesh-color-ink);
+  cursor: pointer;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  padding-block: var(--hamesh-space-1);
+  padding-inline: var(--hamesh-space-2);
+}
+
+.player-toggle {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  border: 1px solid var(--hamesh-color-accent);
+  border-radius: 50%;
+  background: var(--hamesh-color-accent);
+  color: var(--hamesh-color-canvas);
+  cursor: pointer;
+  padding: 0;
+}
+
+.player-toggle svg {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+
+.player-speed {
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: calc(var(--hamesh-radius) * 0.5);
+  background: var(--hamesh-color-surface);
+  color: var(--hamesh-color-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  padding-block: var(--hamesh-space-1);
+  padding-inline: var(--hamesh-space-2);
+}
+
+/* Keep the library footer content above the bar. */
+body:has(.player-bar) .shell {
+  padding-block-end: calc(var(--hamesh-space-8) + 6rem);
+}
+
 /* ---------------------------------------------------------------------------
    Mobile layout: a phone is not a scaled-down desktop. The library keeps a
    two-column shelf, filters scroll horizontally as chips, books use compact
@@ -1949,6 +2063,24 @@ kbd {
     flex: none;
     inline-size: 2.75rem;
     min-block-size: 2.75rem;
+  }
+
+  /* Player bar stacks on a phone: meta row, then buttons, then a full-width
+     seek — nothing clipped off the edge. */
+  .player-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--hamesh-space-2);
+    padding-inline: var(--hamesh-space-3);
+  }
+
+  .player-controls {
+    flex-wrap: wrap;
+  }
+
+  .player-controls .reader-seek {
+    flex: 1 1 100%;
+    order: 10;
   }
 
   /* Panels become sheets that use almost the whole viewport. */

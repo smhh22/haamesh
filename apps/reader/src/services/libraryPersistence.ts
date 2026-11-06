@@ -8,6 +8,7 @@ import { useReadingStore } from '../stores/readingStore';
 import { cachedBookHashes, getBookFile, rememberBookFile } from './bookFiles';
 import { createDataStore } from './dataStore';
 import { type ActiveStorage, createActiveStorage } from './sqlStorage';
+import { markStartup } from './startupTrace';
 import { getOrCreateDeviceId, stampFieldClocks, stampRecordClock } from './syncStore';
 
 const MANIFEST = 'library.json';
@@ -112,13 +113,16 @@ export const listBookHashes = async (): Promise<Set<string>> => {
  * manifest is read once for migration and kept as a fallback.
  */
 export const initLibraryPersistence = async (): Promise<void> => {
+  markStartup('data-store-opening');
   store = await createDataStore();
+  markStartup('data-store-open');
   const snapshot = store ? await readSnapshot(store) : null;
   if (store) {
     syncClock = new HybridLogicalClock(await getOrCreateDeviceId(store));
   }
 
   const sql = await createActiveStorage(snapshot);
+  markStartup('sql-storage-open');
   if (sql) {
     activeStorage = sql;
     if (typeof document !== 'undefined') {
@@ -128,6 +132,7 @@ export const initLibraryPersistence = async (): Promise<void> => {
     }
 
     await reloadLibraryFromStorage();
+    markStartup('library-loaded');
     return;
   }
 

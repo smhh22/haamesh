@@ -292,6 +292,9 @@
     "updateAvailable": "Version {{version}} is available.",
     "about": "About",
     "aboutText": "Hāmesh (هامش) — a local-first ebook reader. Your library stays on your device; sync only uses storage you own. MIT licensed.",
+    "startupTrace": "Startup trace",
+    "startupTraceCopy": "Copy trace",
+    "startupTraceCopied": "Copied",
     "translation": "Translation"
   },
   "shortcuts": {

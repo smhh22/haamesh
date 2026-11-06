@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { finishStartupRun, markStartup } from '../services/startupTrace';
 import {
   checkForUpdate,
   installUpdate,
@@ -26,11 +27,21 @@ export const UpdateBanner = () => {
     // updated exe), and a slow round-trip to GitHub made launches feel
     // frozen. The manual check in Settings stays immediate.
     const timer = window.setTimeout(() => {
-      void checkForUpdate().then((result) => {
-        if (result.status === 'available') {
-          setUpdate({ version: result.version, notes: result.notes });
-        }
-      });
+      markStartup('update-check-start');
+      void checkForUpdate()
+        .then((result) => {
+          markStartup('update-check-done', result.status);
+          if (result.status === 'available') {
+            setUpdate({ version: result.version, notes: result.notes });
+          }
+        })
+        .catch((cause: unknown) => {
+          markStartup('update-check-failed', cause instanceof Error ? cause.message : 'unknown');
+        })
+        .finally(() => {
+          // Rewrite the persisted run so the trace includes the deferred check.
+          finishStartupRun();
+        });
     }, 15_000);
     return () => window.clearTimeout(timer);
   }, []);

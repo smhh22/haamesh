@@ -2157,6 +2157,21 @@ body:has(.player-bar) .shell {
   font-size: 1rem;
 }
 
+/* Startup diagnostics (About section): a fixed LTR log block users can copy
+   verbatim into a bug report. */
+.startup-trace-log {
+  margin: 0 0 var(--hamesh-space-2);
+  overflow-x: auto;
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: calc(var(--hamesh-radius) * 0.5);
+  background: var(--hamesh-color-canvas);
+  padding: var(--hamesh-space-2);
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  max-block-size: 14rem;
+}
+
 .ai-provider-card {
   border: 1px solid var(--hamesh-color-border);
   border-radius: var(--hamesh-radius);

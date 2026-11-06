@@ -74,3 +74,15 @@ export const ChevronLeftIcon = (props: IconProps): JSX.Element =>
 
 export const ChevronRightIcon = (props: IconProps): JSX.Element =>
   base(<path d="M6 3.5L10.5 8 6 12.5" />, props);
+
+export const PlayIcon = (props: IconProps): JSX.Element =>
+  base(<path d="M5 3.5l8 4.5-8 4.5z" fill="currentColor" stroke="none" />, props);
+
+export const PauseIcon = (props: IconProps): JSX.Element =>
+  base(
+    <>
+      <path d="M5.5 3.5v9" strokeWidth="2.5" />
+      <path d="M10.5 3.5v9" strokeWidth="2.5" />
+    </>,
+    props,
+  );

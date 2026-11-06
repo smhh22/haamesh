@@ -93,6 +93,23 @@ describe('SQL repositories', () => {
     expect(await storage.books.list()).toHaveLength(1);
   });
 
+  it('round-trips the audio format and audio locators (ADR-0021)', async () => {
+    const storage = createSqlStorage(await openDb());
+    await storage.books.upsert(book({ id: 'audio-1', format: 'audio' }));
+    await storage.reading.save({
+      bookId: 'audio-1',
+      locator: { kind: 'audio', seconds: 42, fraction: 0.2 },
+      fraction: 0.2,
+      status: 'reading',
+      updatedAt: 3,
+    });
+
+    const loaded = await storage.books.get('audio-1');
+    expect(loaded?.format).toBe('audio');
+    const reading = await storage.reading.get('audio-1');
+    expect(reading?.locator).toEqual({ kind: 'audio', seconds: 42, fraction: 0.2 });
+  });
+
   it('removes a book together with its reading state and notes', async () => {
     const storage = createSqlStorage(await openDb());
     await storage.books.upsert(book());

@@ -164,7 +164,9 @@ const parseLocator = (value: unknown): Locator | null =>
 const mapBook = (row: Record<string, unknown>): BookRecord => ({
   id: String(row.id ?? ''),
   hash: String(row.hash ?? ''),
-  format: row.format === 'pdf' ? 'pdf' : 'epub',
+  // Unknown formats fall back to epub for pre-audio rows; audio itself
+  // round-trips (ADR-0021).
+  format: row.format === 'audio' || row.format === 'pdf' ? row.format : 'epub',
   title: String(row.title ?? ''),
   authors: parseJson<string[]>(row.authors_json, []),
   language: row.language == null ? null : String(row.language),

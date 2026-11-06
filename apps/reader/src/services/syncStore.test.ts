@@ -369,3 +369,24 @@ describe('sql sync store adapter', () => {
     expect(first).toMatch(/^[A-Za-z0-9._-]{1,64}$/);
   });
 });
+
+describe('sql sync store adapter', () => {
+  it('excludes video books from sync rounds (ADR-0023)', async () => {
+    const repos: FakeRepos = {
+      books: new Map([
+        ['b1', baseBook()],
+        ['v1', { ...baseBook(), id: 'v1', hash: 'sha-v1', format: 'video', title: 'Course' }],
+      ]),
+      reading: new Map(),
+      notes: new Map(),
+    };
+    const store = createSqlSyncStore(createFakeStorage(repos, new Map()), createFakeDataStore());
+
+    const records = await store.list();
+    const bookIds = records.filter((r) => r.kind === 'book').map((r) => r.id);
+    expect(bookIds).toContain('b1');
+    expect(bookIds).not.toContain('v1');
+    // No reading state for the video book either — it stays device-local.
+    expect(records.some((r) => r.id === 'v1')).toBe(false);
+  });
+});

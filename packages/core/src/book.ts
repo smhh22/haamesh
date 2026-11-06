@@ -1,7 +1,7 @@
 import type { Direction } from './direction';
 
-/** EPUB, fixed-layout PDF, or an audio book (ADR-0021). */
-export type BookFormat = 'epub' | 'pdf' | 'audio';
+/** EPUB, fixed-layout PDF, audio (ADR-0021), or local-only video (ADR-0023). */
+export type BookFormat = 'epub' | 'pdf' | 'audio' | 'video';
 
 /**
  * Format-tagged reading position. EPUB uses CFI, PDF uses pages, plain text
@@ -22,7 +22,12 @@ export type Locator =
     }
   | { kind: 'offset'; offset: number; fraction: number }
   /** Audio books: playback position within the file (ADR-0021). */
-  | { kind: 'audio'; seconds: number; fraction: number };
+  | { kind: 'audio'; seconds: number; fraction: number }
+  /**
+   * Video courses: playback position (ADR-0023). Video books stay
+   * device-local for now, so this locator has no wire impact yet.
+   */
+  | { kind: 'time'; seconds: number; fraction: number };
 
 export interface BookMetadata {
   /** SHA-256 of the book file bytes. */

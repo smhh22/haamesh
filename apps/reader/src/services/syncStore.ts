@@ -42,7 +42,10 @@ export const createSqlSyncStore = (
 
   const listBooks = async (): Promise<SyncRecord[]> => {
     const books = await storage.books.list();
-    return books.map((book) => ({
+    // Video books are device-local (ADR-0023): no meta record, no blob, so
+    // multi-GB files never reach the user's sync storage.
+    const syncable = books.filter((book) => book.format !== 'video');
+    return syncable.map((book) => ({
       id: book.id,
       kind: 'book',
       fields: {

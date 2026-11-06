@@ -9,8 +9,10 @@ export {
   importBook,
   importEpub,
   importPdf,
+  importVideo,
   isAudioFile,
   isPdfFile,
+  isVideoFile,
   sha256Hex,
 } from './import';
 export {

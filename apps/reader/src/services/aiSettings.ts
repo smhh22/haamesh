@@ -29,8 +29,6 @@ export interface AiTranslationSettings {
   providers: TranslationProviderConfig[];
   /** Target language for translations; independent of the UI locale. */
   targetLang: string;
-  /** Opt-in: tapping a paragraph translates it (EPUB only). */
-  tapToTranslate: boolean;
 }
 
 const SETTINGS_KEY = 'hamesh.ai.translation';
@@ -63,7 +61,6 @@ export const newTranslationProvider = (
 export const defaultAiSettings = (uiLocale: string): AiTranslationSettings => ({
   providers: [],
   targetLang: uiLocale,
-  tapToTranslate: false,
 });
 
 export const loadAiSettings = (uiLocale: string): AiTranslationSettings => {
@@ -76,7 +73,6 @@ export const loadAiSettings = (uiLocale: string): AiTranslationSettings => {
       providers,
       targetLang:
         typeof parsed.targetLang === 'string' && parsed.targetLang ? parsed.targetLang : uiLocale,
-      tapToTranslate: parsed.tapToTranslate === true,
     };
   } catch {
     return defaultAiSettings(uiLocale);

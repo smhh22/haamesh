@@ -114,39 +114,5 @@ p, div, li, blockquote { text-align: ${alignment} !important; }
 a { color: ${colors.link} !important; }
 ${imageFilter}
 
-/* Tap-to-translate block (ADR-0016), inserted below a tapped paragraph.
-   Non-selectable so selections and CFIs never include translated content. */
-.hamesh-translation {
-  margin-block: 0.75em 1em !important;
-  padding-block: 0.5em !important;
-  padding-inline: 0.75em !important;
-  border-inline-start: 3px solid ${colors.link} !important;
-  background: ${colors.panel} !important;
-  border-radius: 4px !important;
-  font-size: 0.92em !important;
-  text-align: start !important;
-  user-select: none !important;
-  -webkit-user-select: none !important;
-}
-.hamesh-translation-head {
-  display: flex !important;
-  align-items: baseline !important;
-  gap: 0.5em !important;
-  margin-block-end: 0.25em !important;
-  font-size: 0.78em !important;
-  opacity: 0.75 !important;
-}
-.hamesh-translation-label { font-weight: 600 !important; }
-.hamesh-translation-provider { flex: 1 1 auto !important; }
-.hamesh-translation-copy {
-  all: unset !important;
-  cursor: pointer !important;
-  color: ${colors.link} !important;
-  font-size: inherit !important;
-  text-decoration: underline !important;
-}
-.hamesh-translation-copy[hidden] { display: none !important; }
-.hamesh-translation-text { text-align: start !important; }
-.hamesh-translation.is-error .hamesh-translation-text { color: ${colors.danger} !important; }
 `;
 };

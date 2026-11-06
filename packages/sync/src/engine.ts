@@ -307,7 +307,7 @@ export const createSyncEngine = (options: SyncOptions) => {
           // The index is untrusted remote data: only hash-shaped ids and known
           // formats may be used to build paths.
           if (typeof sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(sha256)) continue;
-          if (ext !== 'epub' && ext !== 'pdf') continue;
+          if (ext !== 'epub' && ext !== 'pdf' && ext !== 'audio') continue;
           const blobPath = bookBlobPath(sha256, ext);
           const remoteBlob = await provider.head(blobPath);
           const localBlob = await store.bookFile(sha256);

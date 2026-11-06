@@ -1,13 +1,6 @@
 import type { Locator, TocItem } from '@hamesh/core';
 import {
   applyPdfHighlights,
-  asDomElement,
-  createTranslationBlock,
-  fillTranslationBlock,
-  fillTranslationBlockError,
-  findAttachedTranslation,
-  findTranslatableBlock,
-  isCopyTarget,
   isRtlLanguage,
   isSanitizableMediaType,
   PDF_OVERLAY_ID,
@@ -16,11 +9,8 @@ import {
   pdfLocatorMatchesPage,
   pdfOccurrenceIndex,
   profilePdfText,
-  removeTranslationBlock,
   sanitizeEpubHtml,
   scaleImagesWithFont,
-  translationBlockAt,
-  translationText,
 } from '@hamesh/engine';
 import type { BookNoteRecord, BookRecord } from '@hamesh/storage';
 import { Overlayer } from 'foliate-js/overlayer.js';
@@ -155,6 +145,9 @@ export const ReaderView = ({
   const [pageInfo, setPageInfo] = useState<{ current: number; total: number } | null>(null);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
+  // Immersive reading on touch devices: tap the middle of the page to hide
+  // the toolbar and footer; tap again to bring them back.
+  const [chromeHidden, setChromeHidden] = useState(false);
   const [toc, setToc] = useState<TocItem[]>([]);
   const [activeHref, setActiveHref] = useState<string | null>(null);
   const [panel, setPanel] = useState<ReaderPanel>(null);
@@ -441,6 +434,48 @@ export const ReaderView = ({
           observer.observe(layer, { childList: true, subtree: true });
         }
         pdfLanguageDetectRef.current();
+        // Pinch zoom (mobile): scale the PDF page inside the viewport instead
+        // of the browser zooming the whole app (which pushed the chrome off
+        // screen). Throttled — each step re-renders the page.
+        let pinchStart: { distance: number; zoom: number } | null = null;
+        let pinchUpdatedAt = 0;
+        const touchDistance = (touches: TouchList): number =>
+          Math.hypot(
+            touches[0]!.clientX - touches[1]!.clientX,
+            touches[0]!.clientY - touches[1]!.clientY,
+          );
+        doc.addEventListener(
+          'touchstart',
+          (event) => {
+            if (event.touches.length !== 2) return;
+            const current = useReaderSettings.getState().pdfZoom;
+            pinchStart = {
+              distance: touchDistance(event.touches) || 1,
+              zoom: typeof current === 'number' ? current : 1,
+            };
+          },
+          { passive: true },
+        );
+        doc.addEventListener(
+          'touchmove',
+          (event) => {
+            if (!pinchStart || event.touches.length !== 2) return;
+            event.preventDefault();
+            const now = Date.now();
+            if (now - pinchUpdatedAt < 120) return;
+            pinchUpdatedAt = now;
+            const ratio = touchDistance(event.touches) / pinchStart.distance;
+            const zoom = Math.min(3, Math.max(0.5, pinchStart.zoom * ratio));
+            useReaderSettings.getState().setPdfZoom(Math.round(zoom * 100) / 100);
+          },
+          { passive: false },
+        );
+        const endPinch = () => {
+          pinchStart = null;
+        };
+        doc.addEventListener('touchend', endPinch, { passive: true });
+        doc.addEventListener('touchcancel', endPinch, { passive: true });
+
         let pdfSelectionTimer: number | undefined;
         const capturePdfSelection = () => {
           const selected = doc.getSelection();
@@ -552,26 +587,48 @@ export const ReaderView = ({
         captureSelection();
       });
 
-      // Tap-to-translate: only a tap that neither moved (a drag selecting text)
-      // nor left a selection behind, and not a link/media/control tap. The
-      // small delay lets selectionchange settle first.
-      let tapStart: { x: number; y: number } | null = null;
+      // Touch page-turn zones (Readest-style): a clean tap away from links,
+      // media, and selections turns the page — the inline-end third goes
+      // forward (mirrored automatically for RTL books) and the center third
+      // toggles the chrome. Desktop pointers keep the toolbar/footers/keys.
+      let tapOrigin: { x: number; y: number } | null = null;
       let tapTimer: number | undefined;
       doc.addEventListener('pointerdown', (event) => {
-        tapStart = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
+        tapOrigin = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
       });
       doc.addEventListener('pointerup', (event) => {
-        const start = tapStart;
-        tapStart = null;
-        if (!start || event.button !== 0) return;
+        const origin = tapOrigin;
+        tapOrigin = null;
+        if (!origin || event.button !== 0) return;
         if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-        if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) return;
-        const target = event.target;
+        if (Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 10) return;
+        const coarse = navigator.maxTouchPoints > 0 || matchMedia('(pointer: coarse)').matches;
+        if (!coarse) return;
+        const target = event.target as Element | null;
+        if (target?.closest('a, button, input, select, textarea, audio, video, svg, img')) return;
+        // The paginated iframe is as wide as all columns combined (the
+        // paginator scrolls its container), so the visible page is derived
+        // from the iframe's rect against the stage width.
+        const frameRect = doc.defaultView?.frameElement?.getBoundingClientRect();
+        const stageWidth = stageRef.current?.clientWidth || frameRect?.width || 1;
+        const visibleLeft = -(frameRect?.left ?? 0);
+        const fraction = (event.clientX - visibleLeft) / stageWidth;
         window.clearTimeout(tapTimer);
         tapTimer = window.setTimeout(() => {
           const selected = doc.getSelection();
           if (selected && !selected.isCollapsed && selected.toString().trim()) return;
-          tapTranslateRef.current(target);
+          const rtl = directionRef.current === 'rtl';
+          const forward = rtl ? fraction < 1 / 3 : fraction > 2 / 3;
+          const backward = rtl ? fraction > 2 / 3 : fraction < 1 / 3;
+          if (forward) {
+            void view.next();
+            return;
+          }
+          if (backward) {
+            void view.prev();
+            return;
+          }
+          setChromeHidden((hidden) => !hidden);
         }, 60);
       });
     };
@@ -682,7 +739,10 @@ export const ReaderView = ({
       if (target?.closest('[role="dialog"]')) return;
 
       if (event.key === 'Escape') {
-        if (panel && !sidebarVisible) {
+        if (chromeHidden) {
+          setChromeHidden(false);
+          event.preventDefault();
+        } else if (panel && !sidebarVisible) {
           setPanel(null);
           viewRef.current?.clearSearch();
           event.preventDefault();
@@ -727,7 +787,7 @@ export const ReaderView = ({
     keyHandlerRef.current = onKeyDown;
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [panel, onClose, book.direction, isPdf, sidebarVisible, setReaderSidebar]);
+  }, [panel, onClose, book.direction, isPdf, sidebarVisible, setReaderSidebar, chromeHidden]);
 
   const turn = (action: 'next' | 'prev') => {
     const view = viewRef.current;
@@ -861,80 +921,6 @@ export const ReaderView = ({
       void navigator.clipboard.writeText(text).catch(() => undefined);
     }
   };
-
-  /**
-   * Opt-in tap-to-translate (ADR-0016): a plain tap on a paragraph inserts its
-   * translation below it. Tapping the paragraph again (or the block itself)
-   * removes the block. The setting is read per tap so enabling it in settings
-   * does not require reopening the book.
-   */
-  const tapTranslateRef = useRef<(target: EventTarget | null) => void>(() => {});
-  const handleParagraphTap = (target: EventTarget | null): void => {
-    // Book iframe nodes belong to another realm; `instanceof Element` fails.
-    const element = asDomElement(target);
-    if (!element?.isConnected) return;
-    const settings = loadAiSettings(useUiStore.getState().locale);
-    if (!settings.tapToTranslate || isPdf) return;
-
-    if (isCopyTarget(target)) {
-      const block = translationBlockAt(target);
-      const text = block ? translationText(block) : '';
-      if (text) copySelectionTranslation(text);
-      return;
-    }
-
-    const attached = translationBlockAt(target);
-    if (attached) {
-      removeTranslationBlock(attached);
-      return;
-    }
-
-    const block = findTranslatableBlock(target);
-    if (!block) return;
-    const existing = findAttachedTranslation(block);
-    if (existing) {
-      removeTranslationBlock(existing);
-      return;
-    }
-
-    const text = block.textContent?.trim() ?? '';
-    if (!text) return;
-    const targetLang = settings.targetLang;
-    const current = bookRef.current;
-    const aside = createTranslationBlock(block, {
-      lang: targetLang,
-      dir: isRtlLanguage(targetLang) ? 'rtl' : 'ltr',
-      labels: {
-        loading: i18n.t('reader.translating'),
-        heading: i18n.t('reader.translation'),
-        copy: i18n.t('reader.copy'),
-      },
-    });
-    void translateText({
-      text,
-      sourceLang: current.language ?? 'auto',
-      targetLang,
-      bookTitle: current.title,
-      bookAuthor: current.authors[0] ?? null,
-    })
-      .then((outcome) => {
-        // The section may have unloaded while the request was in flight.
-        if (!aside.isConnected) return;
-        fillTranslationBlock(aside, { text: outcome.text, provider: outcome.providerLabel });
-      })
-      .catch((error: unknown) => {
-        if (!aside.isConnected) return;
-        const code =
-          error && typeof error === 'object' && 'code' in error
-            ? String((error as { code: unknown }).code)
-            : 'PROVIDER_ERROR';
-        fillTranslationBlockError(
-          aside,
-          i18n.t(`ai.errors.${code}`, { defaultValue: i18n.t('ai.errors.PROVIDER_ERROR') }),
-        );
-      });
-  };
-  tapTranslateRef.current = handleParagraphTap;
 
   const saveSelectionNote = () => {
     if (!selection || !noteDraft.trim()) return;
@@ -1086,7 +1072,7 @@ export const ReaderView = ({
 
   return (
     <div
-      className="reader-shell"
+      className={chromeHidden ? 'reader-shell is-immersive' : 'reader-shell'}
       data-format={book.format}
       data-ready={ready ? 'true' : 'false'}
       data-failed={failed ? 'true' : 'false'}

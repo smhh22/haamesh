@@ -175,7 +175,6 @@
     "pageNumber": "صفحهٔ {{page}}",
     "translate": "ترجمه",
     "translating": "در حال ترجمه…",
-    "translation": "ترجمه",
     "copy": "رونوشت"
   },
   "sync": {
@@ -309,7 +308,6 @@
   },
   "ai": {
     "targetLanguage": "زبان ترجمه",
-    "tapToTranslate": "با لمس هر پاراگراف ترجمه شود (EPUB)",
     "providersTitle": "سرویس‌های ترجمه",
     "providersHint": "به ترتیب امتحان می‌شوند؛ هر کدام اول جواب دهد همان می‌ماند. کلیدها در جاکلیدی سیستم ذخیره می‌شوند.",
     "enabled": "فعال",

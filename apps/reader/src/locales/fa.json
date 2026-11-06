@@ -293,6 +293,9 @@
     "updateAvailable": "نسخهٔ {{version}} آماده است.",
     "about": "درباره",
     "aboutText": "هامش یک کتاب‌خوان آفلاین است؛ کتاب‌خانهٔ شما روی دستگاه خودتان می‌ماند و همگام‌سازی فقط با فضای ذخیره‌سازی شخصی‌تان انجام می‌شود. پروانهٔ MIT.",
+    "startupTrace": "گزارش راه‌اندازی",
+    "startupTraceCopy": "کپی گزارش",
+    "startupTraceCopied": "کپی شد",
     "translation": "ترجمه"
   },
   "shortcuts": {

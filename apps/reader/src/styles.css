@@ -30,11 +30,27 @@ body {
 .shell {
   display: grid;
   gap: var(--hamesh-space-6);
-  max-inline-size: 62rem;
-  margin-inline: auto;
+  /* The library uses the whole window on desktop (Readest-informed): a fixed
+     62rem column wasted half of a 1080p screen. Text blocks keep their own
+     reading measure; only the shelf stretches. */
+  max-inline-size: none;
   padding-block-start: calc(var(--hamesh-space-8) + env(safe-area-inset-top, 0px));
   padding-block-end: calc(var(--hamesh-space-8) + env(safe-area-inset-bottom, 0px));
-  padding-inline: var(--hamesh-space-6);
+  padding-inline: clamp(var(--hamesh-space-4), 3vw, var(--hamesh-space-8));
+}
+
+/* A very wide window fits more covers per row; cards keep a shelf-sized cap
+   (Readest-style) instead of stretching to fill the row. */
+@media (min-width: 90rem) {
+  .book-grid {
+    grid-template-columns: repeat(auto-fill, minmax(12rem, 16rem));
+    justify-content: start;
+  }
+
+  /* Full-width list rows read like a spreadsheet; cap them. */
+  .book-grid.is-list {
+    max-inline-size: 72rem;
+  }
 }
 
 .masthead {

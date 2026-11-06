@@ -100,6 +100,7 @@
     "back": "Library",
     "previous": "Previous",
     "next": "Next",
+    "seek": "Reading position",
     "progress": "{{percent}}% read",
     "error": "This book could not be opened.",
     "notes": "Notes",

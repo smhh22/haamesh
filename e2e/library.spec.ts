@@ -251,12 +251,14 @@ test('lays out a real mobile shelf and reader', async ({ page }) => {
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
-  // Reader turn buttons split the footer on phones.
+  // Reader footer: thumb-sized chevron turn buttons flanking a seek slider,
+  // not buttons stretched edge to edge.
   const turnBoxes = await page
     .locator('.reader-turn')
     .evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().width));
   expect(turnBoxes).toHaveLength(2);
-  expect(turnBoxes.every((width) => width > 100)).toBe(true);
+  expect(turnBoxes.every((width) => width > 36 && width < 64)).toBe(true);
+  await expect(page.locator('.reader-seek')).toBeVisible();
 });
 
 test('renames and deletes a category across its books', async ({ page }) => {

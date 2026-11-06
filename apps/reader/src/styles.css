@@ -506,7 +506,7 @@ button.import-button {
 
 .reader-footer {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
   gap: var(--hamesh-space-3);
   border-block-start: 1px solid var(--hamesh-color-border);
   padding-block-start: var(--hamesh-space-2);
@@ -514,15 +514,40 @@ button.import-button {
   padding-inline: var(--hamesh-space-4);
 }
 
+/* Page-turn direction follows the book, not the UI locale: in an RTL book the
+   forward side sits at the inline-start edge, mirroring the tap zones. */
+.reader-footer.is-book-rtl {
+  flex-direction: row-reverse;
+}
+
 .reader-turn {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  min-block-size: 2.25rem;
   border: 1px solid var(--hamesh-color-border);
-  border-radius: var(--hamesh-radius);
+  border-radius: calc(var(--hamesh-radius) * 0.5);
   background: var(--hamesh-color-surface);
   color: var(--hamesh-color-ink);
   cursor: pointer;
-  font: inherit;
-  padding-block: var(--hamesh-space-2);
-  padding-inline: var(--hamesh-space-4);
+  padding: 0;
+}
+
+.reader-turn svg {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+
+.reader-seek {
+  flex: 1;
+  min-inline-size: 5rem;
+  accent-color: var(--hamesh-color-accent);
+  cursor: pointer;
+}
+
+.reader-seek:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .library-filters {
@@ -684,6 +709,21 @@ textarea::placeholder {
   font-size: 0.85rem;
   padding-block: var(--hamesh-space-1);
   padding-inline: var(--hamesh-space-2);
+}
+
+/* The header toolbar strip is icon-only; dialogs and panels reuse the same
+   class with text labels, so the square icon styling stays scoped here. */
+.reader-actions .reader-action {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  min-block-size: 2.25rem;
+  padding: 0;
+}
+
+.reader-actions .reader-action svg {
+  inline-size: 1.15rem;
+  block-size: 1.15rem;
 }
 
 /* A selected control must stand out from its neighbours at a glance, so the
@@ -1858,7 +1898,8 @@ kbd {
   }
 
   .reader-turn {
-    flex: 1;
+    flex: none;
+    inline-size: 2.75rem;
     min-block-size: 2.75rem;
   }
 
@@ -1898,6 +1939,12 @@ kbd {
   .reader-action,
   .tag-chip,
   .view-toggle {
+    min-block-size: 2.5rem;
+  }
+
+  .reader-actions .reader-action,
+  .reader-turn {
+    inline-size: 2.5rem;
     min-block-size: 2.5rem;
   }
 

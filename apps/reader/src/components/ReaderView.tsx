@@ -1,7 +1,6 @@
 import type { Locator, TocItem } from '@hamesh/core';
 import {
   applyPdfHighlights,
-  isRtlLanguage,
   isSanitizableMediaType,
   PDF_OVERLAY_ID,
   type PdfHighlightDraft,
@@ -27,6 +26,15 @@ import { useLibraryStore } from '../stores/libraryStore';
 import { notesForBook, useNotesStore } from '../stores/notesStore';
 import { type ResolvedReaderTheme, useReaderSettings } from '../stores/readerSettingsStore';
 import { useResolvedUiTheme, useUiStore } from '../stores/uiStore';
+import {
+  BookmarkIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ContentsIcon,
+  NotesIcon,
+  SearchIcon,
+  SettingsIcon,
+} from './reader/icons';
 import { NotesPanel } from './reader/NotesPanel';
 import { SearchPanel } from './reader/SearchPanel';
 import { SelectionPopover, type SelectionTranslationState } from './reader/SelectionPopover';
@@ -46,6 +54,7 @@ interface FoliateViewElement extends HTMLElement {
   open(book: FoliateBook): Promise<void>;
   init(options?: { lastLocation?: unknown; showTextStart?: boolean }): Promise<void>;
   goTo(target: string | number): Promise<{ index: number; anchor: unknown } | undefined>;
+  goToFraction(frac: number): Promise<void>;
   next(): Promise<void>;
   prev(): Promise<void>;
   close(): void;
@@ -1070,6 +1079,24 @@ export const ReaderView = ({
   const numberFormat = new Intl.NumberFormat(i18n.language === 'fa' ? 'fa-IR' : 'en-US');
   const percent = numberFormat.format(Math.round(progress * 100));
 
+  // Footer seek slider: a fraction of the book for EPUBs, a page for PDFs.
+  const seekFraction =
+    isPdf && pageInfo && pageInfo.total > 1
+      ? (pageInfo.current - 1) / (pageInfo.total - 1)
+      : progress;
+  const seekValue = Math.round(Math.min(1, Math.max(0, seekFraction)) * 1000);
+
+  const seekTo = (fraction: number): void => {
+    const view = viewRef.current;
+    if (!view) return;
+    if (isPdf) {
+      const total = pageInfo?.total ?? 0;
+      if (total > 1) void view.goTo(Math.max(0, Math.round(fraction * (total - 1))));
+    } else {
+      void view.goToFraction(fraction);
+    }
+  };
+
   return (
     <div
       className={chromeHidden ? 'reader-shell is-immersive' : 'reader-shell'}
@@ -1108,10 +1135,12 @@ export const ReaderView = ({
               panelButtonRefs.current.toc = node;
             }}
             className="reader-action"
+            aria-label={t('reader.contents')}
             aria-expanded={panel === 'toc'}
+            title={t('reader.contents')}
             onClick={() => togglePanel('toc')}
           >
-            {t('reader.contents')}
+            <ContentsIcon />
           </button>
           <button
             type="button"
@@ -1119,10 +1148,12 @@ export const ReaderView = ({
               panelButtonRefs.current.notes = node;
             }}
             className="reader-action"
+            aria-label={t('reader.notes')}
             aria-expanded={panel === 'notes'}
+            title={t('reader.notes')}
             onClick={() => togglePanel('notes')}
           >
-            {t('reader.notes')}
+            <NotesIcon />
           </button>
           {!isPdf ? (
             <button
@@ -1131,14 +1162,22 @@ export const ReaderView = ({
                 panelButtonRefs.current.search = node;
               }}
               className="reader-action"
+              aria-label={t('reader.search')}
               aria-expanded={panel === 'search'}
+              title={t('reader.search')}
               onClick={() => togglePanel('search')}
             >
-              {t('reader.search')}
+              <SearchIcon />
             </button>
           ) : null}
-          <button type="button" className="reader-action" onClick={addBookmark}>
-            {t('reader.bookmark')}
+          <button
+            type="button"
+            className="reader-action"
+            aria-label={t('reader.bookmark')}
+            title={t('reader.bookmark')}
+            onClick={addBookmark}
+          >
+            <BookmarkIcon />
           </button>
           <button
             type="button"
@@ -1146,10 +1185,12 @@ export const ReaderView = ({
               panelButtonRefs.current.settings = node;
             }}
             className="reader-action"
+            aria-label={t('reader.settings')}
             aria-expanded={panel === 'settings'}
+            title={t('reader.settings')}
             onClick={() => togglePanel('settings')}
           >
-            {t('reader.settings')}
+            <SettingsIcon />
           </button>
         </div>
         <span className="reader-progress">
@@ -1343,12 +1384,34 @@ export const ReaderView = ({
         </div>
       </div>
 
-      <footer className="reader-footer">
-        <button type="button" className="reader-turn" onClick={() => turn('prev')}>
-          {t('reader.previous')}
+      <footer className={book.direction === 'rtl' ? 'reader-footer is-book-rtl' : 'reader-footer'}>
+        <button
+          type="button"
+          className="reader-turn"
+          aria-label={t('reader.previous')}
+          title={t('reader.previous')}
+          onClick={() => turn('prev')}
+        >
+          {book.direction === 'rtl' ? <ChevronRightIcon /> : <ChevronLeftIcon />}
         </button>
-        <button type="button" className="reader-turn" onClick={() => turn('next')}>
-          {t('reader.next')}
+        <input
+          type="range"
+          className="reader-seek"
+          aria-label={t('reader.seek')}
+          min={0}
+          max={1000}
+          value={seekValue}
+          disabled={!ready || (isPdf && !pageInfo)}
+          onChange={(event) => seekTo(Number(event.currentTarget.value) / 1000)}
+        />
+        <button
+          type="button"
+          className="reader-turn"
+          aria-label={t('reader.next')}
+          title={t('reader.next')}
+          onClick={() => turn('next')}
+        >
+          {book.direction === 'rtl' ? <ChevronLeftIcon /> : <ChevronRightIcon />}
         </button>
       </footer>
     </div>

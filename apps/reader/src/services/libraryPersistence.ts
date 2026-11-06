@@ -184,6 +184,10 @@ export const persistBook = async (
 export const persistBookOrganization = async (
   book: BookRecord,
   organization: {
+    title?: string;
+    authors?: string[];
+    series?: string | null;
+    publisher?: string | null;
     category: string | null;
     tags: string[];
     language?: string | null;
@@ -196,6 +200,10 @@ export const persistBookOrganization = async (
     const stamped: string[] = ['category', 'tags'];
     if (organization.language !== undefined) stamped.push('language');
     if (organization.direction !== undefined) stamped.push('direction');
+    if (organization.title !== undefined) stamped.push('title');
+    if (organization.authors !== undefined) stamped.push('authors');
+    if (organization.series !== undefined) stamped.push('series');
+    if (organization.publisher !== undefined) stamped.push('publisher');
     await stampFieldClocks(activeStorage.clocks, syncClock, `book:${book.id}`, stamped);
   }
   await activeStorage?.flush();

@@ -5,6 +5,10 @@ import { useTranslation } from 'react-i18next';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 
 export interface BookOrganization {
+  title: string;
+  authors: string[];
+  series: string | null;
+  publisher: string | null;
   category: string | null;
   tags: string[];
   language: string | null;
@@ -79,6 +83,10 @@ const BookOrganizationDialogContent = ({
   const [customCategory, setCustomCategory] = useState(
     book.category !== null && !categories.includes(book.category) ? book.category : '',
   );
+  const [title, setTitle] = useState(book.title);
+  const [authors, setAuthors] = useState((book.authors ?? []).join('، '));
+  const [series, setSeries] = useState(book.series ?? '');
+  const [publisher, setPublisher] = useState(book.publisher ?? '');
   const [tags, setTags] = useState((book.tags ?? []).join('، '));
   const [language, setLanguage] = useState(book.language ?? '');
   const [direction, setDirection] = useState<Direction>(book.direction);
@@ -101,7 +109,15 @@ const BookOrganizationDialogContent = ({
     const chosen = category === NEW_CATEGORY ? customCategory : category;
     const trimmed = chosen.trim();
     const trimmedLanguage = language.trim();
+    const trimmedTitle = title.trim();
+    const trimmedSeries = series.trim();
+    const trimmedPublisher = publisher.trim();
     onSave({
+      // A book must keep a name; an emptied field keeps the previous title.
+      title: trimmedTitle.length > 0 ? trimmedTitle : book.title,
+      authors: parseTags(authors),
+      series: trimmedSeries.length > 0 ? trimmedSeries : null,
+      publisher: trimmedPublisher.length > 0 ? trimmedPublisher : null,
       category: trimmed.length > 0 ? trimmed : null,
       tags: parseTags(tags),
       language: trimmedLanguage.length > 0 ? trimmedLanguage : null,
@@ -131,9 +147,51 @@ const BookOrganizationDialogContent = ({
             submit();
           }}
         >
-          <p className="hint book-details-title" dir="auto">
-            {book.title}
-          </p>
+          <div className="setting-row is-field">
+            <label htmlFor="book-title">{t('library.bookTitle')}</label>
+            <input
+              className="text-input"
+              id="book-title"
+              type="text"
+              value={title}
+              dir="auto"
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </div>
+          <div className="setting-row is-field">
+            <label htmlFor="book-authors">{t('library.bookAuthors')}</label>
+            <input
+              className="text-input"
+              id="book-authors"
+              type="text"
+              value={authors}
+              dir="auto"
+              placeholder={t('library.authorsHint')}
+              onChange={(event) => setAuthors(event.target.value)}
+            />
+          </div>
+          <div className="setting-row is-field">
+            <label htmlFor="book-series">{t('library.bookSeries')}</label>
+            <input
+              className="text-input"
+              id="book-series"
+              type="text"
+              value={series}
+              dir="auto"
+              onChange={(event) => setSeries(event.target.value)}
+            />
+          </div>
+          <div className="setting-row is-field">
+            <label htmlFor="book-publisher">{t('library.bookPublisher')}</label>
+            <input
+              className="text-input"
+              id="book-publisher"
+              type="text"
+              value={publisher}
+              dir="auto"
+              onChange={(event) => setPublisher(event.target.value)}
+            />
+          </div>
           <div className="setting-row is-field">
             <label htmlFor="book-category">{t('library.category')}</label>
             <select

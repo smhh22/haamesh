@@ -1,13 +1,6 @@
 import type { Locator, TocItem } from '@hamesh/core';
 import {
   applyPdfHighlights,
-  asDomElement,
-  createTranslationBlock,
-  fillTranslationBlock,
-  fillTranslationBlockError,
-  findAttachedTranslation,
-  findTranslatableBlock,
-  isCopyTarget,
   isRtlLanguage,
   isSanitizableMediaType,
   PDF_OVERLAY_ID,
@@ -16,11 +9,8 @@ import {
   pdfLocatorMatchesPage,
   pdfOccurrenceIndex,
   profilePdfText,
-  removeTranslationBlock,
   sanitizeEpubHtml,
   scaleImagesWithFont,
-  translationBlockAt,
-  translationText,
 } from '@hamesh/engine';
 import type { BookNoteRecord, BookRecord } from '@hamesh/storage';
 import { Overlayer } from 'foliate-js/overlayer.js';
@@ -551,29 +541,6 @@ export const ReaderView = ({
         event.preventDefault();
         captureSelection();
       });
-
-      // Tap-to-translate: only a tap that neither moved (a drag selecting text)
-      // nor left a selection behind, and not a link/media/control tap. The
-      // small delay lets selectionchange settle first.
-      let tapStart: { x: number; y: number } | null = null;
-      let tapTimer: number | undefined;
-      doc.addEventListener('pointerdown', (event) => {
-        tapStart = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
-      });
-      doc.addEventListener('pointerup', (event) => {
-        const start = tapStart;
-        tapStart = null;
-        if (!start || event.button !== 0) return;
-        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-        if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) return;
-        const target = event.target;
-        window.clearTimeout(tapTimer);
-        tapTimer = window.setTimeout(() => {
-          const selected = doc.getSelection();
-          if (selected && !selected.isCollapsed && selected.toString().trim()) return;
-          tapTranslateRef.current(target);
-        }, 60);
-      });
     };
 
     const onShowAnnotation = (event: Event) => {
@@ -861,80 +828,6 @@ export const ReaderView = ({
       void navigator.clipboard.writeText(text).catch(() => undefined);
     }
   };
-
-  /**
-   * Opt-in tap-to-translate (ADR-0016): a plain tap on a paragraph inserts its
-   * translation below it. Tapping the paragraph again (or the block itself)
-   * removes the block. The setting is read per tap so enabling it in settings
-   * does not require reopening the book.
-   */
-  const tapTranslateRef = useRef<(target: EventTarget | null) => void>(() => {});
-  const handleParagraphTap = (target: EventTarget | null): void => {
-    // Book iframe nodes belong to another realm; `instanceof Element` fails.
-    const element = asDomElement(target);
-    if (!element?.isConnected) return;
-    const settings = loadAiSettings(useUiStore.getState().locale);
-    if (!settings.tapToTranslate || isPdf) return;
-
-    if (isCopyTarget(target)) {
-      const block = translationBlockAt(target);
-      const text = block ? translationText(block) : '';
-      if (text) copySelectionTranslation(text);
-      return;
-    }
-
-    const attached = translationBlockAt(target);
-    if (attached) {
-      removeTranslationBlock(attached);
-      return;
-    }
-
-    const block = findTranslatableBlock(target);
-    if (!block) return;
-    const existing = findAttachedTranslation(block);
-    if (existing) {
-      removeTranslationBlock(existing);
-      return;
-    }
-
-    const text = block.textContent?.trim() ?? '';
-    if (!text) return;
-    const targetLang = settings.targetLang;
-    const current = bookRef.current;
-    const aside = createTranslationBlock(block, {
-      lang: targetLang,
-      dir: isRtlLanguage(targetLang) ? 'rtl' : 'ltr',
-      labels: {
-        loading: i18n.t('reader.translating'),
-        heading: i18n.t('reader.translation'),
-        copy: i18n.t('reader.copy'),
-      },
-    });
-    void translateText({
-      text,
-      sourceLang: current.language ?? 'auto',
-      targetLang,
-      bookTitle: current.title,
-      bookAuthor: current.authors[0] ?? null,
-    })
-      .then((outcome) => {
-        // The section may have unloaded while the request was in flight.
-        if (!aside.isConnected) return;
-        fillTranslationBlock(aside, { text: outcome.text, provider: outcome.providerLabel });
-      })
-      .catch((error: unknown) => {
-        if (!aside.isConnected) return;
-        const code =
-          error && typeof error === 'object' && 'code' in error
-            ? String((error as { code: unknown }).code)
-            : 'PROVIDER_ERROR';
-        fillTranslationBlockError(
-          aside,
-          i18n.t(`ai.errors.${code}`, { defaultValue: i18n.t('ai.errors.PROVIDER_ERROR') }),
-        );
-      });
-  };
-  tapTranslateRef.current = handleParagraphTap;
 
   const saveSelectionNote = () => {
     if (!selection || !noteDraft.trim()) return;

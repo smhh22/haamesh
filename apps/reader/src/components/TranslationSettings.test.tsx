@@ -28,7 +28,6 @@ const storedSettings = {
     },
   ],
   targetLang: 'fa',
-  tapToTranslate: false,
 };
 
 beforeEach(async () => {

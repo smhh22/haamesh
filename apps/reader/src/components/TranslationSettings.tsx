@@ -124,15 +124,6 @@ export const TranslationSettings = () => {
           ))}
         </select>
       </div>
-      <div className="setting-row">
-        <span>{t('ai.tapToTranslate')}</span>
-        <input
-          type="checkbox"
-          checked={settings.tapToTranslate}
-          onChange={(event) => update({ ...settings, tapToTranslate: event.currentTarget.checked })}
-          aria-label={t('ai.tapToTranslate')}
-        />
-      </div>
 
       <h3 className="settings-section-title">{t('ai.providersTitle')}</h3>
       <p className="hint">{t('ai.providersHint')}</p>

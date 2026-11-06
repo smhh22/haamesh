@@ -170,7 +170,6 @@
     "pageNumber": "Page {{page}}",
     "translate": "Translate",
     "translating": "Translating…",
-    "translation": "Translation",
     "copy": "Copy"
   },
   "sync": {
@@ -304,7 +303,6 @@
   },
   "ai": {
     "targetLanguage": "Translation language",
-    "tapToTranslate": "Tap a paragraph to translate it (EPUB)",
     "providersTitle": "Translation providers",
     "providersHint": "Tried in order; the first that answers wins. Keys are stored in the OS keychain.",
     "enabled": "Enabled",

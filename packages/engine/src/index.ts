@@ -24,24 +24,6 @@ export {
 export type { TextProfile } from './pdfLanguage';
 export { profilePdfText } from './pdfLanguage';
 export { isSanitizableMediaType, sanitizeEpubHtml } from './sanitize';
-export type {
-  TranslationBlockLabels,
-  TranslationPlacement,
-  TranslationResult,
-} from './tapTranslation';
-export {
-  asDomElement,
-  createTranslationBlock,
-  fillTranslationBlock,
-  fillTranslationBlockError,
-  findAttachedTranslation,
-  findTranslatableBlock,
-  isCopyTarget,
-  removeTranslationBlock,
-  TRANSLATION_BLOCK_ATTR,
-  translationBlockAt,
-  translationText,
-} from './tapTranslation';
 
 /** Placeholder for the foliate-js reader boundary; import is implemented. */
 export interface ReaderEngine {

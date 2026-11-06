@@ -434,6 +434,48 @@ export const ReaderView = ({
           observer.observe(layer, { childList: true, subtree: true });
         }
         pdfLanguageDetectRef.current();
+        // Pinch zoom (mobile): scale the PDF page inside the viewport instead
+        // of the browser zooming the whole app (which pushed the chrome off
+        // screen). Throttled — each step re-renders the page.
+        let pinchStart: { distance: number; zoom: number } | null = null;
+        let pinchUpdatedAt = 0;
+        const touchDistance = (touches: TouchList): number =>
+          Math.hypot(
+            touches[0]!.clientX - touches[1]!.clientX,
+            touches[0]!.clientY - touches[1]!.clientY,
+          );
+        doc.addEventListener(
+          'touchstart',
+          (event) => {
+            if (event.touches.length !== 2) return;
+            const current = useReaderSettings.getState().pdfZoom;
+            pinchStart = {
+              distance: touchDistance(event.touches) || 1,
+              zoom: typeof current === 'number' ? current : 1,
+            };
+          },
+          { passive: true },
+        );
+        doc.addEventListener(
+          'touchmove',
+          (event) => {
+            if (!pinchStart || event.touches.length !== 2) return;
+            event.preventDefault();
+            const now = Date.now();
+            if (now - pinchUpdatedAt < 120) return;
+            pinchUpdatedAt = now;
+            const ratio = touchDistance(event.touches) / pinchStart.distance;
+            const zoom = Math.min(3, Math.max(0.5, pinchStart.zoom * ratio));
+            useReaderSettings.getState().setPdfZoom(Math.round(zoom * 100) / 100);
+          },
+          { passive: false },
+        );
+        const endPinch = () => {
+          pinchStart = null;
+        };
+        doc.addEventListener('touchend', endPinch, { passive: true });
+        doc.addEventListener('touchcancel', endPinch, { passive: true });
+
         let pdfSelectionTimer: number | undefined;
         const capturePdfSelection = () => {
           const selected = doc.getSelection();

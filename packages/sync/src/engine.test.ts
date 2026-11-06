@@ -1027,3 +1027,38 @@ describe('metadata-only rounds (ADR-0020)', () => {
     });
   });
 });
+
+describe('audio book blobs (ADR-0021)', () => {
+  it('transfers an audio book like any other blob', async () => {
+    const provider = createMemoryProvider();
+    const bytes = new Uint8Array([1, 2, 3, 4]);
+    const sha = await sha256Hex(bytes);
+    const base = bookRecord('9', 'Audio Book', 1000);
+    const storeA = createMemoryStore('device-a', () => 1000, new Map([[sha, bytes]]));
+    await storeA.localEdit({ ...base, fields: { ...base.fields, sha256: sha, ext: 'audio' } });
+
+    const roundA = await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    expect(roundA.providers[0]?.uploadedBlobs).toBe(1);
+
+    const storeB = createMemoryStore('device-b', () => 2000, new Map());
+    const pulled = await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+      blobs: 'metadata',
+    }).sync();
+    expect(pulled.ok).toBe(true);
+    expect(await downloadBookBlobs({ provider, store: storeB, sha256: sha, ext: 'audio' })).toEqual(
+      {
+        ok: true,
+      },
+    );
+    expect([...((await storeB.bookFile(sha))?.data ?? [])]).toEqual([1, 2, 3, 4]);
+  });
+});

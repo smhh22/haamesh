@@ -127,7 +127,9 @@ export const createSqlSyncStore = (
         // the existing row instead of defaulting (which would flip direction
         // or turn a PDF into an EPUB).
         const format =
-          fields.ext === 'pdf' || fields.ext === 'epub' ? fields.ext : (existing?.format ?? 'epub');
+          fields.ext === 'pdf' || fields.ext === 'epub' || fields.ext === 'audio'
+            ? fields.ext
+            : (existing?.format ?? 'epub');
         const book: BookRecord = {
           id: record.id,
           hash,

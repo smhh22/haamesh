@@ -1,6 +1,7 @@
 import type { Direction } from './direction';
 
-export type BookFormat = 'epub' | 'pdf';
+/** EPUB, fixed-layout PDF, or an audio book (ADR-0021). */
+export type BookFormat = 'epub' | 'pdf' | 'audio';
 
 /**
  * Format-tagged reading position. EPUB uses CFI, PDF uses pages, plain text
@@ -19,7 +20,9 @@ export type Locator =
       occurrence: number;
       fraction: number;
     }
-  | { kind: 'offset'; offset: number; fraction: number };
+  | { kind: 'offset'; offset: number; fraction: number }
+  /** Audio books: playback position within the file (ADR-0021). */
+  | { kind: 'audio'; seconds: number; fraction: number };
 
 export interface BookMetadata {
   /** SHA-256 of the book file bytes. */

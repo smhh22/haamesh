@@ -379,8 +379,10 @@ export const App = () => {
     const anchor = siblings[target];
     if (!anchor) return;
     const sequence = displayedCategoryPaths.filter((item) => item !== path);
-    const to = sequence.indexOf(anchor);
-    sequence.splice(to === -1 ? sequence.length : to, 0, path);
+    const base = sequence.indexOf(anchor);
+    // Moving up inserts before the anchor; moving down inserts after it.
+    const to = base === -1 ? sequence.length : base + (delta > 0 ? 1 : 0);
+    sequence.splice(to, 0, path);
     setCategoryOrder(sequence);
   };
 

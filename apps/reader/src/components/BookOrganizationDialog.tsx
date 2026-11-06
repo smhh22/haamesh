@@ -1,4 +1,4 @@
-import type { Direction } from '@hamesh/core';
+import { type Direction, sanitizeCategoryName } from '@hamesh/core';
 import type { BookRecord } from '@hamesh/storage';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -160,7 +160,7 @@ const BookOrganizationDialogContent = ({
                 type="text"
                 value={customCategory}
                 dir="auto"
-                onChange={(event) => setCustomCategory(event.target.value)}
+                onChange={(event) => setCustomCategory(sanitizeCategoryName(event.target.value))}
               />
             </div>
           ) : null}

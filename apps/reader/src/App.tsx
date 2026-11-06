@@ -87,6 +87,8 @@ const formatAuthors = (authors: string[], locale: Locale): string => {
 export const App = () => {
   const { t, i18n } = useTranslation();
   const locale = useUiStore((state) => state.locale);
+  // Card progress and dates use the active locale's digits (fa-IR → Persian).
+  const percentFormat = new Intl.NumberFormat(locale === 'fa' ? 'fa-IR' : 'en-US');
   const setLocale = useUiStore((state) => state.setLocale);
   const [isImporting, setIsImporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -135,6 +137,7 @@ export const App = () => {
     start: ReadingState | null;
   } | null>(null);
   const books = useLibraryStore((state) => state.books);
+  const readingStates = useReadingStore((state) => state.states);
   const updateBook = useLibraryStore((state) => state.updateBook);
 
   // Re-derive which books have local bytes whenever the library changes: a
@@ -550,28 +553,42 @@ export const App = () => {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const renderBookCard = (book: BookRecord) => (
-    <li key={book.id} className="book-card">
-      <div className="cover">
-        {book.coverPath ? (
-          <img src={book.coverPath} alt="" />
-        ) : (
-          <span className="cover-fallback" aria-hidden="true">
-            {book.title.trim().charAt(0) || '?'}
-          </span>
-        )}
-      </div>
-      <div className="book-body">
-        <h3 dir="auto">{book.title}</h3>
-        <p className="authors" dir="auto">
-          {formatAuthors(book.authors, locale) || t('library.unknownAuthor')}
-        </p>
-        <p className="badges">
-          <span className="badge">
-            {book.direction === 'rtl' ? t('library.rtl') : t('library.ltr')}
-          </span>
-          <span className="badge">{book.language ?? t('library.unknownLanguage')}</span>
-        </p>
+  const renderBookCard = (book: BookRecord) => {
+    // Reading progress comes from the reading store, not the record; the card
+    // only shows it once the book has actually been opened.
+    const fraction = readingStates[book.id]?.fraction ?? 0;
+    return (
+      <li key={book.id} className="book-card">
+        <div className="cover">
+          {book.coverPath ? (
+            <img src={book.coverPath} alt="" />
+          ) : (
+            <span className="cover-fallback" aria-hidden="true">
+              {book.title.trim().charAt(0) || '?'}
+            </span>
+          )}
+        </div>
+        <div className="book-body">
+          <h3 dir="auto">{book.title}</h3>
+          <p className="authors" dir="auto">
+            {formatAuthors(book.authors, locale) || t('library.unknownAuthor')}
+          </p>
+          {/* Direction is the book's own business, not a badge; language only
+             shows when the file actually carries one. The row follows the
+             book's direction so the chips line up under the dir="auto" title. */}
+          {fraction > 0 || book.language ? (
+            <p className="badges" dir={book.direction}>
+              {fraction > 0 ? (
+                <span className="badge is-progress">
+                  {t('library.progress', {
+                    percent: percentFormat.format(Math.round(fraction * 100)),
+                  })}
+                </span>
+              ) : null}
+              {book.language ? <span className="badge">{book.language}</span> : null}
+            </p>
+          ) : null}
+        </div>
         <div className="book-actions">
           <button
             type="button"
@@ -602,9 +619,9 @@ export const App = () => {
             {t('library.remove')}
           </button>
         </div>
-      </div>
-    </li>
-  );
+      </li>
+    );
+  };
 
   const openFile = readerSession ? getBookFile(readerSession.book.hash) : null;
   if (readerSession && openFile) {
@@ -680,8 +697,8 @@ export const App = () => {
               >
                 {t('library.addFromUrl')}
               </button>
-              <label className="import-button">
-                {t('library.import')}
+              <label className={isImporting ? 'import-button is-busy' : 'import-button'}>
+                {isImporting ? t('library.importing') : t('library.import')}
                 <input
                   className="visually-hidden"
                   type="file"

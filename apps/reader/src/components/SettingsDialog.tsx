@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import { readAppProxy, saveAppProxy } from '../services/httpFetch';
+import { formatStartupRun, readLastStartupRun } from '../services/startupTrace';
 import { checkForUpdate, installUpdate, supportsInAppUpdate } from '../services/updater';
 import { type UiTheme, useUiStore } from '../stores/uiStore';
 import { MarkdownView } from './MarkdownView';
@@ -181,7 +182,35 @@ const UpdatesSection = () => {
 
 const AboutSection = () => {
   const { t } = useTranslation();
-  return <p className="hint">{t('settings.aboutText')}</p>;
+  const [copied, setCopied] = useState(false);
+  // Last launch's milestones; the trace is what makes the reported Windows
+  // startup freeze diagnosable from a user's paste alone.
+  const run = readLastStartupRun();
+  const copyTrace = async (): Promise<void> => {
+    if (!run) return;
+    try {
+      await navigator.clipboard.writeText(formatStartupRun(run));
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <>
+      <p className="hint">{t('settings.aboutText')}</p>
+      {run ? (
+        <>
+          <p className="settings-section-title">{t('settings.startupTrace')}</p>
+          <pre className="startup-trace-log" dir="ltr">
+            {formatStartupRun(run)}
+          </pre>
+          <button type="button" className="reader-action" onClick={() => void copyTrace()}>
+            {copied ? t('settings.startupTraceCopied') : t('settings.startupTraceCopy')}
+          </button>
+        </>
+      ) : null}
+    </>
+  );
 };
 
 /**

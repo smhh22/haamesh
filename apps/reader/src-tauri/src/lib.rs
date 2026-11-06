@@ -4,6 +4,7 @@ use serde_json::{Map, Value};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
+mod media;
 mod sftp;
 use std::sync::Mutex;
 use tauri::Manager;
@@ -42,7 +43,7 @@ fn to_sql_value(value: &Value) -> rusqlite::types::Value {
 /// traversal, and prefixes are rejected, and existing path components must not
 /// be symlinks, so a link planted inside the data directory cannot redirect
 /// reads, writes, or removals elsewhere.
-fn resolve_beneath(base: &Path, relative: &str) -> Result<PathBuf, String> {
+pub(crate) fn resolve_beneath(base: &Path, relative: &str) -> Result<PathBuf, String> {
     // An empty path resolves to the base itself; removing it would wipe the
     // database, books, and covers.
     if relative.trim().is_empty() {
@@ -125,6 +126,20 @@ fn data_list(app: tauri::AppHandle, relative: String) -> Result<Vec<String>, Str
     }
     names.sort();
     Ok(names)
+}
+
+/// Start (or report) the loopback media server (ADR-0023). Returns the
+/// token-gated URL prefix the player builds video URLs from.
+#[tauri::command]
+fn media_server_start(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, media::MediaState>,
+) -> Result<String, String> {
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    media::start(base, &state)
 }
 
 #[tauri::command]
@@ -742,6 +757,7 @@ pub fn run() {
             data_write,
             data_remove,
             data_list,
+            media_server_start,
             initial_book_path,
             read_external_file,
             db_execute,
@@ -778,6 +794,9 @@ pub fn run() {
             fs::create_dir_all(&data_dir)?;
             let connection = rusqlite::Connection::open(data_dir.join("hamesh.db"))?;
             app.manage(DbState(Mutex::new(connection)));
+            app.manage(media::MediaState {
+                base_url: Mutex::new(None),
+            });
             app.manage(SyncRootState(Mutex::new(None)));
             app.manage(sftp::SftpSessions(Mutex::new(
                 std::collections::HashMap::new(),

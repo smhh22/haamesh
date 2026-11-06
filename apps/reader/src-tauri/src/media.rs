@@ -143,20 +143,26 @@ fn handle_request(request: tiny_http::Request, token: &str, base_dir: &PathBuf) 
             let _ = file.seek(SeekFrom::Start(start));
             let length = end - start + 1;
             let content_range = format!("bytes {start}-{end}/{size}");
-            let extra_headers = vec![Header::from_bytes(
-                b"Content-Range".as_ref(),
-                content_range.as_bytes(),
+            let extra_headers = vec![
+                Header::from_bytes(b"Content-Range".as_ref(), content_range.as_bytes())
+                    .expect("static header"),
+            ];
+            (
+                206_u16,
+                extra_headers,
+                Box::new(file.take(length)) as Box<dyn Read + Send>,
+                length,
             )
-            .expect("static header")];
-            (206_u16, extra_headers, Box::new(file.take(length)) as Box<dyn Read + Send>, length)
         }
         // An out-of-bounds start is a 416 carrying the current size.
         Range::Slice(..) => {
-            let extra_headers = vec![Header::from_bytes(
-                b"Content-Range".as_ref(),
-                format!("bytes */{size}").as_bytes(),
-            )
-            .expect("static header")];
+            let extra_headers = vec![
+                Header::from_bytes(
+                    b"Content-Range".as_ref(),
+                    format!("bytes */{size}").as_bytes(),
+                )
+                .expect("static header"),
+            ];
             (
                 416_u16,
                 extra_headers,
@@ -215,10 +221,7 @@ pub fn start(base_dir: PathBuf, state: &MediaState) -> Result<String, String> {
     });
 
     let url = format!("http://{addr}{prefix}");
-    let mut guard = state
-        .base_url
-        .lock()
-        .map_err(|error| error.to_string())?;
+    let mut guard = state.base_url.lock().map_err(|error| error.to_string())?;
     *guard = Some(url.clone());
     Ok(url)
 }
@@ -281,7 +284,8 @@ mod tests {
         stream
             .set_read_timeout(Some(Duration::from_secs(5)))
             .expect("timeout");
-        let request = format!("GET {target} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n{extra}\r\n");
+        let request =
+            format!("GET {target} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n{extra}\r\n");
         stream.write_all(request.as_bytes()).expect("write");
         let mut buffer = Vec::new();
         stream.read_to_end(&mut buffer).expect("read");

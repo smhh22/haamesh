@@ -71,6 +71,8 @@
     "deleteTagQuestion": "«{{name}}» از همهٔ کتاب‌ها حذف شود؟",
     "tagUsedIn_one": "{{count}} کتاب",
     "tagUsedIn_other": "{{count}} کتاب",
+    "newSubcategory": "زیردستهٔ جدید",
+    "addSubcategory": "افزودن زیردسته",
     "newCategory": "دسته‌بندی جدید",
     "languageHint": "خالی بگذارید تا هنگام باز کردن کتاب تشخیص داده شود",
     "direction": "جهت خواندن",

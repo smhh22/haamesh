@@ -1,4 +1,11 @@
 import type { Direction } from '@hamesh/core';
+import {
+  categoryName,
+  categoryParent,
+  categoryPathOf,
+  isCategoryInSubtree,
+  sanitizeCategoryName,
+} from '@hamesh/core';
 import { ImportError, type ImportErrorCode } from '@hamesh/engine';
 import type { BookRecord, ReadingState } from '@hamesh/storage';
 import { DirectionProvider } from '@hamesh/ui';
@@ -22,6 +29,13 @@ import { type TagSummary, TagsDialog } from './components/TagsDialog';
 import { UpdateBanner } from './components/UpdateBanner';
 import { UrlImportDialog } from './components/UrlImportDialog';
 import { type BookSort, filterAndSortBooks, groupBooksByCategory } from './library/bookList';
+import {
+  buildCategoryTree,
+  collectCategoryPaths,
+  findCategoryNode,
+  flattenCategoryPaths,
+  siblingCategoryPaths,
+} from './library/categoryTree';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
 import {
   type ContentMatch,
@@ -97,7 +111,10 @@ export const App = () => {
   const [removingBookId, setRemovingBookId] = useState<string | null>(null);
   const [categoryAction, setCategoryAction] = useState<{
     type: 'create' | 'rename' | 'delete';
+    /** Path or name the action targets (empty for a root create). */
     name: string;
+    /** For create: the parent path (null = root). */
+    parent?: string | null;
   } | null>(null);
   /** Category name being drag-and-dropped between group headers. */
   const [dragCategory, setDragCategory] = useState<string | null>(null);
@@ -139,23 +156,6 @@ export const App = () => {
   const setCategoryOrder = useUiStore((state) => state.setCategoryOrder);
   const renameCategoryOrder = useUiStore((state) => state.renameCategoryOrder);
   const purgeCategoryOrder = useUiStore((state) => state.purgeCategoryOrder);
-  const categories = useMemo(
-    () =>
-      [
-        ...new Set(
-          books.map((book) => book.category).filter((value): value is string => Boolean(value)),
-        ),
-      ].sort((a, b) => new Intl.Collator(locale).compare(a, b)),
-    [books, locale],
-  );
-  /** Dropdown choices in the book dialog: book categories + created ones. */
-  const categoryChoices = useMemo(
-    () =>
-      [...new Set([...categories, ...extraCategories])].sort((a, b) =>
-        new Intl.Collator(locale).compare(a, b),
-      ),
-    [categories, extraCategories, locale],
-  );
   const tagSummaries = useMemo<TagSummary[]>(() => {
     const counts = new Map<string, number>();
     for (const book of books) {
@@ -180,6 +180,13 @@ export const App = () => {
     () => new Intl.Collator(locale, { sensitivity: 'base', numeric: true }),
     [locale],
   );
+  /** Every known category path (books + created, ancestors included). */
+  const categoryPaths = useMemo(
+    () => [...collectCategoryPaths(books, extraCategories)].sort(collator.compare),
+    [books, extraCategories, collator],
+  );
+  /** Dropdown choices in the book dialog: all known paths. */
+  const categoryChoices = categoryPaths;
   const numberFormat = useMemo(
     () => new Intl.NumberFormat(locale === 'fa' ? 'fa-IR' : 'en-US'),
     [locale],
@@ -197,6 +204,29 @@ export const App = () => {
     () =>
       hasCategories ? groupBooksByCategory(visibleBooks, collator, extraCategories, order) : [],
     [hasCategories, visibleBooks, collator, extraCategories, order],
+  );
+  const categoryRoots = useMemo(
+    () => (hasCategories ? buildCategoryTree(visibleBooks, extraCategories, order, collator) : []),
+    [hasCategories, visibleBooks, extraCategories, order, collator],
+  );
+  // Flat pre-order rows so each section stays a sibling (existing layouts and
+  // locators keep working); a collapsed node hides its descendants.
+  const categoryRows = useMemo(() => {
+    const rows: Array<{ node: (typeof categoryRoots)[number]; depth: number }> = [];
+    const walk = (nodes: typeof categoryRoots, hidden: boolean) => {
+      for (const node of nodes) {
+        if (!hidden) rows.push({ node, depth: node.depth });
+        walk(node.children, hidden || collapsedGroups.includes(node.key));
+      }
+    };
+    walk(categoryRoots, false);
+    return rows;
+  }, [categoryRoots, collapsedGroups]);
+  const uncategorizedGroup = bookGroups.find((group) => group.category === null) ?? null;
+  /** Manual order is the pre-order of the whole forest (collapsed or not). */
+  const displayedCategoryPaths = useMemo(
+    () => flattenCategoryPaths(categoryRoots),
+    [categoryRoots],
   );
   const direction = directionFor(locale);
 
@@ -326,11 +356,14 @@ export const App = () => {
     void persistBookOrganization(book, organization);
   };
 
-  /** Toolbar-created category; visible immediately, even with no books yet. */
-  const createCategory = (name: string) => {
-    const trimmed = name.trim();
-    if (trimmed === '' || categories.includes(trimmed) || extraCategories.includes(trimmed)) return;
-    addExtraCategory(trimmed);
+  /**
+   * Create a category (a name-only segment) at the library root or under an
+   * existing node; the path materializes immediately even with no books.
+   */
+  const createCategory = (name: string, parent: string | null = null) => {
+    const path = categoryPathOf(parent, name);
+    if (path === '' || categoryPaths.includes(path)) return;
+    addExtraCategory(path);
   };
 
   /**
@@ -338,53 +371,74 @@ export const App = () => {
    * sequence is persisted, so categories that were never reordered move
    * correctly too (a sparse order would rank every unordered name as one tie).
    */
-  const moveCategoryBy = (name: string, delta: number) => {
-    const named = bookGroups
-      .filter((group) => group.category !== null)
-      .map((group) => group.category as string);
-    const at = named.indexOf(name);
+  const moveCategoryBy = (path: string, delta: number) => {
+    const siblings = siblingCategoryPaths(categoryRoots, path);
+    const at = siblings.indexOf(path);
     const target = at + delta;
-    if (at === -1 || target < 0 || target >= named.length) return;
-    const next = [...named];
-    next.splice(at, 1);
-    next.splice(target, 0, name);
-    setCategoryOrder(next);
+    if (at === -1 || target < 0 || target >= siblings.length) return;
+    const anchor = siblings[target];
+    if (!anchor) return;
+    const sequence = displayedCategoryPaths.filter((item) => item !== path);
+    const base = sequence.indexOf(anchor);
+    // Moving up inserts before the anchor; moving down inserts after it.
+    const to = base === -1 ? sequence.length : base + (delta > 0 ? 1 : 0);
+    sequence.splice(to, 0, path);
+    setCategoryOrder(sequence);
   };
 
-  /** Drop `name` before `anchor` in the displayed sequence (null = end). */
-  const reorderCategoryBefore = (name: string, anchor: string | null) => {
-    const named = bookGroups
-      .filter((group) => group.category !== null)
-      .map((group) => group.category as string);
-    const at = named.indexOf(name);
+  /**
+   * Drop `path` before `anchor` in the displayed sequence (null = end).
+   * Reordering only happens between siblings; a cross-level drop is ignored.
+   */
+  const reorderCategoryBefore = (path: string, anchor: string | null) => {
+    if (path === anchor) return;
+    if (anchor !== null) {
+      const siblings = siblingCategoryPaths(categoryRoots, anchor);
+      if (!siblings.includes(path)) return;
+    }
+    const at = displayedCategoryPaths.indexOf(path);
     if (at === -1) return;
-    const next = named.filter((item) => item !== name);
-    const to = anchor === null || anchor === name ? next.length : Math.max(0, next.indexOf(anchor));
-    next.splice(to === -1 ? next.length : to, 0, name);
+    const next = displayedCategoryPaths.filter((item) => item !== path);
+    const to = anchor === null ? next.length : Math.max(0, next.indexOf(anchor));
+    next.splice(to === -1 ? next.length : to, 0, path);
     setCategoryOrder(next);
   };
 
+  /**
+   * Rename one node. `from` is a full path and `to` a new name-only segment;
+   * every descendant path moves with it in one pass.
+   */
   const renameCategory = (from: string, to: string) => {
-    if (to === from) return;
-    for (const book of books.filter((item) => item.category === from)) {
-      const organization = { category: to, tags: book.tags };
+    const clean = sanitizeCategoryName(to);
+    if (clean === '') return;
+    const toPath = categoryPathOf(categoryParent(from), clean);
+    if (toPath === from) return;
+    const moved = (path: string): string => `${toPath}${path.slice(from.length)}`;
+    for (const book of books) {
+      if (!book.category || !isCategoryInSubtree(book.category, from)) continue;
+      const organization = { category: moved(book.category), tags: book.tags };
       updateBook(book.id, organization);
       void persistBookOrganization(book, organization);
     }
-    // Empty (toolbar-created) categories live outside the book records, and
-    // the manual order keeps its position across the rename.
-    renameExtraCategory(from, to);
-    renameCategoryOrder(from, to);
+    for (const extra of extraCategories) {
+      if (!isCategoryInSubtree(extra, from)) continue;
+      renameExtraCategory(extra, moved(extra));
+    }
+    setCategoryOrder(order.map((item) => (isCategoryInSubtree(item, from) ? moved(item) : item)));
   };
 
-  const deleteCategory = (name: string) => {
-    for (const book of books.filter((item) => item.category === name)) {
+  /** Delete a node and its whole subtree; books there become uncategorized. */
+  const deleteCategory = (path: string) => {
+    for (const book of books) {
+      if (!book.category || !isCategoryInSubtree(book.category, path)) continue;
       const organization = { category: null, tags: book.tags };
       updateBook(book.id, organization);
       void persistBookOrganization(book, organization);
     }
-    removeExtraCategory(name);
-    purgeCategoryOrder(name);
+    for (const extra of extraCategories) {
+      if (isCategoryInSubtree(extra, path)) removeExtraCategory(extra);
+    }
+    setCategoryOrder(order.filter((item) => !isCategoryInSubtree(item, path)));
   };
 
   const renameTag = (from: string, to: string) => {
@@ -747,26 +801,33 @@ export const App = () => {
             </div>
           ) : hasCategories ? (
             <div className="book-groups">
-              {bookGroups.map((group) => {
-                const collapsed = collapsedGroups.includes(group.key);
-                const label = group.category ?? t('library.uncategorized');
+              {categoryRows.map(({ node, depth }) => {
+                const collapsed = collapsedGroups.includes(node.key);
                 // The section is a drag-and-drop target, not a control;
                 // keyboard and touch users reorder with the move buttons.
+                // Drops are accepted only between siblings.
                 return (
                   // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop target
                   <section
-                    key={group.key}
+                    key={node.key}
                     className="book-group"
+                    data-depth={depth}
+                    style={
+                      depth > 0
+                        ? { marginInlineStart: `calc(${depth} * var(--hamesh-space-3))` }
+                        : undefined
+                    }
                     onDragOver={(event) => {
-                      if (dragCategory === null || dragCategory === group.category) return;
+                      if (dragCategory === null || dragCategory === node.path) return;
+                      if (!siblingCategoryPaths(categoryRoots, node.path).includes(dragCategory)) {
+                        return;
+                      }
                       event.preventDefault();
                     }}
                     onDrop={(event) => {
                       event.preventDefault();
-                      if (dragCategory === null || dragCategory === group.category) return;
-                      // Dropping on a group moves the dragged one above it;
-                      // dropping on the last header appends after everything.
-                      reorderCategoryBefore(dragCategory, group.category);
+                      if (dragCategory === null || dragCategory === node.path) return;
+                      reorderCategoryBefore(dragCategory, node.path);
                       setDragCategory(null);
                     }}
                   >
@@ -775,77 +836,106 @@ export const App = () => {
                         type="button"
                         className="book-group-toggle"
                         aria-expanded={!collapsed}
-                        draggable={group.category !== null}
+                        draggable
                         onDragStart={(event) => {
-                          if (group.category === null) {
-                            event.preventDefault();
-                            return;
-                          }
-                          setDragCategory(group.category);
+                          setDragCategory(node.path);
                           event.dataTransfer.effectAllowed = 'move';
-                          event.dataTransfer.setData('text/plain', group.category);
+                          event.dataTransfer.setData('text/plain', node.path);
                         }}
                         onDragEnd={() => setDragCategory(null)}
-                        onClick={() => toggleGroup(group.key)}
+                        onClick={() => toggleGroup(node.key)}
                       >
                         <span className="book-group-chevron" aria-hidden="true">
                           {collapsed ? '▸' : '▾'}
                         </span>
-                        <span dir="auto">{label}</span>
+                        <span dir="auto">{node.name}</span>
                         <span className="book-group-count">
                           {t('library.groupCount', {
-                            count: group.books.length,
-                            total: numberFormat.format(group.books.length),
+                            count: node.total,
+                            total: numberFormat.format(node.total),
                           })}
                         </span>
                       </button>
-                      {group.category !== null ? (
-                        <div className="book-group-actions">
-                          <button
-                            type="button"
-                            className="text-button"
-                            aria-label={t('library.moveCategoryUp')}
-                            onClick={() => moveCategoryBy(group.category ?? '', -1)}
-                          >
-                            ↑
-                          </button>
-                          <button
-                            type="button"
-                            className="text-button"
-                            aria-label={t('library.moveCategoryDown')}
-                            onClick={() => moveCategoryBy(group.category ?? '', 1)}
-                          >
-                            ↓
-                          </button>
-                          <button
-                            type="button"
-                            className="text-button"
-                            onClick={() =>
-                              setCategoryAction({ type: 'rename', name: group.category ?? '' })
-                            }
-                          >
-                            {t('library.renameCategory')}
-                          </button>
-                          <button
-                            type="button"
-                            className="text-button"
-                            onClick={() =>
-                              setCategoryAction({ type: 'delete', name: group.category ?? '' })
-                            }
-                          >
-                            {t('library.deleteCategory')}
-                          </button>
-                        </div>
-                      ) : null}
+                      <div className="book-group-actions">
+                        <button
+                          type="button"
+                          className="text-button"
+                          aria-label={t('library.addSubcategory')}
+                          title={t('library.addSubcategory')}
+                          onClick={() =>
+                            setCategoryAction({ type: 'create', name: '', parent: node.path })
+                          }
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          className="text-button"
+                          aria-label={t('library.moveCategoryUp')}
+                          onClick={() => moveCategoryBy(node.path, -1)}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          className="text-button"
+                          aria-label={t('library.moveCategoryDown')}
+                          onClick={() => moveCategoryBy(node.path, 1)}
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() => setCategoryAction({ type: 'rename', name: node.path })}
+                        >
+                          {t('library.renameCategory')}
+                        </button>
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() => setCategoryAction({ type: 'delete', name: node.path })}
+                        >
+                          {t('library.deleteCategory')}
+                        </button>
+                      </div>
                     </div>
                     {collapsed ? null : (
                       <ul className={viewMode === 'list' ? 'book-grid is-list' : 'book-grid'}>
-                        {group.books.map(renderBookCard)}
+                        {node.books.map(renderBookCard)}
                       </ul>
                     )}
                   </section>
                 );
               })}
+              {uncategorizedGroup ? (
+                <section key={uncategorizedGroup.key} className="book-group">
+                  <div className="book-group-header">
+                    <button
+                      type="button"
+                      className="book-group-toggle"
+                      aria-expanded={!collapsedGroups.includes(uncategorizedGroup.key)}
+                      onClick={() => toggleGroup(uncategorizedGroup.key)}
+                    >
+                      <span className="book-group-chevron" aria-hidden="true">
+                        {collapsedGroups.includes(uncategorizedGroup.key) ? '▸' : '▾'}
+                      </span>
+                      <span dir="auto">{t('library.uncategorized')}</span>
+                      <span className="book-group-count">
+                        {t('library.groupCount', {
+                          count: uncategorizedGroup.books.length,
+                          total: numberFormat.format(uncategorizedGroup.books.length),
+                        })}
+                      </span>
+                    </button>
+                  </div>
+                  {collapsedGroups.includes(uncategorizedGroup.key) ? null : (
+                    <ul className={viewMode === 'list' ? 'book-grid is-list' : 'book-grid'}>
+                      {uncategorizedGroup.books.map(renderBookCard)}
+                    </ul>
+                  )}
+                </section>
+              ) : null}
             </div>
           ) : (
             <ul className={viewMode === 'list' ? 'book-grid is-list' : 'book-grid'}>
@@ -893,11 +983,13 @@ export const App = () => {
         />
         <PromptDialog
           open={categoryAction?.type === 'create'}
-          title={t('library.newCategory')}
+          title={categoryAction?.parent ? t('library.newSubcategory') : t('library.newCategory')}
           label={t('library.categoryName')}
           initialValue=""
           onConfirm={(name) => {
-            if (categoryAction?.type === 'create') createCategory(name);
+            if (categoryAction?.type === 'create') {
+              createCategory(name, categoryAction.parent ?? null);
+            }
             setCategoryAction(null);
           }}
           onClose={() => setCategoryAction(null)}
@@ -906,7 +998,7 @@ export const App = () => {
           open={categoryAction?.type === 'rename'}
           title={t('library.renameCategoryTitle')}
           label={t('library.categoryName')}
-          initialValue={categoryAction?.name ?? ''}
+          initialValue={categoryAction?.name ? categoryName(categoryAction.name) : ''}
           onConfirm={(name) => {
             if (categoryAction?.type === 'rename') renameCategory(categoryAction.name, name);
             setCategoryAction(null);

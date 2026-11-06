@@ -71,6 +71,8 @@
     "deleteTagQuestion": "Delete “{{name}}” from every book?",
     "tagUsedIn_one": "{{count}} book",
     "tagUsedIn_other": "{{count}} books",
+    "newSubcategory": "New subcategory",
+    "addSubcategory": "Add subcategory",
     "newCategory": "New category",
     "languageHint": "Leave empty to detect it when the book is opened",
     "direction": "Reading direction",

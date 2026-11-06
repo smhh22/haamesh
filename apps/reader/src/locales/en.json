@@ -148,8 +148,6 @@
     "invertImages": "Invert images in dark mode",
     "decreaseFont": "Decrease font size",
     "increaseFont": "Increase font size",
-    "networkProxy": "Network proxy",
-    "networkProxyHint": "Used by sync and translation when a provider sets none. The updater has its own connection and ignores this.",
     "theme": "Theme",
     "themes": {
       "auto": "Match app",
@@ -270,6 +268,8 @@
     "open": "Settings",
     "general": "General",
     "appearance": "Appearance",
+    "networkProxy": "Network proxy",
+    "networkProxyHint": "Used for sync, translation, and app updates when a provider sets none.",
     "theme": "Theme",
     "themes": {
       "system": "System",

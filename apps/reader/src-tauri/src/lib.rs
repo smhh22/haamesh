@@ -557,6 +557,7 @@ async fn install_deb_update(
     app: tauri::AppHandle,
     url: String,
     version: String,
+    proxy: Option<String>,
 ) -> Result<(), String> {
     const PREFIX: &str = "https://github.com/smhh22/haamesh/releases/download/";
     if version.is_empty()
@@ -591,7 +592,20 @@ async fn install_deb_update(
     }
     let file = dir.join(format!("hamesh_{version}_amd64.deb"));
 
-    let response = reqwest::get(&url)
+    // The app-level proxy (sanctioned networks) applies here too: this path
+    // bypasses the updater plugin, and GitHub is often unreachable otherwise.
+    let mut builder = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(600))
+        .redirect(reqwest::redirect::Policy::limited(5));
+    if let Some(proxy_url) = proxy.filter(|value| !value.is_empty()) {
+        builder =
+            builder.proxy(reqwest::Proxy::all(&proxy_url).map_err(|error| error.to_string())?);
+    }
+    let client = builder.build().map_err(|error| error.to_string())?;
+
+    let response = client
+        .get(&url)
+        .send()
         .await
         .map_err(|error| error.to_string())?;
     if !response.status().is_success() {
@@ -611,7 +625,9 @@ async fn install_deb_update(
         .ok_or_else(|| "updater signing key is not configured".to_string())?
         .to_string();
     let signature_url = format!("{url}.sig");
-    let signature_response = reqwest::get(&signature_url)
+    let signature_response = client
+        .get(&signature_url)
+        .send()
         .await
         .map_err(|error| format!("signature download failed: {error}"))?;
     if !signature_response.status().is_success() {

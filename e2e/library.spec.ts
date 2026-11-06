@@ -1466,8 +1466,9 @@ test('imports an audio book and plays it in the player bar', async ({ page }) =>
   await bar.getByRole('button', { name: 'Pause', exact: true }).click();
   const pausedAt = await currentTime();
   expect(pausedAt).toBeGreaterThan(0.2);
-  // Let the async persistence write land before the reload.
-  await page.waitForTimeout(300);
+  // Let the async persistence write land before the reload; under parallel
+  // workers the SQLite write needs more than the previous 300 ms.
+  await page.waitForTimeout(800);
 
   // The position persists through the reading state and restores on reopen.
   await page.reload();

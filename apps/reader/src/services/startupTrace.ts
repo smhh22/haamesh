@@ -37,6 +37,23 @@ export const markStartup = (label: string, note?: string): void => {
   });
 };
 
+/**
+ * Heartbeats across the first 90 seconds: each fires a milestone whose drift
+ * (actual time minus target) reveals main-thread stalls in a window where
+ * the app otherwise records nothing — the reported Windows freeze sits at
+ * 40–60 s. Every heartbeat re-persists the run so a crash still leaves the
+ * story up to that point.
+ */
+export const scheduleStartupHeartbeats = (): void => {
+  for (const second of [30, 45, 60, 75, 90]) {
+    window.setTimeout(() => {
+      const drift = Math.round(performance.now() - t0 - second * 1000);
+      markStartup(`heartbeat-${second}s`, `drift ${drift}ms`);
+      finishStartupRun();
+    }, second * 1000);
+  }
+};
+
 /** Snapshot the current milestones as the "last launch" run. */
 export const finishStartupRun = (): void => {
   if (entries.length === 0) return;

@@ -24,6 +24,7 @@ import { keychainDelete, keychainGet, keychainSet } from './keychain';
 import { getActiveStorage, getSyncClock, reloadLibraryFromStorage } from './libraryPersistence';
 import { createLocalFolderFs, isLocalFolderAvailable, restoreSyncRoot } from './localFolderFs';
 import { connectSftp, createSftpFs, isSftpAvailable } from './sftpFs';
+import { finishStartupRun, markStartup } from './startupTrace';
 import { createSqlSyncStore, getOrCreateDeviceId } from './syncStore';
 
 export type ProviderKind = 'webdav' | 'local-folder' | 's3' | 'dropbox' | 'sftp';
@@ -685,10 +686,19 @@ export const runSync = (
 };
 
 const runSyncRound = async (config: SyncConfig, options: SyncRoundOptions): Promise<SyncReport> => {
+  const roundStarted = performance.now();
   const { providers, failures } = await providersFromConfig(config);
   if (providers.length === 0 && failures.length === 0) {
     throw new Error('No sync provider configured.');
   }
+  // Sync rounds are the one thing that runs tens of seconds after launch
+  // (the first auto round fires at 10 s), so they carry trace milestones.
+  const roundLabel =
+    config.providers
+      .filter((entry) => entry.enabled)
+      .map((entry) => entry.label)
+      .join(',') || 'config-errors';
+  markStartup('sync-round-start', roundLabel);
   const storage = getActiveStorage();
   const clock = getSyncClock();
   const dataStore = await createDataStore();
@@ -729,6 +739,14 @@ const runSyncRound = async (config: SyncConfig, options: SyncRoundOptions): Prom
     JSON.stringify({ lastSyncAt: Date.now(), lastReport: report } satisfies SyncStatus),
   );
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(STATUS_EVENT));
+  const pulled = report.providers.reduce((total, item) => total + item.pulledRecords, 0);
+  const blobs = report.providers.reduce((total, item) => total + item.downloadedBlobs, 0);
+  markStartup(
+    'sync-round-done',
+    `${roundLabel} — pulled ${pulled}, blobs ${blobs}, ok=${report.ok}, ` +
+      `${Math.round(performance.now() - roundStarted)}ms`,
+  );
+  finishStartupRun();
   // Local SQL writes from the pull are invisible to the running UI until the
   // stores rehydrate; do both only when the round actually changed something.
   const changed = report.providers.some(

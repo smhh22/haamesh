@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Optional explicit tag (vX.Y.Z); must be greater than the latest tag.'
+        description: "Optional explicit tag (vX.Y.Z); must be greater than the latest tag."
         required: false
         type: string
 

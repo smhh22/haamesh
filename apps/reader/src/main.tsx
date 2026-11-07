@@ -7,7 +7,7 @@ import { App } from './App';
 import './i18n';
 import { initLibraryPersistence } from './services/libraryPersistence';
 import { importInitialFile } from './services/openWith';
-import { finishStartupRun, markStartup } from './services/startupTrace';
+import { finishStartupRun, markStartup, scheduleStartupHeartbeats } from './services/startupTrace';
 import { initAutoSync, initSyncSecurity } from './services/syncService';
 import { initUiTheme } from './stores/uiStore';
 import './styles.css';
@@ -43,6 +43,8 @@ void (async () => {
     markStartup('boot-failed', error instanceof Error ? error.message : 'unknown');
   } finally {
     finishStartupRun();
+    // The 40–60 s freeze window has no milestones otherwise.
+    scheduleStartupHeartbeats();
   }
 
   createRoot(container).render(

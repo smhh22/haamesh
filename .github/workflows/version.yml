@@ -4,8 +4,14 @@ on:
   # Releases are user-approved (AGENTS.md): nothing tags on push. The user is
   # asked after each merge; a yes runs this workflow manually
   # (`gh workflow run version.yml`), which cuts ONE release from everything
-  # accumulated since the previous tag.
+  # accumulated since the previous tag. An explicit `version` input overrides
+  # the computed bump (milestone releases, e.g. 2.0.0 on the user's call).
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Optional explicit tag (vX.Y.Z); must be greater than the latest tag.'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -24,12 +30,34 @@ jobs:
           fetch-depth: 0
 
       - id: bump
+        env:
+          REQUESTED: ${{ inputs.version }}
         run: |
           set -euo pipefail
           latest=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -n1)
           latest=${latest:-v0.0.0}
           version=${latest#v}
           IFS=. read -r major minor patch <<< "$version"
+
+          # An explicit version wins when it is well-formed and newer than the
+          # latest tag; otherwise the computed bump applies.
+          if [ -n "$REQUESTED" ]; then
+            if ! printf '%s' "$REQUESTED" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "Requested version '$REQUESTED' is not vX.Y.Z."
+              exit 0
+            fi
+            if [ "$(printf '%s\n' "$REQUESTED" "$latest" | sort -V | head -n1)" = "$REQUESTED" ] && [ "$REQUESTED" != "$latest" ]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "Requested version $REQUESTED is not greater than $latest."
+              exit 0
+            fi
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "tag=$REQUESTED" >> "$GITHUB_OUTPUT"
+            echo "Releasing $REQUESTED (explicit request; $(git log --pretty=format:%s "${latest}..HEAD" | wc -l) commits since $latest)"
+            exit 0
+          fi
+
           subjects=$(git log --pretty=format:%s "${latest}..HEAD")
           if [ -z "$subjects" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"

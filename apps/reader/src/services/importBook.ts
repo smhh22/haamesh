@@ -2,8 +2,10 @@ import {
   convertMarkdownToEpub,
   importAudio,
   importBook,
+  importVideo,
   isAudioFile,
   isMarkdownFile,
+  isVideoFile,
 } from '@hamesh/engine';
 import type { BookRecord } from '@hamesh/storage';
 import { rememberBookFile } from './bookFiles';
@@ -25,7 +27,9 @@ export const importBookFile = async (file: File): Promise<ImportedBookFile> => {
   const bookFile = isMarkdownFile(file) ? await convertMarkdownToEpub(file) : file;
   const { metadata, cover } = isAudioFile(bookFile)
     ? await importAudio(bookFile)
-    : await importBook(bookFile);
+    : isVideoFile(bookFile)
+      ? await importVideo(bookFile)
+      : await importBook(bookFile);
   const now = Date.now();
   const coverPath =
     cover && typeof URL.createObjectURL === 'function' ? URL.createObjectURL(cover) : null;

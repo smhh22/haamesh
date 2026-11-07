@@ -14,6 +14,7 @@
     "unknownAuthor": "Unknown author",
     "progress": "{{percent}}% read",
     "listen": "Listen",
+    "watch": "Watch",
     "remove": "Remove",
     "read": "Read",
     "opening": "Opening…",
@@ -361,6 +362,7 @@
     "forward15": "Forward 15 seconds",
     "seek": "Playback position",
     "speed": "Playback speed",
-    "close": "Close player"
+    "close": "Close player",
+    "videoErrorHint": "This video could not be decoded. On Linux, H.264 and AAC need the gstreamer1.0-libav package."
   }
 }

@@ -10,6 +10,7 @@ const nodirFixture = fileURLToPath(new URL('./fixtures/nodir.epub', import.meta.
 const markdownFixture = fileURLToPath(new URL('./fixtures/sample.md', import.meta.url));
 const audioFixture = fileURLToPath(new URL('./fixtures/sample.mp3', import.meta.url));
 const bigPdfFixture = fileURLToPath(new URL('./fixtures/book.pdf', import.meta.url));
+const videoFixture = fileURLToPath(new URL('./fixtures/lecture.webm', import.meta.url));
 
 test('imports a Persian EPUB and opens the reader', async ({ page }) => {
   const pageErrors: string[] = [];
@@ -1519,4 +1520,37 @@ test('keeps turning PDF pages under rapid taps and turns them with tap zones', a
   await touch.touchscreen.tap(box.x + box.width * 0.9, box.y + box.height * 0.5);
   await expect(pageInfo).toHaveText(/Page 30 of 30/, { timeout: 10_000 });
   await context.close();
+});
+
+test('imports a video course and watches it with a persisted position', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(videoFixture);
+  await expect(page.getByRole('heading', { name: 'lecture' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Watch' }).click();
+  const video = page.locator('.video-stage video');
+  await expect(video).toBeVisible();
+
+  const currentTime = () =>
+    page.evaluate(() => {
+      const el = document.querySelector('.video-stage video');
+      return el instanceof HTMLVideoElement ? el.currentTime : -1;
+    });
+
+  await video.evaluate((el) => {
+    if (el instanceof HTMLVideoElement) void el.play();
+  });
+  await expect.poll(currentTime, { timeout: 10_000 }).toBeGreaterThan(0.3);
+  const watched = await currentTime();
+
+  // The position persists through the reading state and restores on reopen.
+  await page.waitForTimeout(300);
+  await page.reload();
+  await page.getByRole('button', { name: 'Watch' }).click();
+  await expect(video).toBeVisible();
+  await expect.poll(currentTime, { timeout: 10_000 }).toBeGreaterThan(0.1);
+  expect(pageErrors).toEqual([]);
 });

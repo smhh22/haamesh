@@ -1882,6 +1882,43 @@ kbd {
   padding-inline: var(--hamesh-space-2);
 }
 
+/* Video player view (ADR-0023): full-screen stage like the reader; the
+   native controls carry playback for the MVP. */
+.video-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  inline-size: 100%;
+  block-size: 100dvh;
+  background: var(--hamesh-color-canvas);
+}
+
+.video-stage {
+  display: grid;
+  place-items: center;
+  min-block-size: 0;
+  background: #000;
+}
+
+.video-stage video {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+
+.video-error {
+  position: absolute;
+  inset-inline: var(--hamesh-space-4);
+  text-align: center;
+  color: #fff;
+}
+
+.video-footnote {
+  display: flex;
+  justify-content: center;
+  padding-block: var(--hamesh-space-2);
+  padding-inline: var(--hamesh-space-4);
+}
+
 /* Keep the library footer content above the bar. */
 body:has(.player-bar) .shell {
   padding-block-end: calc(var(--hamesh-space-8) + 6rem);

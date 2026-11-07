@@ -24,6 +24,7 @@ import { ConfirmDialog } from './components/ConfirmDialog';
 import { PromptDialog } from './components/PromptDialog';
 import { ReaderView } from './components/ReaderView';
 import { PlayerBar } from './components/reader/PlayerBar';
+import { VideoView } from './components/reader/VideoView';
 import { SettingsDialog } from './components/SettingsDialog';
 import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { type TagSummary, TagsDialog } from './components/TagsDialog';
@@ -75,7 +76,8 @@ const isSupportedBook = (file: File): boolean =>
   file.type === 'application/pdf' ||
   file.type === 'text/markdown' ||
   file.type.startsWith('audio/') ||
-  /\.(epub|pdf|md|markdown|mp3|m4b|m4a|flac|ogg|opus)$/i.test(file.name);
+  file.type.startsWith('video/') ||
+  /\.(epub|pdf|md|markdown|mp3|m4b|m4a|flac|ogg|opus|mp4|mkv|webm)$/i.test(file.name);
 
 const formatAuthors = (authors: string[], locale: Locale): string => {
   if (authors.length === 0) return '';
@@ -140,6 +142,11 @@ export const App = () => {
   } | null>(null);
   /** One audio book plays at a time; the bar overlays any view (ADR-0021). */
   const [audioSession, setAudioSession] = useState<{
+    book: BookRecord;
+    file: File;
+  } | null>(null);
+  /** Video courses watch full-screen, device-local (ADR-0023). */
+  const [videoSession, setVideoSession] = useState<{
     book: BookRecord;
     file: File;
   } | null>(null);
@@ -519,9 +526,14 @@ export const App = () => {
         return;
       }
       // Audio books play through the persistent player bar instead of the
-      // paginated reader (ADR-0021).
+      // paginated reader (ADR-0021); video courses watch full-screen
+      // (ADR-0023).
       if (book.format === 'audio') {
         setAudioSession({ book, file });
+        return;
+      }
+      if (book.format === 'video') {
+        setVideoSession({ book, file });
         return;
       }
       setReaderSession({
@@ -615,7 +627,9 @@ export const App = () => {
                 : t('library.downloading')
               : book.format === 'audio'
                 ? t('library.listen')
-                : t('library.read')}
+                : book.format === 'video'
+                  ? t('library.watch')
+                  : t('library.read')}
           </button>
           {!fileHashes.has(book.hash) ? (
             <button
@@ -639,6 +653,18 @@ export const App = () => {
   };
 
   const openFile = readerSession ? getBookFile(readerSession.book.hash) : null;
+  if (videoSession) {
+    return (
+      <DirectionProvider dir={direction}>
+        <VideoView
+          book={videoSession.book}
+          file={videoSession.file}
+          onClose={() => setVideoSession(null)}
+        />
+      </DirectionProvider>
+    );
+  }
+
   if (readerSession && openFile) {
     const start = readerSession.start;
     return (
@@ -731,7 +757,7 @@ export const App = () => {
                 <input
                   className="visually-hidden"
                   type="file"
-                  accept=".epub,.pdf,.md,.markdown,.mp3,.m4b,.m4a,.flac,.ogg,.opus,application/epub+zip,application/pdf,text/markdown,audio/*"
+                  accept=".epub,.pdf,.md,.markdown,.mp3,.m4b,.m4a,.flac,.ogg,.opus,.mp4,.mkv,.webm,application/epub+zip,application/pdf,text/markdown,audio/*,video/*"
                   multiple
                   disabled={isImporting}
                   onChange={handleInputChange}

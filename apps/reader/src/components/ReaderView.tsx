@@ -14,7 +14,7 @@ import {
 import type { BookNoteRecord, BookRecord } from '@hamesh/storage';
 import { Overlayer } from 'foliate-js/overlayer.js';
 import { type FoliateBook, makeBook } from 'foliate-js/view.js';
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { locatorFromRelocate, type RelocateDetail } from '../readerLocator';
@@ -127,6 +127,31 @@ export const ReaderView = ({
   const onProgressRef = useRef(onProgress);
   // Latest keydown handler; book iframe documents forward their key events to
   // it because keys pressed inside an iframe never reach the parent window.
+  /**
+   * One turn at a time, confirmed by a relocate. If nothing relocates
+   * within 5 s (a detached iframe's load event may never fire, wedging the
+   * renderer), the turn is retried once — re-running goToSpread recreates
+   * the frame and recovers.
+   */
+  const performTurn = useCallback((action: 'next' | 'prev') => {
+    const view = viewRef.current;
+    if (!view || turnInFlightRef.current) return;
+    const relocationsBefore = lastRelocateAtRef.current;
+    const promise = (action === 'next' ? view.next() : view.prev()).catch(() => {});
+    turnInFlightRef.current = promise;
+    void promise.finally(() => {
+      if (turnInFlightRef.current === promise) turnInFlightRef.current = null;
+    });
+    window.setTimeout(() => {
+      if (turnInFlightRef.current !== promise) return;
+      if (lastRelocateAtRef.current > relocationsBefore) return;
+      turnInFlightRef.current = null;
+      performTurn(action);
+    }, 5_000);
+  }, []);
+
+  const turn = performTurn;
+
   const keyHandlerRef = useRef<(event: KeyboardEvent) => void>(() => {});
   const notesRef = useRef<BookNoteRecord[]>(bookNotes);
   const buildCss = () =>
@@ -149,6 +174,11 @@ export const ReaderView = ({
   // record), while page turns and newly loaded pages pick it up immediately.
   const directionRef = useRef(book.direction);
   const lastCfiRef = useRef<string | null>(null);
+  // Turn serialization: overlapping turns hang the fixed-layout renderer
+  // (goToSpread awaits the new iframe's load event; a concurrent turn
+  // replaces the DOM before it fires and the promise never settles).
+  const turnInFlightRef = useRef<Promise<unknown> | null>(null);
+  const lastRelocateAtRef = useRef(0);
   const lastFractionRef = useRef(initialFraction);
   const [progress, setProgress] = useState(initialFraction);
   const [pageInfo, setPageInfo] = useState<{ current: number; total: number } | null>(null);
@@ -387,6 +417,7 @@ export const ReaderView = ({
     const onRelocate = (event: Event) => {
       const detail = (event as CustomEvent<RelocateDetail & { tocItem?: { href?: string } | null }>)
         .detail;
+      lastRelocateAtRef.current = Date.now();
 
       if (typeof detail?.section?.current === 'number') {
         setPageInfo({
@@ -407,6 +438,53 @@ export const ReaderView = ({
       setSelection(null);
       setTranslation(null);
       setNoteMode(false);
+    };
+
+    const attachTapZones = (doc: Document): void => {
+      // Touch page-turn zones (Readest-style): a clean tap away from links,
+      // media, and selections turns the page — the inline-end third goes
+      // forward (mirrored automatically for RTL books) and the center third
+      // toggles the chrome. Desktop pointers keep the toolbar/footers/keys.
+      let tapOrigin: { x: number; y: number } | null = null;
+      let tapTimer: number | undefined;
+      doc.addEventListener('pointerdown', (event) => {
+        tapOrigin = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
+      });
+      doc.addEventListener('pointerup', (event) => {
+        const origin = tapOrigin;
+        tapOrigin = null;
+        if (!origin || event.button !== 0) return;
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        if (Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 10) return;
+        const coarse = navigator.maxTouchPoints > 0 || matchMedia('(pointer: coarse)').matches;
+        if (!coarse) return;
+        const target = event.target as Element | null;
+        if (target?.closest('a, button, input, select, textarea, audio, video, svg, img')) return;
+        // The paginated iframe is as wide as all columns combined (the
+        // paginator scrolls its container), so the visible page is derived
+        // from the iframe's rect against the stage width.
+        const frameRect = doc.defaultView?.frameElement?.getBoundingClientRect();
+        const stageWidth = stageRef.current?.clientWidth || frameRect?.width || 1;
+        const visibleLeft = -(frameRect?.left ?? 0);
+        const fraction = (event.clientX - visibleLeft) / stageWidth;
+        window.clearTimeout(tapTimer);
+        tapTimer = window.setTimeout(() => {
+          const selected = doc.getSelection();
+          if (selected && !selected.isCollapsed && selected.toString().trim()) return;
+          const rtl = directionRef.current === 'rtl';
+          const forward = rtl ? fraction < 1 / 3 : fraction > 2 / 3;
+          const backward = rtl ? fraction > 2 / 3 : fraction < 1 / 3;
+          if (forward) {
+            performTurn('next');
+            return;
+          }
+          if (backward) {
+            performTurn('prev');
+            return;
+          }
+          setChromeHidden((hidden) => !hidden);
+        }, 60);
+      });
     };
 
     const onLoad = (event: Event) => {
@@ -538,6 +616,7 @@ export const ReaderView = ({
           },
           { passive: false },
         );
+        attachTapZones(doc);
         return;
       }
 
@@ -596,50 +675,7 @@ export const ReaderView = ({
         captureSelection();
       });
 
-      // Touch page-turn zones (Readest-style): a clean tap away from links,
-      // media, and selections turns the page — the inline-end third goes
-      // forward (mirrored automatically for RTL books) and the center third
-      // toggles the chrome. Desktop pointers keep the toolbar/footers/keys.
-      let tapOrigin: { x: number; y: number } | null = null;
-      let tapTimer: number | undefined;
-      doc.addEventListener('pointerdown', (event) => {
-        tapOrigin = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
-      });
-      doc.addEventListener('pointerup', (event) => {
-        const origin = tapOrigin;
-        tapOrigin = null;
-        if (!origin || event.button !== 0) return;
-        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-        if (Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 10) return;
-        const coarse = navigator.maxTouchPoints > 0 || matchMedia('(pointer: coarse)').matches;
-        if (!coarse) return;
-        const target = event.target as Element | null;
-        if (target?.closest('a, button, input, select, textarea, audio, video, svg, img')) return;
-        // The paginated iframe is as wide as all columns combined (the
-        // paginator scrolls its container), so the visible page is derived
-        // from the iframe's rect against the stage width.
-        const frameRect = doc.defaultView?.frameElement?.getBoundingClientRect();
-        const stageWidth = stageRef.current?.clientWidth || frameRect?.width || 1;
-        const visibleLeft = -(frameRect?.left ?? 0);
-        const fraction = (event.clientX - visibleLeft) / stageWidth;
-        window.clearTimeout(tapTimer);
-        tapTimer = window.setTimeout(() => {
-          const selected = doc.getSelection();
-          if (selected && !selected.isCollapsed && selected.toString().trim()) return;
-          const rtl = directionRef.current === 'rtl';
-          const forward = rtl ? fraction < 1 / 3 : fraction > 2 / 3;
-          const backward = rtl ? fraction > 2 / 3 : fraction < 1 / 3;
-          if (forward) {
-            void view.next();
-            return;
-          }
-          if (backward) {
-            void view.prev();
-            return;
-          }
-          setChromeHidden((hidden) => !hidden);
-        }, 60);
-      });
+      attachTapZones(doc);
     };
 
     const onShowAnnotation = (event: Event) => {
@@ -743,7 +779,7 @@ export const ReaderView = ({
       view.remove();
       viewRef.current = null;
     };
-  }, [file, initialLocation, initialPage, isPdf]);
+  }, [performTurn, file, initialLocation, initialPage, isPdf]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -793,20 +829,21 @@ export const ReaderView = ({
       const turn = pageTurnForKey(event.key, book.direction);
       if (!turn) return;
       event.preventDefault();
-      const view = viewRef.current;
-      if (!view) return;
-      void (turn === 'next' ? view.next() : view.prev());
+      performTurn(turn);
     };
     keyHandlerRef.current = onKeyDown;
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [panel, onClose, book.direction, isPdf, sidebarVisible, setReaderSidebar, chromeHidden]);
-
-  const turn = (action: 'next' | 'prev') => {
-    const view = viewRef.current;
-    if (!view) return;
-    void (action === 'next' ? view.next() : view.prev());
-  };
+  }, [
+    performTurn,
+    panel,
+    onClose,
+    book.direction,
+    isPdf,
+    sidebarVisible,
+    setReaderSidebar,
+    chromeHidden,
+  ]);
 
   const goToToc = (href: string) => {
     const view = viewRef.current;

@@ -9,6 +9,7 @@ const persianPdfFixture = fileURLToPath(new URL('./fixtures/persian.pdf', import
 const nodirFixture = fileURLToPath(new URL('./fixtures/nodir.epub', import.meta.url));
 const markdownFixture = fileURLToPath(new URL('./fixtures/sample.md', import.meta.url));
 const audioFixture = fileURLToPath(new URL('./fixtures/sample.mp3', import.meta.url));
+const bigPdfFixture = fileURLToPath(new URL('./fixtures/book.pdf', import.meta.url));
 
 test('imports a Persian EPUB and opens the reader', async ({ page }) => {
   const pageErrors: string[] = [];
@@ -1476,4 +1477,46 @@ test('imports an audio book and plays it in the player bar', async ({ page }) =>
   await expect(bar).toBeVisible();
   await expect.poll(currentTime, { timeout: 10_000 }).toBeGreaterThan(0.1);
   expect(pageErrors).toEqual([]);
+});
+
+test('keeps turning PDF pages under rapid taps and turns them with tap zones', async ({ page }) => {
+  // Touch context: the tap-zone gate requires a coarse pointer.
+  const context = await page
+    .context()
+    .browser()
+    .newContext({
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+    });
+  const touch = await context.newPage();
+  await touch.goto('/');
+  await touch.locator('input[type="file"]').setInputFiles(bigPdfFixture);
+  await expect(touch.getByRole('heading', { name: 'book', exact: true })).toBeVisible();
+  await touch.getByRole('button', { name: 'Read' }).click();
+  await expect(touch.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
+
+  const pageInfo = touch.locator('.reader-progress');
+  await expect(pageInfo).toHaveText(/Page 1 of 30/);
+
+  // Rapid-fire clicks: overlapping turns used to wedge the fixed-layout
+  // renderer (a detached iframe's load event never fires). Turns are
+  // serialized now, so every click lands and the book reaches its end.
+  const next = touch.getByRole('button', { name: 'Next' });
+  for (let i = 0; i < 29; i += 1) {
+    await next.click({ delay: 10 });
+  }
+  await expect(pageInfo).toHaveText(/Page 30 of 30/, { timeout: 15_000 });
+  await touch.getByRole('button', { name: 'Previous' }).click();
+  await expect(pageInfo).toHaveText(/Page 29 of 30/, { timeout: 10_000 });
+
+  // Tap zones work on PDF pages too: the inline-end third turns forward.
+  const stage = touch.locator('.reader-stage');
+  const box = await stage.boundingBox();
+  if (!box) throw new Error('stage missing');
+  await touch.touchscreen.tap(box.x + box.width * 0.9, box.y + box.height * 0.5);
+  await expect(pageInfo).toHaveText(/Page 30 of 30/, { timeout: 10_000 });
+  await context.close();
 });

@@ -177,6 +177,9 @@
     "scrolled": "اسکرولی",
     "pageNumber": "صفحهٔ {{page}}",
     "translate": "ترجمه",
+    "define": "معنی",
+    "defining": "در حال جست‌وجو…",
+    "noDefinition": "معنی‌ای پیدا نشد.",
     "translating": "در حال ترجمه…",
     "copy": "رونوشت"
   },

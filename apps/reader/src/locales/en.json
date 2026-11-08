@@ -177,6 +177,9 @@
     "scrolled": "Scrolled",
     "pageNumber": "Page {{page}}",
     "translate": "Translate",
+    "define": "Define",
+    "defining": "Looking up…",
+    "noDefinition": "No definition found.",
     "translating": "Translating…",
     "copy": "Copy"
   },

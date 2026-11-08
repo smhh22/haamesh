@@ -17,13 +17,26 @@ export interface SelectionTranslationState {
   errorCode?: string;
 }
 
+export interface SelectionDictionaryState {
+  status: 'loading' | 'done' | 'error';
+  title?: string;
+  lines?: string[];
+  sourceLabel?: string;
+  license?: string;
+  url?: string;
+  dir?: 'rtl' | 'ltr';
+  errorCode?: string;
+}
+
 interface SelectionPopoverProps {
   selection: SelectionInfo;
   noteMode: boolean;
   noteDraft: string;
   translation: SelectionTranslationState | null;
+  definition: SelectionDictionaryState | null;
   onHighlight: (color: string) => void;
   onTranslate: () => void;
+  onDefine: () => void;
   onCopyTranslation: (text: string) => void;
   onStartNote: () => void;
   onSaveNote: () => void;
@@ -37,8 +50,10 @@ export const SelectionPopover = ({
   noteMode,
   noteDraft,
   translation,
+  definition,
   onHighlight,
   onTranslate,
+  onDefine,
   onCopyTranslation,
   onStartNote,
   onSaveNote,
@@ -150,6 +165,14 @@ export const SelectionPopover = ({
             >
               {t('reader.translate')}
             </button>
+            <button
+              type="button"
+              className="reader-action"
+              onClick={onDefine}
+              disabled={definition?.status === 'loading'}
+            >
+              {t('reader.define')}
+            </button>
           </div>
           {translation ? (
             <div className="selection-translation" role="status" dir="auto">
@@ -175,6 +198,39 @@ export const SelectionPopover = ({
                         {translation.providerLabel}
                       </span>
                     ) : null}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : null}
+          {definition ? (
+            <div className="selection-dictionary" role="status">
+              {definition.status === 'loading' ? (
+                <p className="hint">{t('reader.defining')}</p>
+              ) : definition.status === 'error' ? (
+                <p className="error">{t('reader.noDefinition')}</p>
+              ) : (
+                <>
+                  <p className="selection-dictionary-title" dir={definition.dir ?? 'auto'}>
+                    {definition.title}
+                  </p>
+                  <ul className="selection-dictionary-lines" dir={definition.dir ?? 'auto'}>
+                    {(definition.lines ?? []).slice(0, 8).map((line) => (
+                      <li key={line.slice(0, 64)}>{line}</li>
+                    ))}
+                  </ul>
+                  <div className="selection-translation-actions">
+                    <a
+                      className="text-button"
+                      href={definition.url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {definition.sourceLabel}
+                    </a>
+                    <span className="hint" dir="ltr">
+                      {definition.license}
+                    </span>
                   </div>
                 </>
               )}

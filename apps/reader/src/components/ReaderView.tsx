@@ -20,6 +20,7 @@ import { useMediaQuery } from '../hooks/useMediaQuery';
 import { locatorFromRelocate, type RelocateDetail } from '../readerLocator';
 import { buildReaderCss } from '../readerStyles';
 import { loadAiSettings } from '../services/aiSettings';
+import { DictionaryError, lookupWithCache } from '../services/dictionaryService';
 import { persistBookLanguage, persistNoteRecord } from '../services/libraryPersistence';
 import { translateText } from '../services/translateService';
 import { useLibraryStore } from '../stores/libraryStore';
@@ -37,7 +38,11 @@ import {
 } from './reader/icons';
 import { NotesPanel } from './reader/NotesPanel';
 import { SearchPanel } from './reader/SearchPanel';
-import { SelectionPopover, type SelectionTranslationState } from './reader/SelectionPopover';
+import {
+  type SelectionDictionaryState,
+  SelectionPopover,
+  type SelectionTranslationState,
+} from './reader/SelectionPopover';
 import { SettingsPanel } from './reader/SettingsPanel';
 import { TocTree } from './reader/TocTree';
 
@@ -267,6 +272,8 @@ export const ReaderView = ({
   }, [panel]);
   const [selection, setSelection] = useState<SelectionInfo | null>(null);
   const [translation, setTranslation] = useState<SelectionTranslationState | null>(null);
+  const [definition, setDefinition] = useState<SelectionDictionaryState | null>(null);
+  const defineAbortRef = useRef<AbortController | null>(null);
   const [noteMode, setNoteMode] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -437,6 +444,7 @@ export const ReaderView = ({
       if (detail?.tocItem?.href) setActiveHref(detail.tocItem.href);
       setSelection(null);
       setTranslation(null);
+      setDefinition(null);
       setNoteMode(false);
     };
 
@@ -940,6 +948,35 @@ export const ReaderView = ({
     setNoteDraft('');
   };
 
+  const defineSelection = () => {
+    if (!selection) return;
+    defineAbortRef.current?.abort();
+    const controller = new AbortController();
+    defineAbortRef.current = controller;
+    const word = selection.text.trim().split(/\s+/).slice(0, 3).join(' ');
+    setDefinition({ status: 'loading' });
+    void lookupWithCache(word, controller.signal)
+      .then((entry) => {
+        if (controller.signal.aborted) return;
+        setDefinition({
+          status: 'done',
+          title: entry.title,
+          lines: entry.lines,
+          sourceLabel: entry.sourceLabel,
+          license: entry.license,
+          url: entry.url,
+          dir: entry.dir,
+        });
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setDefinition({
+          status: 'error',
+          errorCode: error instanceof DictionaryError ? error.code : undefined,
+        });
+      });
+  };
+
   const translateSelection = async () => {
     if (!selection) return;
     setTranslation({ status: 'loading' });
@@ -1308,6 +1345,8 @@ export const ReaderView = ({
           noteMode={noteMode}
           noteDraft={noteDraft}
           translation={translation}
+          definition={definition}
+          onDefine={defineSelection}
           onHighlight={saveSelectionHighlight}
           onTranslate={() => void translateSelection()}
           onCopyTranslation={copySelectionTranslation}

@@ -236,6 +236,12 @@ export const createSqlSyncStore = (
       await clocks.setFields([...entries]);
     },
 
+    async bookFileStat(sha256) {
+      const entries = await dataStore.list('books');
+      const match = entries.find((entry) => entry.startsWith(`${sha256}.`));
+      if (!match) return null;
+      return { ext: match.slice(sha256.length + 1) };
+    },
     async bookFile(sha256) {
       const entries = await dataStore.list('books');
       const match = entries.find((entry) => entry.startsWith(`${sha256}.`));

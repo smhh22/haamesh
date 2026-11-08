@@ -1,5 +1,13 @@
 export type { CacheKeyInput } from './cacheKey';
 export { translationCacheKey } from './cacheKey';
+export type { DictionaryEntry, DictionaryErrorCode } from './dictionary';
+export {
+  DictionaryError,
+  lookupWord,
+  wikipediaSummary,
+  wiktionaryDefinition,
+  wiktionaryNativeParse,
+} from './dictionary';
 export { sha256Hex } from './hash';
 export type { TranslatePromptInput } from './prompts/translate';
 export {

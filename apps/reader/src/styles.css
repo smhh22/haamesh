@@ -2203,6 +2203,28 @@ body:has(.player-bar) .shell {
   }
 }
 
+/* Selection dictionary result (ADR-0024): mirrors the translate block. */
+.selection-dictionary {
+  margin-block-start: var(--hamesh-space-2);
+  border-block-start: 1px solid var(--hamesh-color-border);
+  padding-block-start: var(--hamesh-space-2);
+  max-block-size: 16rem;
+  overflow-y: auto;
+}
+
+.selection-dictionary-title {
+  margin: 0 0 var(--hamesh-space-1);
+  font-weight: 600;
+}
+
+.selection-dictionary-lines {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+  display: grid;
+  gap: var(--hamesh-space-1);
+  font-size: 0.92rem;
+}
+
 /* Translation settings and the selection translate panel (ADR-0016). */
 .settings-section-title {
   margin-block: var(--hamesh-space-4) var(--hamesh-space-1);

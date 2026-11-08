@@ -65,6 +65,12 @@ export interface SyncStore {
   setClocks(entries: Array<readonly [string, string]>): Promise<void>;
   setFieldClocks(entries: Array<readonly [string, string, string]>): Promise<void>;
   bookFile(sha256: string): Promise<{ ext: string; data: Uint8Array } | null>;
+  /**
+   * Presence and extension only — no bytes. The round loop stats every book
+   * to decide transfers; reading the full file here pulled every blob into
+   * the webview each round (~1 GB spikes on real libraries).
+   */
+  bookFileStat(sha256: string): Promise<{ ext: string } | null>;
   saveBookFile(sha256: string, ext: string, data: Uint8Array): Promise<void>;
   /** Cover image bytes for the book, or null when this device has none. */
   coverFile(sha256: string): Promise<{ mime: string; data: Uint8Array } | null>;
@@ -310,7 +316,7 @@ export const createSyncEngine = (options: SyncOptions) => {
           if (ext !== 'epub' && ext !== 'pdf' && ext !== 'audio') continue;
           const blobPath = bookBlobPath(sha256, ext);
           const remoteBlob = await provider.head(blobPath);
-          const localBlob = await store.bookFile(sha256);
+          const localBlob = await store.bookFileStat(sha256);
           // URL-sourced books (ADR-0019) carry their provenance in the
           // identifiers object: { sourceUrl, syncVia: 'url' }. They do not
           // push their bytes; the link is the transfer path. A provider blob
@@ -323,8 +329,12 @@ export const createSyncEngine = (options: SyncOptions) => {
               : {};
           const syncViaUrl = meta.syncVia === 'url';
           if (!remoteBlob && localBlob && !syncViaUrl) {
-            const copy = new Uint8Array(localBlob.data.byteLength);
-            copy.set(localBlob.data);
+            // Read the bytes only when an upload is actually happening; the
+            // stat above decided the transfer, the file could still vanish.
+            const local = await store.bookFile(sha256);
+            if (!local) continue;
+            const copy = new Uint8Array(local.data.byteLength);
+            copy.set(local.data);
             await provider.writeBinary(blobPath, copy.buffer);
             await provider.writeText(
               bookMetaPath(sha256),
@@ -496,7 +506,7 @@ export const downloadBookBlobs = async (input: BookDownloadInput): Promise<BookD
   if (!/^[0-9a-f]{64}$/.test(sha256)) {
     return { ok: false, code: 'INTEGRITY', error: `invalid hash: ${sha256}` };
   }
-  if (!(await store.bookFile(sha256))) {
+  if (!(await store.bookFileStat(sha256))) {
     const blobPath = bookBlobPath(sha256, ext);
     const remoteBlob = await provider.head(blobPath);
     if (remoteBlob) {

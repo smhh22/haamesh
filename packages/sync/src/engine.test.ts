@@ -66,6 +66,10 @@ const createMemoryStore = (
         fieldClocks.set(k, bucket);
       }
     },
+    async bookFileStat(sha256: string) {
+      const file = await this.bookFile(sha256);
+      return file ? { ext: file.ext } : null;
+    },
     async bookFile(sha256: string) {
       const record = [...records.values()].find(
         (item) => item.kind === 'book' && item.fields.sha256 === sha256 && !item.deleted,

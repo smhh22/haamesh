@@ -18,7 +18,8 @@
         "minWidth": 800,
         "minHeight": 600,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "maximized": true
       }
     ],
     "security": {
@@ -38,7 +39,10 @@
     ],
     "fileAssociations": [
       {
-        "ext": ["epub", "pdf"],
+        "ext": [
+          "epub",
+          "pdf"
+        ],
         "name": "Book",
         "description": "EPUB or PDF book",
         "role": "Viewer",
@@ -53,7 +57,9 @@
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJDOEQ4NDNCMDQ1MUUxNTgKUldSWTRWRUVPNFNOdk5tOHdrR3hyWStTWVZvdGx6S01rbEljMHNtUFlsSHZWOURpS2lOTEpmTU8K",
-      "endpoints": ["https://github.com/smhh22/haamesh/releases/latest/download/latest.json"]
+      "endpoints": [
+        "https://github.com/smhh22/haamesh/releases/latest/download/latest.json"
+      ]
     }
   }
 }

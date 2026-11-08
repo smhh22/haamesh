@@ -682,26 +682,41 @@ textarea::placeholder {
 }
 
 .book-grid.is-list .book-card {
-  grid-template-columns: 5rem minmax(0, 1fr) auto;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
   align-items: center;
+  padding-block: var(--hamesh-space-2);
 }
 
 .book-grid.is-list .cover {
   aspect-ratio: auto;
-  block-size: 7rem;
+  block-size: 5rem;
 }
 
 .book-grid.is-list .book-body {
   align-self: center;
 }
 
+.book-grid.is-list .book-body h3 {
+  font-size: 0.95rem;
+}
+
+.book-grid.is-list .book-actions {
+  justify-self: end;
+}
+
 /* List rows read like a compact table on a desktop: meta at the start,
-   actions at the inline end. Centered under a cap so a wide window does not
-   stretch a row into a spreadsheet. */
+   actions at the inline end. Category headers follow the same centered
+   column so the sections do not span the window while the rows sit in a
+   narrower measure. */
 @media (min-width: 48rem) {
-  .book-grid.is-list {
-    max-inline-size: 60rem;
+  .book-grid.is-list,
+  .book-group:has(.book-grid.is-list) {
+    max-inline-size: 68rem;
     margin-inline: auto;
+  }
+
+  .book-grid.is-list .book-card:hover {
+    background: color-mix(in srgb, var(--hamesh-color-accent) 5%, var(--hamesh-color-surface));
   }
 }
 

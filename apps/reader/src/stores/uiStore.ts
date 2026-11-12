@@ -3,13 +3,14 @@ import { create } from 'zustand';
 
 export type UiTheme = 'system' | 'light' | 'dark';
 export type UiLocale = 'en' | 'fa';
+export type LibraryView = 'grid' | 'list' | 'shelves';
 
 interface UiStore {
   theme: UiTheme;
   locale: UiLocale;
-  /** Library shelf layout; the cover grid is the default (Readest-style). */
-  viewMode: 'grid' | 'list';
-  setViewMode: (view: 'grid' | 'list') => void;
+  /** Library layout; the cover grid is the default (Readest-style). */
+  viewMode: LibraryView;
+  setViewMode: (view: LibraryView) => void;
   /**
    * Reader sidebar (Contents / Notes / Search) on wide windows; open by
    * default, remembered per device. Narrow windows always use sheets.
@@ -46,11 +47,11 @@ const CATEGORY_ORDER_KEY = 'hamesh.ui.category-order';
 const VIEW_KEY = 'hamesh.ui.view';
 const READER_SIDEBAR_KEY = 'hamesh.ui.reader-sidebar';
 
-const readViewMode = (): 'grid' | 'list' => {
+const readViewMode = (): LibraryView => {
   try {
-    // The cover shelf is the default; only an explicit stored choice of list
-    // keeps the dense rows.
-    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid';
+    // The cover grid is the default; list and shelves are explicit choices.
+    const stored = localStorage.getItem(VIEW_KEY);
+    return stored === 'list' || stored === 'shelves' ? stored : 'grid';
   } catch {
     return 'grid';
   }

@@ -1587,3 +1587,32 @@ test('catalog rows, continue strip, filters, and row menu', async ({ page }) => 
   await page.getByRole('menuitem', { name: 'Edit' }).click();
   await expect(page.getByRole('dialog', { name: 'Book details' })).toBeVisible();
 });
+
+test('shelves view features a book and shelves each category', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+  await expect(page.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
+
+  await chooseBookAction(page.locator('.book-card', { hasText: 'Sample Book' }), 'Edit');
+  const dialog = page.getByRole('dialog', { name: 'Book details' });
+  await dialog.getByLabel('Category').selectOption('__new__');
+  await dialog.getByLabel('New category name').fill('Classics');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Shelves view' }).click();
+  await expect(page.locator('.shelves-view')).toBeVisible();
+  await expect(page.locator('.shelf-featured')).toBeVisible();
+  await expect(page.locator('.shelf-title')).toHaveText(['Classics', 'Uncategorized']);
+  await expect(page.locator('.shelf-track .book-card')).toHaveCount(2);
+
+  // The layout choice persists across a reload.
+  await page.reload();
+  await expect(page.locator('.shelves-view')).toBeVisible();
+
+  // The featured cover is the primary way into the book.
+  await page.locator('.featured-cover-button').click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+});

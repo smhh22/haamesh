@@ -705,14 +705,19 @@ textarea::placeholder {
 }
 
 /* List rows read like a compact table on a desktop: meta at the start,
-   actions at the inline end. Category headers follow the same centered
-   column so the sections do not span the window while the rows sit in a
-   narrower measure. */
+   actions at the inline end. ONE cap applies — on the groups container —
+   because `.book-groups` is a grid: auto margins on grid items turn the
+   sections into content-sized centered boxes (RL wide, others narrow).
+   Sections stretch inside the capped column, and the depth margin of a
+   subcategory indents header and rows together. */
 @media (min-width: 48rem) {
-  .book-grid.is-list,
-  .book-group:has(.book-grid.is-list) {
-    max-inline-size: 68rem;
+  .book-groups:has(.book-grid.is-list) {
+    max-inline-size: 80rem;
     margin-inline: auto;
+  }
+
+  .book-grid.is-list {
+    max-inline-size: none;
   }
 
   .book-grid.is-list .book-card:hover {

@@ -456,14 +456,14 @@ test('renames and deletes a tag across books', async ({ page }) => {
   await dialog.getByLabel('Tag name').fill('past');
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(dialog.getByText('#past')).toBeVisible();
-  await dialog.getByRole('button', { name: 'Back to reading' }).click();
+  await dialog.getByRole('button', { name: 'Close' }).click();
   await expect(page.locator('.tag-chip', { hasText: 'past' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Manage tags' }).click();
   await dialog.getByRole('button', { name: 'Delete' }).click();
   await dialog.getByRole('button', { name: 'Remove' }).click();
   await expect(dialog.getByText('No tags yet.')).toBeVisible();
-  await dialog.getByRole('button', { name: 'Back to reading' }).click();
+  await dialog.getByRole('button', { name: 'Close' }).click();
   await expect(page.locator('.tag-chip')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Manage tags' })).toHaveCount(0);
 });

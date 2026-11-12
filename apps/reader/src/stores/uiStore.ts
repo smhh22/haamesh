@@ -49,11 +49,12 @@ const READER_SIDEBAR_KEY = 'hamesh.ui.reader-sidebar';
 
 const readViewMode = (): LibraryView => {
   try {
-    // The cover grid is the default; list and shelves are explicit choices.
+    // The catalog is the default (a text library reads best as an index);
+    // grid and shelves are explicit choices.
     const stored = localStorage.getItem(VIEW_KEY);
-    return stored === 'list' || stored === 'shelves' ? stored : 'grid';
+    return stored === 'grid' || stored === 'shelves' ? stored : 'list';
   } catch {
-    return 'grid';
+    return 'list';
   }
 };
 

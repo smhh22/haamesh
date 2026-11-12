@@ -3547,3 +3547,128 @@ body:has(.player-bar) .shell {
     display: none;
   }
 }
+
+/* ===== Toolbar geometry ============================================= */
+
+/* Every toolbar control is 2rem tall; the chip, control, and switcher
+   borders share one radius language so the row reads as a single strip. */
+.sort-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sort-control svg {
+  position: absolute;
+  inset-inline-end: 0.55rem;
+  color: var(--hamesh-color-muted);
+  pointer-events: none;
+}
+
+.sort-control .sort-select {
+  appearance: none;
+  block-size: 2rem;
+  min-block-size: 2rem;
+  padding-block: 0;
+  padding-inline: 0.75rem 1.8rem;
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--hamesh-color-muted);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.sort-control .sort-select:hover {
+  color: var(--hamesh-color-ink);
+  border-color: var(--hamesh-color-muted);
+}
+
+.sort-control .sort-select:focus-visible {
+  outline: 2px solid var(--hamesh-color-accent);
+  outline-offset: 2px;
+}
+
+.view-switcher {
+  padding: 0;
+  border-radius: 999px;
+}
+
+.view-switcher button {
+  inline-size: 1.875rem;
+  block-size: 1.875rem;
+  border-radius: 999px;
+}
+
+.toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  block-size: 2rem;
+  padding-inline: 0.75rem;
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: 999px;
+  background: none;
+  color: var(--hamesh-color-muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.toolbar-button:hover {
+  color: var(--hamesh-color-ink);
+  border-color: var(--hamesh-color-muted);
+}
+
+.toolbar-button:focus-visible {
+  outline: 2px solid var(--hamesh-color-accent);
+  outline-offset: 2px;
+}
+
+.chip-divider {
+  inline-size: 1px;
+  block-size: 1.25rem;
+  flex: none;
+  align-self: center;
+  margin-inline: 0.25rem;
+  background: var(--hamesh-color-border);
+}
+
+@media (min-width: 64rem) {
+  .library.is-list .chip-divider {
+    display: none;
+  }
+}
+
+@media (max-width: 47.99rem) {
+  /* One scrolling chip rail; the layout controls live on their own row so
+     nothing (notably New category) is clipped. */
+  .library-toolbar {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .filter-chips {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-block-end: 2px;
+  }
+
+  .filter-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .toolbar-end {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-inline-start: 0;
+    scrollbar-width: none;
+  }
+
+  .toolbar-end::-webkit-scrollbar {
+    display: none;
+  }
+}

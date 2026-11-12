@@ -274,6 +274,9 @@ test('lays out a real mobile shelf and reader', async ({ page }) => {
     .evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().width));
   expect(turnBoxes).toHaveLength(2);
   expect(turnBoxes.every((width) => width > 36 && width < 64)).toBe(true);
+  // The position slider opens from the page label so the reading surface
+  // stays free of a permanent footer.
+  await page.locator('.pill-progress').click();
   await expect(page.locator('.reader-seek')).toBeVisible();
 });
 
@@ -957,11 +960,11 @@ test.describe('phone viewport', () => {
     await expect.poll(async () => progress.textContent()).not.toBe(before);
 
     // Center tap: immersive; again: chrome back.
-    const header = page.locator('.reader-header');
+    const chrome = page.locator('.reader-back');
     await page.mouse.click(206, 500);
-    await expect(header).toBeHidden();
+    await expect(chrome).toBeHidden();
     await page.mouse.click(206, 500);
-    await expect(header).toBeVisible();
+    await expect(chrome).toBeVisible();
   });
 });
 
@@ -1332,10 +1335,10 @@ test('applies the book direction when documents omit dir', async ({ page }) => {
 test('escape closes panels, then returns to the library', async ({ page }) => {
   await openReader(page);
   await page.getByRole('button', { name: 'Contents' }).click();
-  // Wide windows dock the sidebar instead of floating a sheet.
-  await expect(page.locator('.reader-sidebar')).toBeVisible();
+  // Panels are overlays at every width; Escape closes the panel first.
+  await expect(page.locator('.reader-panel')).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.locator('.reader-sidebar')).toHaveCount(0);
+  await expect(page.locator('.reader-panel')).toHaveCount(0);
   await expect(page.locator('.reader-shell')).toBeVisible();
 
   await page.keyboard.press('Escape');

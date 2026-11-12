@@ -116,6 +116,7 @@
   },
   "reader": {
     "back": "Library",
+    "controls": "Reading controls",
     "previous": "Previous",
     "next": "Next",
     "seek": "Reading position",

@@ -456,14 +456,14 @@ test('renames and deletes a tag across books', async ({ page }) => {
   await dialog.getByLabel('Tag name').fill('past');
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(dialog.getByText('#past')).toBeVisible();
-  await dialog.getByRole('button', { name: 'Close' }).click();
+  await dialog.getByRole('button', { name: 'Back to reading' }).click();
   await expect(page.locator('.tag-chip', { hasText: 'past' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Manage tags' }).click();
   await dialog.getByRole('button', { name: 'Delete' }).click();
   await dialog.getByRole('button', { name: 'Remove' }).click();
   await expect(dialog.getByText('No tags yet.')).toBeVisible();
-  await dialog.getByRole('button', { name: 'Close' }).click();
+  await dialog.getByRole('button', { name: 'Back to reading' }).click();
   await expect(page.locator('.tag-chip')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Manage tags' })).toHaveCount(0);
 });
@@ -489,7 +489,7 @@ test('keeps the last failed sync round visible', async ({ page }) => {
 
   // The library toolbar carries the same action: run a round and surface the
   // failure without opening settings.
-  await dialog.getByRole('button', { name: 'Close' }).click();
+  await dialog.getByRole('button', { name: 'Back to reading' }).click();
   const librarySync = page.locator('.library-toolbar').getByRole('button', { name: 'Sync now' });
   await expect(librarySync).toBeVisible();
   await librarySync.click();
@@ -507,7 +507,7 @@ test('keeps the last failed sync round visible', async ({ page }) => {
   await expect(reopened.locator('.sync-last-error')).toContainText('Could not reach the server.');
 
   // The same stored report is localized when the UI is Persian.
-  await reopened.getByRole('button', { name: 'Close' }).click();
+  await reopened.getByRole('button', { name: 'Back to reading' }).click();
   await page.getByRole('button', { name: 'Switch to Persian' }).click();
   await page.getByRole('button', { name: 'تنظیمات' }).click();
   const persian = page.getByRole('dialog', { name: 'تنظیمات' });

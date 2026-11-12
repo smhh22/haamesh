@@ -256,15 +256,20 @@ export const SettingsDialog = ({ open, onClose }: SettingsDialogProps) => {
         aria-modal="true"
         aria-label={t('settings.title')}
       >
-        <div className="panel-header">
+        <header className="settings-top">
+          <span className="settings-brand">Hāmesh</span>
+          <span className="settings-sep" aria-hidden="true">
+            /
+          </span>
           <h2>{t('settings.title')}</h2>
-          <button type="button" className="text-button" onClick={onClose}>
-            {t('reader.close')}
+          <button type="button" className="settings-close" onClick={onClose}>
+            {t('settings.backToReading')}
           </button>
-        </div>
+        </header>
 
         <div className="settings-layout">
           <nav className="settings-nav" aria-label={t('settings.title')}>
+            <p className="settings-nav-label">{t('settings.preferences')}</p>
             {SECTIONS.map((section) => (
               <button
                 key={section.id}
@@ -282,10 +287,12 @@ export const SettingsDialog = ({ open, onClose }: SettingsDialogProps) => {
           </nav>
 
           <section className="settings-content" aria-label={title}>
+            <h3 className="settings-section-heading">{title}</h3>
+            <p className="settings-section-lede">{t(`settings.ledes.${active}`)}</p>
             {active === 'general' ? <GeneralSection /> : null}
             {active === 'shortcuts' ? <ShortcutsList /> : null}
             {active === 'translation' ? <TranslationSettings /> : null}
-            {active === 'sync' ? <SyncSettings showHeading={false} /> : null}
+            {active === 'sync' ? <SyncSettings showHeading={false} showLede={false} /> : null}
             {active === 'updates' ? <UpdatesSection /> : null}
             {active === 'about' ? <AboutSection /> : null}
           </section>

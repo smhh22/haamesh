@@ -2462,6 +2462,7 @@ body:has(.player-bar) .shell {
 
 .filter-chips {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   gap: 0.375rem;
   margin: 0;
@@ -2504,6 +2505,7 @@ body:has(.player-bar) .shell {
 
 .toolbar-end {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--hamesh-space-2);

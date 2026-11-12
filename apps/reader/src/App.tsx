@@ -25,6 +25,7 @@ import { BookCard } from './components/library/BookCard';
 import { BookRow } from './components/library/BookRow';
 import { CategoryActionsMenu } from './components/library/CategoryActionsMenu';
 import { type ContinueItem, ContinueReading } from './components/library/ContinueReading';
+import { type ShelfSection, ShelvesView } from './components/library/ShelvesView';
 import { PromptDialog } from './components/PromptDialog';
 import { ReaderView } from './components/ReaderView';
 import { PlayerBar } from './components/reader/PlayerBar';
@@ -253,6 +254,7 @@ export const App = () => {
         .filter((item): item is ContinueItem => item !== null),
     [books, readingStates],
   );
+
   // Grouped sections only when the library actually uses categories.
   const hasCategories = useMemo(
     () => books.some((book) => book.category !== null) || extraCategories.length > 0,
@@ -263,6 +265,38 @@ export const App = () => {
       hasCategories ? groupBooksByCategory(visibleBooks, collator, extraCategories, order) : [],
     [hasCategories, visibleBooks, collator, extraCategories, order],
   );
+
+  /** One shelf per category (or a single shelf for a flat library). */
+  const shelves = useMemo<ShelfSection[]>(() => {
+    const groups = hasCategories
+      ? bookGroups
+      : [{ key: '::all', category: null, books: visibleBooks }];
+    return groups
+      .filter((group) => group.books.length > 0)
+      .map((group) => ({
+        key: group.key,
+        name:
+          group.category !== null
+            ? categoryName(group.category)
+            : hasCategories
+              ? t('library.uncategorized')
+              : t('library.statusAll'),
+        books: group.books,
+      }));
+  }, [bookGroups, hasCategories, t, visibleBooks]);
+  const featuredItem = useMemo(() => {
+    const first = continueItems[0];
+    if (first) return first;
+    const newest = visibleBooks[0];
+    return newest ? { book: newest, fraction: readingStates[newest.id]?.fraction ?? 0 } : null;
+  }, [continueItems, readingStates, visibleBooks]);
+  const upNextItems = useMemo(() => {
+    if (continueItems.length > 1) return continueItems.slice(1, 3);
+    return visibleBooks.slice(1, 3).map((book) => ({
+      book,
+      fraction: readingStates[book.id]?.fraction ?? 0,
+    }));
+  }, [continueItems, readingStates, visibleBooks]);
   const categoryRoots = useMemo(
     () => (hasCategories ? buildCategoryTree(visibleBooks, extraCategories, order, collator) : []),
     [hasCategories, visibleBooks, extraCategories, order, collator],
@@ -635,6 +669,23 @@ export const App = () => {
     />
   );
 
+  const renderShelfCard = (book: BookRecord) => (
+    <BookCard
+      key={book.id}
+      variant="shelf"
+      book={book}
+      locale={locale}
+      fraction={readingStates[book.id]?.fraction ?? 0}
+      hasFile={fileHashes.has(book.hash)}
+      opening={openingBookId === book.id}
+      downloading={downloadingHash === book.hash}
+      onOpen={() => void openReader(book)}
+      onEdit={() => setEditingBookId(book.id)}
+      onRemove={() => setRemovingBookId(book.id)}
+      onDownload={() => void downloadBookFile(book)}
+    />
+  );
+
   const renderBookRow = (book: BookRecord) => (
     <BookRow
       key={book.id}
@@ -812,6 +863,7 @@ export const App = () => {
             'library',
             isDragging ? 'is-dragging' : '',
             viewMode === 'list' ? 'is-list' : '',
+            viewMode === 'shelves' ? 'is-shelves' : '',
           ]
             .filter(Boolean)
             .join(' ')}
@@ -882,13 +934,63 @@ export const App = () => {
                 <option value="title">{t('library.sortTitle')}</option>
                 <option value="author">{t('library.sortAuthor')}</option>
               </select>
-              <button
-                type="button"
-                className="view-toggle"
-                onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-              >
-                {viewMode === 'grid' ? t('library.listView') : t('library.gridView')}
-              </button>
+              <fieldset className="view-switcher" aria-label={t('library.viewMode')}>
+                {(['grid', 'list', 'shelves'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={viewMode === mode ? 'is-selected' : undefined}
+                    aria-pressed={viewMode === mode}
+                    aria-label={t(`library.${mode}View`)}
+                    title={t(`library.${mode}View`)}
+                    onClick={() => setViewMode(mode)}
+                  >
+                    {mode === 'grid' ? (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        aria-hidden="true"
+                      >
+                        <rect x="4" y="4" width="6.5" height="6.5" rx="1" />
+                        <rect x="13.5" y="4" width="6.5" height="6.5" rx="1" />
+                        <rect x="4" y="13.5" width="6.5" height="6.5" rx="1" />
+                        <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1" />
+                      </svg>
+                    ) : mode === 'list' ? (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M4 6h16M4 12h16M4 18h16" />
+                      </svg>
+                    ) : (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M4 6h4M11 6h9M4 12h4M11 12h9M4 18h16" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </fieldset>
               {books.length > 0 ? (
                 <button
                   type="button"
@@ -959,11 +1061,13 @@ export const App = () => {
             </p>
           ) : null}
 
-          <ContinueReading
-            items={continueItems}
-            locale={locale}
-            onOpen={(book) => void openReader(book)}
-          />
+          {viewMode !== 'shelves' ? (
+            <ContinueReading
+              items={continueItems}
+              locale={locale}
+              onOpen={(book) => void openReader(book)}
+            />
+          ) : null}
 
           {books.length === 0 ? (
             <div className="empty">
@@ -1005,6 +1109,16 @@ export const App = () => {
                   <div className="empty">
                     <p className="empty-title">{t('library.noResults')}</p>
                   </div>
+                ) : viewMode === 'shelves' ? (
+                  <ShelvesView
+                    featured={featuredItem}
+                    featuredIsContinue={continueItems.length > 0}
+                    upNext={upNextItems}
+                    shelves={shelves}
+                    locale={locale}
+                    onOpen={(book) => void openReader(book)}
+                    renderBook={renderShelfCard}
+                  />
                 ) : hasCategories ? (
                   <div className="book-groups">
                     {categoryRows.map(({ node, depth }) => {

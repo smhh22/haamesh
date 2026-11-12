@@ -7,6 +7,8 @@ import { BookCover, FORMAT_LABEL } from './BookCover';
 
 interface BookCardProps {
   book: BookRecord;
+  /** `plate` fills a grid cell; `shelf` is the compact horizontal shelf item. */
+  variant?: 'plate' | 'shelf';
   locale: UiLocale;
   fraction: number;
   hasFile: boolean;
@@ -25,6 +27,7 @@ interface BookCardProps {
  */
 export const BookCard = ({
   book,
+  variant = 'plate',
   locale,
   fraction,
   hasFile,
@@ -42,7 +45,7 @@ export const BookCard = ({
   const label = primaryActionLabel(book, t, opening, hasFile);
 
   return (
-    <li className="book-card book-plate">
+    <li className={variant === 'shelf' ? 'book-card book-shelf-item' : 'book-card book-plate'}>
       <button
         type="button"
         className="book-plate-cover"

@@ -18,6 +18,12 @@ const runCategoryAction = async (group: Locator, name: string) => {
   await group.getByRole('menuitem', { name }).click();
 };
 
+/** Book secondary actions now live behind the card's overflow menu. */
+const chooseBookAction = async (card: Locator, name: 'Edit' | 'Remove') => {
+  await card.getByRole('button', { name: 'Book actions' }).click();
+  await card.getByRole('menuitem', { name }).click();
+};
+
 test('imports a Persian EPUB and opens the reader', async ({ page }) => {
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
@@ -197,7 +203,7 @@ test('organizes books into a category with tags and filters by them', async ({ p
   await page.locator('input[type="file"]').setInputFiles(fixture);
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Edit' }).click();
+  await chooseBookAction(page.locator('.book-card').first(), 'Edit');
   const dialog = page.getByRole('dialog', { name: 'Book details' });
   await dialog.getByLabel('Category').selectOption('__new__');
   await dialog.getByLabel('New category name').fill('Persian classics');
@@ -277,10 +283,7 @@ test('renames and deletes a category across its books', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
 
   const assign = async (title: string, existing: boolean) => {
-    await page
-      .locator('.book-card', { hasText: title })
-      .getByRole('button', { name: 'Edit' })
-      .click();
+    await chooseBookAction(page.locator('.book-card', { hasText: title }), 'Edit');
     const dialog = page.getByRole('dialog', { name: 'Book details' });
     if (existing) {
       await dialog.getByLabel('Category').selectOption('Classics');
@@ -334,10 +337,7 @@ test('creates a category from the toolbar and keeps it when empty', async ({ pag
   await expect(group).toHaveCount(1);
   await expect(group.locator('.book-group-count')).toHaveText('0 books');
 
-  await page
-    .locator('.book-card', { hasText: 'Sample Book' })
-    .getByRole('button', { name: 'Edit' })
-    .click();
+  await chooseBookAction(page.locator('.book-card', { hasText: 'Sample Book' }), 'Edit');
   const dialog = page.getByRole('dialog', { name: 'Book details' });
   await dialog.getByLabel('Category').selectOption('Poetry');
   await dialog.getByRole('button', { name: 'Save' }).click();
@@ -364,10 +364,7 @@ test('reorders category sections and remembers the order', async ({ page }) => {
   await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
 
   const assign = async (title: string, category: string) => {
-    await page
-      .locator('.book-card', { hasText: title })
-      .getByRole('button', { name: 'Edit' })
-      .click();
+    await chooseBookAction(page.locator('.book-card', { hasText: title }), 'Edit');
     const dialog = page.getByRole('dialog', { name: 'Book details' });
     await dialog.getByLabel('Category').selectOption('__new__');
     await dialog.getByLabel('New category name').fill(category);
@@ -401,10 +398,7 @@ test('collapses category sections and remembers the state', async ({ page }) => 
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
   const assign = async (title: string, existing: boolean) => {
-    await page
-      .locator('.book-card', { hasText: title })
-      .getByRole('button', { name: 'Edit' })
-      .click();
+    await chooseBookAction(page.locator('.book-card', { hasText: title }), 'Edit');
     const dialog = page.getByRole('dialog', { name: 'Book details' });
     if (existing) {
       await dialog.getByLabel('Category').selectOption('Classics');
@@ -442,10 +436,7 @@ test('renames and deletes a tag across books', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
 
   const assign = async (title: string) => {
-    await page
-      .locator('.book-card', { hasText: title })
-      .getByRole('button', { name: 'Edit' })
-      .click();
+    await chooseBookAction(page.locator('.book-card', { hasText: title }), 'Edit');
     const details = page.getByRole('dialog', { name: 'Book details' });
     await details.getByLabel('Tags').fill('history');
     await details.getByRole('button', { name: 'Save' }).click();
@@ -574,13 +565,13 @@ test('asks before removing a book', async ({ page }) => {
   await page.locator('input[type="file"]').setInputFiles(fixture);
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Remove' }).click();
+  await chooseBookAction(page.locator('.book-card').first(), 'Remove');
   const dialog = page.getByRole('dialog', { name: 'Remove this book?' });
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Remove' }).click();
+  await chooseBookAction(page.locator('.book-card').first(), 'Remove');
   await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click();
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toHaveCount(0);
 });
@@ -1045,11 +1036,13 @@ test('detects PDF language and direction from the text layer', async ({ page }) 
   // the book record, so the library card shows the detected language.
   await page.getByRole('button', { name: 'Library' }).click();
   const card = page.locator('.book-card', { hasText: 'نمونه فارسی' });
-  await expect(card.locator('.badge', { hasText: 'fa' })).toBeVisible({ timeout: 10_000 });
+  await expect(card.locator('.format-chip', { hasText: 'fa' })).toBeVisible({ timeout: 10_000 });
 
   await page.reload();
   await expect(
-    page.locator('.book-card', { hasText: 'نمونه فارسی' }).locator('.badge', { hasText: 'fa' }),
+    page
+      .locator('.book-card', { hasText: 'نمونه فارسی' })
+      .locator('.format-chip', { hasText: 'fa' }),
   ).toBeVisible();
 });
 
@@ -1058,10 +1051,7 @@ test('lets the reader override PDF language and direction', async ({ page }) => 
   await page.locator('input[type="file"]').setInputFiles(pdfFixture);
   await expect(page.getByRole('heading', { name: 'Hamesh PDF Test' })).toBeVisible();
 
-  await page
-    .locator('.book-card', { hasText: 'Hamesh PDF Test' })
-    .getByRole('button', { name: 'Edit' })
-    .click();
+  await chooseBookAction(page.locator('.book-card', { hasText: 'Hamesh PDF Test' }), 'Edit');
   const dialog = page.getByRole('dialog', { name: 'Book details' });
   await dialog.getByLabel('Language').fill('fa');
   await dialog.getByLabel('Reading direction').selectOption('rtl');
@@ -1071,14 +1061,11 @@ test('lets the reader override PDF language and direction', async ({ page }) => 
   // The override is the book record: the badge and the dialog keep it. The
   // persist runs in the background; give it a moment before reloading or a
   // slow CI disk reloads the pre-save record.
-  await expect(page.locator('.badge', { hasText: 'fa' })).toBeVisible();
+  await expect(page.locator('.format-chip', { hasText: 'fa' })).toBeVisible();
   await page.waitForTimeout(500);
   await page.reload();
-  await expect(page.locator('.badge', { hasText: 'fa' })).toBeVisible();
-  await page
-    .locator('.book-card', { hasText: 'Hamesh PDF Test' })
-    .getByRole('button', { name: 'Edit' })
-    .click();
+  await expect(page.locator('.format-chip', { hasText: 'fa' })).toBeVisible();
+  await chooseBookAction(page.locator('.book-card', { hasText: 'Hamesh PDF Test' }), 'Edit');
   const reopened = page.getByRole('dialog', { name: 'Book details' });
   await expect(reopened.getByLabel('Language')).toHaveValue('fa');
   await expect(reopened.getByLabel('Reading direction')).toHaveValue('rtl');

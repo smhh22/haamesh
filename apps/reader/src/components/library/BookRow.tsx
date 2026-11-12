@@ -1,5 +1,6 @@
 import type { BookRecord } from '@hamesh/storage';
 import { useTranslation } from 'react-i18next';
+import { formatAuthorList, primaryActionLabel } from '../../library/bookDisplay';
 import type { UiLocale } from '../../stores/uiStore';
 import { BookActionsMenu } from './BookActionsMenu';
 import { BookCover, FORMAT_LABEL } from './BookCover';
@@ -16,15 +17,6 @@ interface BookRowProps {
   onRemove: () => void;
   onDownload: () => void;
 }
-
-const formatAuthors = (authors: string[], locale: UiLocale): string => {
-  if (authors.length === 0) return '';
-  try {
-    return new Intl.ListFormat(locale, { style: 'short', type: 'conjunction' }).format(authors);
-  } catch {
-    return authors.join(locale === 'fa' ? '، ' : ', ');
-  }
-};
 
 /**
  * One catalog row (list view): thumbnail, title and metadata, reading
@@ -51,17 +43,9 @@ export const BookRow = ({
     month: 'short',
   });
 
-  const authors = formatAuthors(book.authors, locale) || t('library.unknownAuthor');
+  const authors = formatAuthorList(book.authors, locale) || t('library.unknownAuthor');
   const percent = Math.round(fraction * 100);
-  const primaryLabel = opening
-    ? hasFile
-      ? t('library.opening')
-      : t('library.downloading')
-    : book.format === 'audio'
-      ? t('library.listen')
-      : book.format === 'video'
-        ? t('library.watch')
-        : t('library.read');
+  const primaryLabel = primaryActionLabel(book, t, opening, hasFile);
 
   return (
     <li className="book-card book-row">

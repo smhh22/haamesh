@@ -21,6 +21,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { type BookOrganization, BookOrganizationDialog } from './components/BookOrganizationDialog';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { BookCard } from './components/library/BookCard';
 import { BookRow } from './components/library/BookRow';
 import { CategoryActionsMenu } from './components/library/CategoryActionsMenu';
 import { type ContinueItem, ContinueReading } from './components/library/ContinueReading';
@@ -88,20 +89,9 @@ const isSupportedBook = (file: File): boolean =>
   file.type.startsWith('video/') ||
   /\.(epub|pdf|md|markdown|mp3|m4b|m4a|flac|ogg|opus|mp4|mkv|webm)$/i.test(file.name);
 
-const formatAuthors = (authors: string[], locale: Locale): string => {
-  if (authors.length === 0) return '';
-  try {
-    return new Intl.ListFormat(locale, { style: 'short', type: 'conjunction' }).format(authors);
-  } catch {
-    return authors.join(locale === 'fa' ? '، ' : ', ');
-  }
-};
-
 export const App = () => {
   const { t, i18n } = useTranslation();
   const locale = useUiStore((state) => state.locale);
-  // Card progress and dates use the active locale's digits (fa-IR → Persian).
-  const percentFormat = new Intl.NumberFormat(locale === 'fa' ? 'fa-IR' : 'en-US');
   const setLocale = useUiStore((state) => state.setLocale);
   const [isImporting, setIsImporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -629,79 +619,21 @@ export const App = () => {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const renderGridCard = (book: BookRecord) => {
-    // Reading progress comes from the reading store, not the record; the card
-    // only shows it once the book has actually been opened.
-    const fraction = readingStates[book.id]?.fraction ?? 0;
-    return (
-      <li key={book.id} className="book-card">
-        <div className="cover">
-          {book.coverPath ? (
-            <img src={book.coverPath} alt="" />
-          ) : (
-            <span className="cover-fallback" aria-hidden="true">
-              {book.title.trim().charAt(0) || '?'}
-            </span>
-          )}
-        </div>
-        <div className="book-body">
-          <h3 dir="auto">{book.title}</h3>
-          <p className="authors" dir="auto">
-            {formatAuthors(book.authors, locale) || t('library.unknownAuthor')}
-          </p>
-          {/* Direction is the book's own business, not a badge; language only
-             shows when the file actually carries one. The row follows the
-             book's direction so the chips line up under the dir="auto" title. */}
-          {fraction > 0 || book.language ? (
-            <p className="badges" dir={book.direction}>
-              {fraction > 0 ? (
-                <span className="badge is-progress">
-                  {t('library.progress', {
-                    percent: percentFormat.format(Math.round(fraction * 100)),
-                  })}
-                </span>
-              ) : null}
-              {book.language ? <span className="badge">{book.language}</span> : null}
-            </p>
-          ) : null}
-        </div>
-        <div className="book-actions">
-          <button
-            type="button"
-            className="text-button"
-            disabled={openingBookId !== null}
-            onClick={() => void openReader(book)}
-          >
-            {openingBookId === book.id
-              ? fileHashes.has(book.hash)
-                ? t('library.opening')
-                : t('library.downloading')
-              : book.format === 'audio'
-                ? t('library.listen')
-                : book.format === 'video'
-                  ? t('library.watch')
-                  : t('library.read')}
-          </button>
-          {!fileHashes.has(book.hash) ? (
-            <button
-              type="button"
-              className="text-button"
-              disabled={downloadingHash !== null || openingBookId !== null}
-              onClick={() => void downloadBookFile(book)}
-            >
-              {downloadingHash === book.hash ? t('library.downloading') : t('library.download')}
-            </button>
-          ) : null}
-          <button type="button" className="text-button" onClick={() => setEditingBookId(book.id)}>
-            {t('library.edit')}
-          </button>
-          <button type="button" className="text-button" onClick={() => setRemovingBookId(book.id)}>
-            {t('library.remove')}
-          </button>
-        </div>
-      </li>
-    );
-  };
+  const renderGridCard = (book: BookRecord) => (
+    <BookCard
+      key={book.id}
+      book={book}
+      locale={locale}
+      fraction={readingStates[book.id]?.fraction ?? 0}
+      hasFile={fileHashes.has(book.hash)}
+      opening={openingBookId === book.id}
+      downloading={downloadingHash === book.hash}
+      onOpen={() => void openReader(book)}
+      onEdit={() => setEditingBookId(book.id)}
+      onRemove={() => setRemovingBookId(book.id)}
+      onDownload={() => void downloadBookFile(book)}
+    />
+  );
 
   const renderBookRow = (book: BookRecord) => (
     <BookRow

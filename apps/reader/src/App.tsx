@@ -244,7 +244,7 @@ export const App = () => {
   const continueItems = useMemo<ContinueItem[]>(
     () =>
       Object.values(readingStates)
-        .filter((state) => state.status === 'reading' && state.fraction > 0)
+        .filter((state) => state.status === 'reading' && state.fraction > 0 && state.fraction < 1)
         .sort((a, b) => b.updatedAt - a.updatedAt)
         .slice(0, 4)
         .map((state) => {
@@ -878,7 +878,7 @@ export const App = () => {
           </h2>
 
           <div className="library-toolbar">
-            <fieldset className="filter-chips chip-status" aria-label={t('library.statusFilter')}>
+            <fieldset className="filter-chips" aria-label={t('library.filters')}>
               {(
                 [
                   ['all', 'library.statusAll', statusCounts.all],
@@ -890,7 +890,9 @@ export const App = () => {
                 <button
                   key={value}
                   type="button"
-                  className={statusFilter === value ? 'chip is-selected' : 'chip'}
+                  className={
+                    statusFilter === value ? 'chip chip-status is-selected' : 'chip chip-status'
+                  }
                   aria-pressed={statusFilter === value}
                   onClick={() => setStatusFilter(value)}
                 >
@@ -898,9 +900,8 @@ export const App = () => {
                   <span className="chip-count">{numberFormat.format(count)}</span>
                 </button>
               ))}
-            </fieldset>
+              <span className="chip-divider" aria-hidden="true" />
 
-            <fieldset className="filter-chips is-formats" aria-label={t('library.formatFilter')}>
               {(
                 [
                   ['epub', 'EPUB'],
@@ -924,16 +925,31 @@ export const App = () => {
             </fieldset>
 
             <div className="toolbar-end">
-              <select
-                className="sort-select"
-                aria-label={t('library.sort')}
-                value={sort}
-                onChange={(event) => setSort(event.currentTarget.value as BookSort)}
-              >
-                <option value="recent">{t('library.sortRecent')}</option>
-                <option value="title">{t('library.sortTitle')}</option>
-                <option value="author">{t('library.sortAuthor')}</option>
-              </select>
+              <span className="sort-control">
+                <select
+                  className="sort-select"
+                  aria-label={t('library.sort')}
+                  value={sort}
+                  onChange={(event) => setSort(event.currentTarget.value as BookSort)}
+                >
+                  <option value="recent">{t('library.sortRecent')}</option>
+                  <option value="title">{t('library.sortTitle')}</option>
+                  <option value="author">{t('library.sortAuthor')}</option>
+                </select>
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </span>
               <fieldset className="view-switcher" aria-label={t('library.viewMode')}>
                 {(['grid', 'list', 'shelves'] as const).map((mode) => (
                   <button
@@ -994,7 +1010,7 @@ export const App = () => {
               {books.length > 0 ? (
                 <button
                   type="button"
-                  className="view-toggle"
+                  className="toolbar-button"
                   onClick={() => setCategoryAction({ type: 'create', name: '' })}
                 >
                   {t('library.newCategory')}

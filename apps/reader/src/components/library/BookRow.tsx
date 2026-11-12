@@ -61,6 +61,7 @@ export const BookRow = ({
             {book.series ? ` · ${book.series}` : ''}
           </span>
           <span className="format-chip">{FORMAT_LABEL[book.format]}</span>
+          {book.language ? <span className="format-chip">{book.language}</span> : null}
         </p>
         {fraction > 0 ? (
           <span className="book-row-progress is-phone">

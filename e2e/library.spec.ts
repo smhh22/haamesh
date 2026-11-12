@@ -254,7 +254,8 @@ test('lays out a real mobile shelf and reader', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
 
   // Two-column cover shelf instead of the desktop minmax(14rem) single
-  // column; the grid is the default view.
+  // column; the catalog is the default, so switch to the grid first.
+  await page.getByRole('button', { name: 'Grid view' }).click();
   await expect(page.locator('.book-grid')).not.toHaveClass(/is-list/);
   const columns = await page.locator('.book-grid').evaluate((element) => {
     const value = getComputedStyle(element).gridTemplateColumns;
@@ -671,15 +672,15 @@ test('filters the library and switches to list view', async ({ page }) => {
   await search.fill('');
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
 
-  // Grid is the default; the toggle goes to list and back, and the choice
-  // persists across a reload.
-  await expect(page.locator('.book-grid')).not.toHaveClass(/is-list/);
-  await page.getByRole('button', { name: 'List view' }).click();
+  // The catalog is the default; switching to the grid and back persists
+  // across a reload.
   await expect(page.locator('.book-grid')).toHaveClass(/is-list/);
   await page.getByRole('button', { name: 'Grid view' }).click();
   await expect(page.locator('.book-grid')).not.toHaveClass(/is-list/);
+  await page.getByRole('button', { name: 'List view' }).click();
+  await expect(page.locator('.book-grid')).toHaveClass(/is-list/);
   await page.reload();
-  await expect(page.locator('.book-grid')).not.toHaveClass(/is-list/);
+  await expect(page.locator('.book-grid')).toHaveClass(/is-list/);
 
   await page.getByLabel('Sort books').selectOption('title');
   await expect(page.locator('.book-grid .book-card')).toHaveCount(2);

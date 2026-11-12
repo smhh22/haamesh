@@ -1,4 +1,4 @@
-import type { Direction } from '@hamesh/core';
+import type { Direction, ReadingStatus } from '@hamesh/core';
 import {
   categoryName,
   categoryParent,
@@ -21,6 +21,9 @@ import {
 import { useTranslation } from 'react-i18next';
 import { type BookOrganization, BookOrganizationDialog } from './components/BookOrganizationDialog';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { BookRow } from './components/library/BookRow';
+import { CategoryActionsMenu } from './components/library/CategoryActionsMenu';
+import { type ContinueItem, ContinueReading } from './components/library/ContinueReading';
 import { PromptDialog } from './components/PromptDialog';
 import { ReaderView } from './components/ReaderView';
 import { PlayerBar } from './components/reader/PlayerBar';
@@ -70,6 +73,12 @@ import { useReadingStore } from './stores/readingStore';
 import { type UiLocale as Locale, useUiStore } from './stores/uiStore';
 
 const directionFor = (locale: Locale): Direction => (locale === 'fa' ? 'rtl' : 'ltr');
+
+type ReadingStatusFilter = 'all' | ReadingStatus;
+type FormatFilter = 'all' | BookRecord['format'];
+
+const statusOfBook = (bookId: string, states: Record<string, ReadingState>): ReadingStatus =>
+  states[bookId]?.status ?? 'unread';
 
 const isSupportedBook = (file: File): boolean =>
   file.type === 'application/epub+zip' ||
@@ -126,6 +135,9 @@ export const App = () => {
   const [dragCategory, setDragCategory] = useState<string | null>(null);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [sort, setSort] = useState<BookSort>('recent');
+  /** Catalog rail / chip filters; applied before search and sorting. */
+  const [statusFilter, setStatusFilter] = useState<ReadingStatusFilter>('all');
+  const [formatFilter, setFormatFilter] = useState<FormatFilter>('all');
   const viewMode = useUiStore((state) => state.viewMode);
   const setViewMode = useUiStore((state) => state.setViewMode);
   const [contentMatches, setContentMatches] = useState<ContentMatch[]>([]);
@@ -208,9 +220,48 @@ export const App = () => {
     () => new Intl.NumberFormat(locale === 'fa' ? 'fa-IR' : 'en-US'),
     [locale],
   );
+  /** Books that pass the rail/chip filters; search and sort run on top. */
+  const filteredBooks = useMemo(
+    () =>
+      books.filter(
+        (book) =>
+          (statusFilter === 'all' || statusOfBook(book.id, readingStates) === statusFilter) &&
+          (formatFilter === 'all' || book.format === formatFilter),
+      ),
+    [books, formatFilter, readingStates, statusFilter],
+  );
   const visibleBooks = useMemo(
-    () => filterAndSortBooks(books, query, sort, collator, { tags: tagFilter }),
-    [books, query, sort, collator, tagFilter],
+    () => filterAndSortBooks(filteredBooks, query, sort, collator, { tags: tagFilter }),
+    [filteredBooks, query, sort, collator, tagFilter],
+  );
+  const statusCounts = useMemo(() => {
+    const counts: Record<ReadingStatus | 'all', number> = {
+      all: books.length,
+      unread: 0,
+      reading: 0,
+      finished: 0,
+    };
+    for (const book of books) counts[statusOfBook(book.id, readingStates)] += 1;
+    return counts;
+  }, [books, readingStates]);
+  const formatCounts = useMemo(() => {
+    const counts = new Map<BookRecord['format'], number>();
+    for (const book of books) counts.set(book.format, (counts.get(book.format) ?? 0) + 1);
+    return counts;
+  }, [books]);
+  /** What the Continue strip shows: started, not finished, newest first. */
+  const continueItems = useMemo<ContinueItem[]>(
+    () =>
+      Object.values(readingStates)
+        .filter((state) => state.status === 'reading' && state.fraction > 0)
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, 4)
+        .map((state) => {
+          const book = books.find((entry) => entry.id === state.bookId);
+          return book ? { book, fraction: state.fraction } : null;
+        })
+        .filter((item): item is ContinueItem => item !== null),
+    [books, readingStates],
   );
   // Grouped sections only when the library actually uses categories.
   const hasCategories = useMemo(
@@ -578,7 +629,7 @@ export const App = () => {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const renderBookCard = (book: BookRecord) => {
+  const renderGridCard = (book: BookRecord) => {
     // Reading progress comes from the reading store, not the record; the card
     // only shows it once the book has actually been opened.
     const fraction = readingStates[book.id]?.fraction ?? 0;
@@ -652,6 +703,22 @@ export const App = () => {
     );
   };
 
+  const renderBookRow = (book: BookRecord) => (
+    <BookRow
+      key={book.id}
+      book={book}
+      locale={locale}
+      fraction={readingStates[book.id]?.fraction ?? 0}
+      hasFile={fileHashes.has(book.hash)}
+      opening={openingBookId === book.id}
+      downloading={downloadingHash === book.hash}
+      onOpen={() => void openReader(book)}
+      onEdit={() => setEditingBookId(book.id)}
+      onRemove={() => setRemovingBookId(book.id)}
+      onDownload={() => void downloadBookFile(book)}
+    />
+  );
+
   const openFile = readerSession ? getBookFile(readerSession.book.hash) : null;
   if (videoSession) {
     return (
@@ -712,61 +779,26 @@ export const App = () => {
             onClose={() => setAudioSession(null)}
           />
         ) : null}
-        <header className="masthead">
-          <div>
-            <p className="eyebrow">{t('app.eyebrow')}</p>
-            <h1>{t('app.title')}</h1>
-            <p className="lede">{t('app.lede')}</p>
+        <header className="topbar">
+          <div className="topbar-brand">
+            <h1 className="topbar-title">{t('app.title')}</h1>
+            <span className="topbar-sub">{t('app.eyebrow')}</span>
           </div>
-          <div className="masthead-actions">
-            <button type="button" className="locale-toggle" onClick={toggleLocale}>
-              {t('app.switch')}
-            </button>
-            <button
-              type="button"
-              className="locale-toggle"
-              aria-label={t('settings.title')}
-              onClick={() => setSettingsOpen(true)}
+
+          <search className="topbar-search">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              aria-hidden="true"
             >
-              {t('settings.open')}
-            </button>
-          </div>
-        </header>
-
-        <section
-          className={isDragging ? 'library is-dragging' : 'library'}
-          aria-labelledby="library-heading"
-          aria-busy={isImporting}
-          onDragOver={handleDragOver}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-        >
-          <div className="library-header">
-            <h2 id="library-heading">{t('library.heading')}</h2>
-            <div className="library-import-actions">
-              <button
-                type="button"
-                className="import-button"
-                onClick={() => setUrlImportOpen(true)}
-                disabled={isImporting}
-              >
-                {t('library.addFromUrl')}
-              </button>
-              <label className={isImporting ? 'import-button is-busy' : 'import-button'}>
-                {isImporting ? t('library.importing') : t('library.import')}
-                <input
-                  className="visually-hidden"
-                  type="file"
-                  accept=".epub,.pdf,.md,.markdown,.mp3,.m4b,.m4a,.flac,.ogg,.opus,.mp4,.mkv,.webm,application/epub+zip,application/pdf,text/markdown,audio/*,video/*"
-                  multiple
-                  disabled={isImporting}
-                  onChange={handleInputChange}
-                />
-              </label>
-            </div>
-          </div>
-
-          <div className="library-tools">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
             <input
               ref={searchRef}
               type="search"
@@ -776,48 +808,181 @@ export const App = () => {
               value={query}
               onChange={(event) => setQuery(event.currentTarget.value)}
             />
-            <select
-              className="sort-select"
-              aria-label={t('library.sort')}
-              value={sort}
-              onChange={(event) => setSort(event.currentTarget.value as BookSort)}
-            >
-              <option value="recent">{t('library.sortRecent')}</option>
-              <option value="title">{t('library.sortTitle')}</option>
-              <option value="author">{t('library.sortAuthor')}</option>
-            </select>
+          </search>
+
+          <div className="topbar-actions">
             <button
               type="button"
-              className="view-toggle"
-              onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+              className="ghost-button is-url"
+              onClick={() => setUrlImportOpen(true)}
+              disabled={isImporting}
             >
-              {viewMode === 'grid' ? t('library.listView') : t('library.gridView')}
+              {t('library.addFromUrl')}
             </button>
-            {books.length > 0 ? (
+            <label className={isImporting ? 'import-button is-busy' : 'import-button'}>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              <span className="import-label">
+                {isImporting ? t('library.importing') : t('library.import')}
+              </span>
+              <span className="import-label-short">
+                {isImporting ? t('library.importing') : t('library.importShort')}
+              </span>
+              <input
+                className="visually-hidden"
+                type="file"
+                accept=".epub,.pdf,.md,.markdown,.mp3,.m4b,.m4a,.flac,.ogg,.opus,.mp4,.mkv,.webm,application/epub+zip,application/pdf,text/markdown,audio/*,video/*"
+                multiple
+                disabled={isImporting}
+                onChange={handleInputChange}
+              />
+            </label>
+            <button type="button" className="ghost-button locale-toggle" onClick={toggleLocale}>
+              {t('app.switch')}
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={t('settings.title')}
+              title={t('settings.title')}
+              onClick={() => setSettingsOpen(true)}
+            >
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.86a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9c.12.62.63 1.03 1.26 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51.97Z" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <section
+          className={[
+            'library',
+            isDragging ? 'is-dragging' : '',
+            viewMode === 'list' ? 'is-list' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          aria-labelledby="library-heading"
+          aria-busy={isImporting}
+          onDragOver={handleDragOver}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+        >
+          <h2 id="library-heading" className="visually-hidden">
+            {t('library.heading')}
+          </h2>
+
+          <div className="library-toolbar">
+            <fieldset className="filter-chips chip-status" aria-label={t('library.statusFilter')}>
+              {(
+                [
+                  ['all', 'library.statusAll', statusCounts.all],
+                  ['reading', 'library.statusReading', statusCounts.reading],
+                  ['finished', 'library.statusFinished', statusCounts.finished],
+                  ['unread', 'library.statusUnread', statusCounts.unread],
+                ] as const
+              ).map(([value, key, count]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={statusFilter === value ? 'chip is-selected' : 'chip'}
+                  aria-pressed={statusFilter === value}
+                  onClick={() => setStatusFilter(value)}
+                >
+                  {t(key)}
+                  <span className="chip-count">{numberFormat.format(count)}</span>
+                </button>
+              ))}
+            </fieldset>
+
+            <fieldset className="filter-chips is-formats" aria-label={t('library.formatFilter')}>
+              {(
+                [
+                  ['epub', 'EPUB'],
+                  ['pdf', 'PDF'],
+                  ['audio', 'library.audio'],
+                  ['video', 'library.video'],
+                ] as const
+              )
+                .filter(([value]) => (formatCounts.get(value) ?? 0) > 0)
+                .map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={formatFilter === value ? 'chip is-selected' : 'chip'}
+                    aria-pressed={formatFilter === value}
+                    onClick={() => setFormatFilter(formatFilter === value ? 'all' : value)}
+                  >
+                    {label.startsWith('library.') ? t(label) : label}
+                  </button>
+                ))}
+            </fieldset>
+
+            <div className="toolbar-end">
+              <select
+                className="sort-select"
+                aria-label={t('library.sort')}
+                value={sort}
+                onChange={(event) => setSort(event.currentTarget.value as BookSort)}
+              >
+                <option value="recent">{t('library.sortRecent')}</option>
+                <option value="title">{t('library.sortTitle')}</option>
+                <option value="author">{t('library.sortAuthor')}</option>
+              </select>
               <button
                 type="button"
                 className="view-toggle"
-                onClick={() => setCategoryAction({ type: 'create', name: '' })}
+                onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
               >
-                {t('library.newCategory')}
+                {viewMode === 'grid' ? t('library.listView') : t('library.gridView')}
               </button>
-            ) : null}
-            {hasSyncProvider ? (
-              <button
-                type="button"
-                className={syncState === 'failed' ? 'view-toggle is-sync-failed' : 'view-toggle'}
-                disabled={syncState === 'syncing'}
-                onClick={() => void runLibrarySync()}
-              >
-                {syncState === 'syncing'
-                  ? t('library.syncing')
-                  : syncState === 'done'
-                    ? t('library.syncDone')
-                    : syncState === 'failed'
-                      ? t('library.syncFailed')
-                      : t('library.syncNow')}
-              </button>
-            ) : null}
+              {books.length > 0 ? (
+                <button
+                  type="button"
+                  className="view-toggle"
+                  onClick={() => setCategoryAction({ type: 'create', name: '' })}
+                >
+                  {t('library.newCategory')}
+                </button>
+              ) : null}
+              {hasSyncProvider ? (
+                <button
+                  type="button"
+                  className={syncState === 'failed' ? 'view-toggle is-sync-failed' : 'view-toggle'}
+                  disabled={syncState === 'syncing'}
+                  onClick={() => void runLibrarySync()}
+                >
+                  {syncState === 'syncing'
+                    ? t('library.syncing')
+                    : syncState === 'done'
+                      ? t('library.syncDone')
+                      : syncState === 'failed'
+                        ? t('library.syncFailed')
+                        : t('library.syncNow')}
+                </button>
+              ) : null}
+            </div>
           </div>
 
           {books.length > 0 ? (
@@ -862,157 +1027,175 @@ export const App = () => {
             </p>
           ) : null}
 
+          <ContinueReading
+            items={continueItems}
+            locale={locale}
+            onOpen={(book) => void openReader(book)}
+          />
+
           {books.length === 0 ? (
             <div className="empty">
               <p className="empty-title">{t('library.empty')}</p>
               <p className="hint">{t('library.drop')}</p>
             </div>
-          ) : visibleBooks.length === 0 ? (
-            <div className="empty">
-              <p className="empty-title">{t('library.noResults')}</p>
-            </div>
-          ) : hasCategories ? (
-            <div className="book-groups">
-              {categoryRows.map(({ node, depth }) => {
-                const collapsed = collapsedGroups.includes(node.key);
-                // The section is a drag-and-drop target, not a control;
-                // keyboard and touch users reorder with the move buttons.
-                // Drops are accepted only between siblings.
-                return (
-                  // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop target
-                  <section
-                    key={node.key}
-                    className="book-group"
-                    data-depth={depth}
-                    style={
-                      depth > 0
-                        ? { marginInlineStart: `calc(${depth} * var(--hamesh-space-3))` }
-                        : undefined
-                    }
-                    onDragOver={(event) => {
-                      if (dragCategory === null || dragCategory === node.path) return;
-                      if (!siblingCategoryPaths(categoryRoots, node.path).includes(dragCategory)) {
-                        return;
-                      }
-                      event.preventDefault();
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      if (dragCategory === null || dragCategory === node.path) return;
-                      reorderCategoryBefore(dragCategory, node.path);
-                      setDragCategory(null);
-                    }}
-                  >
-                    <div className="book-group-header">
-                      <button
-                        type="button"
-                        className="book-group-toggle"
-                        aria-expanded={!collapsed}
-                        draggable
-                        onDragStart={(event) => {
-                          setDragCategory(node.path);
-                          event.dataTransfer.effectAllowed = 'move';
-                          event.dataTransfer.setData('text/plain', node.path);
-                        }}
-                        onDragEnd={() => setDragCategory(null)}
-                        onClick={() => toggleGroup(node.key)}
-                      >
-                        <span className="book-group-chevron" aria-hidden="true">
-                          {collapsed ? '▸' : '▾'}
-                        </span>
-                        <span dir="auto">{node.name}</span>
-                        <span className="book-group-count">
-                          {t('library.groupCount', {
-                            count: node.total,
-                            total: numberFormat.format(node.total),
-                          })}
-                        </span>
-                      </button>
-                      <div className="book-group-actions">
-                        <button
-                          type="button"
-                          className="text-button"
-                          aria-label={t('library.addSubcategory')}
-                          title={t('library.addSubcategory')}
-                          onClick={() =>
-                            setCategoryAction({ type: 'create', name: '', parent: node.path })
-                          }
-                        >
-                          +
-                        </button>
-                        <button
-                          type="button"
-                          className="text-button"
-                          aria-label={t('library.moveCategoryUp')}
-                          onClick={() => moveCategoryBy(node.path, -1)}
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          className="text-button"
-                          aria-label={t('library.moveCategoryDown')}
-                          onClick={() => moveCategoryBy(node.path, 1)}
-                        >
-                          ↓
-                        </button>
-                        <button
-                          type="button"
-                          className="text-button"
-                          onClick={() => setCategoryAction({ type: 'rename', name: node.path })}
-                        >
-                          {t('library.renameCategory')}
-                        </button>
-                        <button
-                          type="button"
-                          className="text-button"
-                          onClick={() => setCategoryAction({ type: 'delete', name: node.path })}
-                        >
-                          {t('library.deleteCategory')}
-                        </button>
-                      </div>
-                    </div>
-                    {collapsed ? null : (
-                      <ul className={viewMode === 'list' ? 'book-grid is-list' : 'book-grid'}>
-                        {node.books.map(renderBookCard)}
-                      </ul>
-                    )}
-                  </section>
-                );
-              })}
-              {uncategorizedGroup ? (
-                <section key={uncategorizedGroup.key} className="book-group">
-                  <div className="book-group-header">
-                    <button
-                      type="button"
-                      className="book-group-toggle"
-                      aria-expanded={!collapsedGroups.includes(uncategorizedGroup.key)}
-                      onClick={() => toggleGroup(uncategorizedGroup.key)}
-                    >
-                      <span className="book-group-chevron" aria-hidden="true">
-                        {collapsedGroups.includes(uncategorizedGroup.key) ? '▸' : '▾'}
-                      </span>
-                      <span dir="auto">{t('library.uncategorized')}</span>
-                      <span className="book-group-count">
-                        {t('library.groupCount', {
-                          count: uncategorizedGroup.books.length,
-                          total: numberFormat.format(uncategorizedGroup.books.length),
-                        })}
-                      </span>
-                    </button>
-                  </div>
-                  {collapsedGroups.includes(uncategorizedGroup.key) ? null : (
-                    <ul className={viewMode === 'list' ? 'book-grid is-list' : 'book-grid'}>
-                      {uncategorizedGroup.books.map(renderBookCard)}
-                    </ul>
-                  )}
-                </section>
-              ) : null}
-            </div>
           ) : (
-            <ul className={viewMode === 'list' ? 'book-grid is-list' : 'book-grid'}>
-              {visibleBooks.map(renderBookCard)}
-            </ul>
+            <div className="library-body">
+              {viewMode === 'list' ? (
+                <aside className="library-rail" aria-label={t('library.heading')}>
+                  <p className="rail-title">{t('library.heading')}</p>
+                  <ul className="rail-nav">
+                    {(
+                      [
+                        ['all', 'library.statusAll', statusCounts.all],
+                        ['reading', 'library.statusReading', statusCounts.reading],
+                        ['finished', 'library.statusFinished', statusCounts.finished],
+                        ['unread', 'library.statusUnread', statusCounts.unread],
+                      ] as const
+                    ).map(([value, key, count]) => (
+                      <li key={value}>
+                        <button
+                          type="button"
+                          aria-current={statusFilter === value}
+                          onClick={() => setStatusFilter(value)}
+                        >
+                          {t(key)}
+                          <span className="rail-count">{numberFormat.format(count)}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="rail-note">{t('library.railNote')}</p>
+                </aside>
+              ) : null}
+
+              <div className="library-content">
+                {visibleBooks.length === 0 ? (
+                  <div className="empty">
+                    <p className="empty-title">{t('library.noResults')}</p>
+                  </div>
+                ) : hasCategories ? (
+                  <div className="book-groups">
+                    {categoryRows.map(({ node, depth }) => {
+                      const collapsed = collapsedGroups.includes(node.key);
+                      // The section is a drag-and-drop target, not a control;
+                      // keyboard and touch users reorder with the move buttons.
+                      // Drops are accepted only between siblings.
+                      return (
+                        // biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop target
+                        <section
+                          key={node.key}
+                          className="book-group"
+                          data-depth={depth}
+                          style={
+                            depth > 0
+                              ? { marginInlineStart: `calc(${depth} * var(--hamesh-space-3))` }
+                              : undefined
+                          }
+                          onDragOver={(event) => {
+                            if (dragCategory === null || dragCategory === node.path) return;
+                            if (
+                              !siblingCategoryPaths(categoryRoots, node.path).includes(dragCategory)
+                            ) {
+                              return;
+                            }
+                            event.preventDefault();
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            if (dragCategory === null || dragCategory === node.path) return;
+                            reorderCategoryBefore(dragCategory, node.path);
+                            setDragCategory(null);
+                          }}
+                        >
+                          <div className="book-group-header">
+                            <button
+                              type="button"
+                              className="book-group-toggle"
+                              aria-expanded={!collapsed}
+                              draggable
+                              onDragStart={(event) => {
+                                setDragCategory(node.path);
+                                event.dataTransfer.effectAllowed = 'move';
+                                event.dataTransfer.setData('text/plain', node.path);
+                              }}
+                              onDragEnd={() => setDragCategory(null)}
+                              onClick={() => toggleGroup(node.key)}
+                            >
+                              <span className="book-group-chevron" aria-hidden="true">
+                                {collapsed ? '▸' : '▾'}
+                              </span>
+                              <span dir="auto">{node.name}</span>
+                              <span className="book-group-count">
+                                {t('library.groupCount', {
+                                  count: node.total,
+                                  total: numberFormat.format(node.total),
+                                })}
+                              </span>
+                            </button>
+                            <CategoryActionsMenu
+                              onAddSubcategory={() =>
+                                setCategoryAction({ type: 'create', name: '', parent: node.path })
+                              }
+                              onMoveUp={() => moveCategoryBy(node.path, -1)}
+                              onMoveDown={() => moveCategoryBy(node.path, 1)}
+                              onRename={() =>
+                                setCategoryAction({ type: 'rename', name: node.path })
+                              }
+                              onDelete={() =>
+                                setCategoryAction({ type: 'delete', name: node.path })
+                              }
+                            />
+                          </div>
+                          {collapsed ? null : (
+                            <ul className={viewMode === 'list' ? 'book-grid is-list' : 'book-grid'}>
+                              {node.books.map((book) =>
+                                viewMode === 'list' ? renderBookRow(book) : renderGridCard(book),
+                              )}
+                            </ul>
+                          )}
+                        </section>
+                      );
+                    })}
+                    {uncategorizedGroup ? (
+                      <section key={uncategorizedGroup.key} className="book-group">
+                        <div className="book-group-header">
+                          <button
+                            type="button"
+                            className="book-group-toggle"
+                            aria-expanded={!collapsedGroups.includes(uncategorizedGroup.key)}
+                            onClick={() => toggleGroup(uncategorizedGroup.key)}
+                          >
+                            <span className="book-group-chevron" aria-hidden="true">
+                              {collapsedGroups.includes(uncategorizedGroup.key) ? '▸' : '▾'}
+                            </span>
+                            <span dir="auto">{t('library.uncategorized')}</span>
+                            <span className="book-group-count">
+                              {t('library.groupCount', {
+                                count: uncategorizedGroup.books.length,
+                                total: numberFormat.format(uncategorizedGroup.books.length),
+                              })}
+                            </span>
+                          </button>
+                        </div>
+                        {collapsedGroups.includes(uncategorizedGroup.key) ? null : (
+                          <ul className={viewMode === 'list' ? 'book-grid is-list' : 'book-grid'}>
+                            {uncategorizedGroup.books.map((book) =>
+                              viewMode === 'list' ? renderBookRow(book) : renderGridCard(book),
+                            )}
+                          </ul>
+                        )}
+                      </section>
+                    ) : null}
+                  </div>
+                ) : (
+                  <ul className={viewMode === 'list' ? 'book-grid is-list' : 'book-grid'}>
+                    {visibleBooks.map((book) =>
+                      viewMode === 'list' ? renderBookRow(book) : renderGridCard(book),
+                    )}
+                  </ul>
+                )}
+              </div>
+            </div>
           )}
 
           {query.trim().length >= 2 && contentMatches.length > 0 ? (

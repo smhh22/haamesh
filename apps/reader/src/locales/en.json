@@ -24,6 +24,8 @@
     "statusFinished": "Finished",
     "statusUnread": "Not started",
     "filters": "Filters",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
     "audio": "Audio",
     "video": "Video",
     "bookActions": "Book actions",

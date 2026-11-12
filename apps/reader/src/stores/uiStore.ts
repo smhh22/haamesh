@@ -30,6 +30,8 @@ interface UiStore {
   setTheme: (theme: UiTheme) => void;
   setLocale: (locale: UiLocale) => void;
   toggleGroup: (key: string) => void;
+  /** Replace the whole collapsed set (Expand/Collapse all). */
+  setCollapsedGroups: (keys: string[]) => void;
   addExtraCategory: (name: string) => void;
   renameExtraCategory: (from: string, to: string) => void;
   removeExtraCategory: (name: string) => void;
@@ -140,6 +142,16 @@ export const useUiStore = create<UiStore>((set) => ({
       const next = state.collapsedGroups.includes(key)
         ? state.collapsedGroups.filter((item) => item !== key)
         : [...state.collapsedGroups, key];
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next));
+      } catch {
+        // storage may be unavailable; the in-memory value still applies
+      }
+      return { collapsedGroups: next };
+    }),
+  setCollapsedGroups: (keys) =>
+    set((state) => {
+      const next = [...new Set(keys)];
       try {
         localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next));
       } catch {

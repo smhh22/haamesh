@@ -168,6 +168,7 @@ export const App = () => {
   }, []);
   const collapsedGroups = useUiStore((state) => state.collapsedGroups);
   const toggleGroup = useUiStore((state) => state.toggleGroup);
+  const setCollapsedGroups = useUiStore((state) => state.setCollapsedGroups);
   const extraCategories = useUiStore((state) => state.extraCategories);
   const addExtraCategory = useUiStore((state) => state.addExtraCategory);
   const renameExtraCategory = useUiStore((state) => state.renameExtraCategory);
@@ -315,6 +316,14 @@ export const App = () => {
     return rows;
   }, [categoryRoots, collapsedGroups]);
   const uncategorizedGroup = bookGroups.find((group) => group.category === null) ?? null;
+  /** Every group key that exists right now, for Collapse all. */
+  const allGroupKeys = useMemo(
+    () => [
+      ...categoryRows.map((row) => row.node.key),
+      ...(uncategorizedGroup ? [uncategorizedGroup.key] : []),
+    ],
+    [categoryRows, uncategorizedGroup],
+  );
   /** Manual order is the pre-order of the whole forest (collapsed or not). */
   const displayedCategoryPaths = useMemo(
     () => flattenCategoryPaths(categoryRoots),
@@ -1007,6 +1016,54 @@ export const App = () => {
                   </button>
                 ))}
               </fieldset>
+              {hasCategories ? (
+                <>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label={t('library.expandAll')}
+                    title={t('library.expandAll')}
+                    onClick={() => setCollapsedGroups([])}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M7 9l5-5 5 5" />
+                      <path d="M7 15l5 5 5-5" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label={t('library.collapseAll')}
+                    title={t('library.collapseAll')}
+                    onClick={() => setCollapsedGroups(allGroupKeys)}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M7 5l5 5 5-5" />
+                      <path d="M7 19l5-5 5 5" />
+                    </svg>
+                  </button>
+                </>
+              ) : null}
               {books.length > 0 ? (
                 <button
                   type="button"

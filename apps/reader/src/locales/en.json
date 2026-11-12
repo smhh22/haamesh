@@ -294,6 +294,8 @@
   },
   "settings": {
     "title": "Settings",
+    "backToReading": "Back to reading",
+    "preferences": "Preferences",
     "open": "Settings",
     "general": "General",
     "appearance": "Appearance",
@@ -319,7 +321,15 @@
     "startupTrace": "Startup trace",
     "startupTraceCopy": "Copy trace",
     "startupTraceCopied": "Copied",
-    "translation": "Translation"
+    "translation": "Translation",
+    "ledes": {
+      "general": "Language, theme, and the network path the app uses.",
+      "shortcuts": "Every key the library and the reader listen to.",
+      "translation": "The first provider that answers wins; keys stay in the OS keychain.",
+      "sync": "Only reading state syncs. Settings stay on this device.",
+      "updates": "Release channel and the installed version.",
+      "about": "Local-first by design: no accounts, no servers, no telemetry."
+    }
   },
   "shortcuts": {
     "title": "Keyboard shortcuts",

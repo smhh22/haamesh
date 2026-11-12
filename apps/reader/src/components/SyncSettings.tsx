@@ -23,13 +23,15 @@ import {
 interface SyncSettingsProps {
   /** The settings dialog renders its own section title; hide ours there. */
   showHeading?: boolean;
+  /** The settings page provides its own section lede; skip the inline one. */
+  showLede?: boolean;
 }
 
 /**
  * Sync settings with mirroring (ADR-0006): every enabled provider holds a full
  * replica. Passwords live in the OS keychain on desktop.
  */
-export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
+export const SyncSettings = ({ showHeading = true, showLede = true }: SyncSettingsProps) => {
   const { t, i18n } = useTranslation();
   const [config, setConfig] = useState<SyncConfig>(loadSyncConfig);
   const [message, setMessage] = useState('');
@@ -235,9 +237,9 @@ export const SyncSettings = ({ showHeading = true }: SyncSettingsProps) => {
           <h3>{t('sync.title')}</h3>
           <p className="hint">{t('sync.lede')}</p>
         </div>
-      ) : (
+      ) : showLede ? (
         <p className="hint sync-lede">{t('sync.lede')}</p>
-      )}
+      ) : null}
 
       {config.providers.length === 0 ? (
         <div className="sync-empty">

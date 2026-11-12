@@ -24,6 +24,7 @@
     "audio": "Audio",
     "video": "Video",
     "bookActions": "Book actions",
+    "openBook": "Open {{title}}",
     "categoryActions": "Category actions",
     "percent": "{{percent}}%",
     "railNote": "Your library stays on this device. Imported files are copied into the app's own storage.",

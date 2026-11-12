@@ -68,8 +68,15 @@ export const BookCover = ({ book, variant = 'cover', className }: BookCoverProps
         <img src={book.coverPath} alt="" />
       ) : (
         <span className="book-cover-fallback">
-          <span className="book-cover-title" dir="auto">
-            {book.title}
+          <span className="book-cover-heading">
+            <span className="book-cover-title" dir="auto">
+              {book.title}
+            </span>
+            {book.authors[0] ? (
+              <span className="book-cover-author" dir="auto">
+                {book.authors[0]}
+              </span>
+            ) : null}
           </span>
           <span className="book-cover-format">{label}</span>
         </span>

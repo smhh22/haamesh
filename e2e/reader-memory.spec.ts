@@ -26,7 +26,7 @@ test('releases the PDF worker when the reader closes', async ({ page }) => {
 
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(pdfFixture);
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
   });

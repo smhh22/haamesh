@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { expect, test } from '@playwright/test';
+import { expect, type Locator, test } from '@playwright/test';
 
 const fixture = fileURLToPath(new URL('./fixtures/sample.epub', import.meta.url));
 const englishFixture = fileURLToPath(new URL('./fixtures/english.epub', import.meta.url));
@@ -11,6 +11,12 @@ const markdownFixture = fileURLToPath(new URL('./fixtures/sample.md', import.met
 const audioFixture = fileURLToPath(new URL('./fixtures/sample.mp3', import.meta.url));
 const bigPdfFixture = fileURLToPath(new URL('./fixtures/book.pdf', import.meta.url));
 const videoFixture = fileURLToPath(new URL('./fixtures/lecture.webm', import.meta.url));
+
+/** Category header actions live in one overflow menu now. */
+const runCategoryAction = async (group: Locator, name: string) => {
+  await group.getByRole('button', { name: 'Category actions' }).click();
+  await group.getByRole('menuitem', { name }).click();
+};
 
 test('imports a Persian EPUB and opens the reader', async ({ page }) => {
   const pageErrors: string[] = [];
@@ -28,7 +34,7 @@ test('imports a Persian EPUB and opens the reader', async ({ page }) => {
   // Direction is no longer a card badge; the Persian language tag is.
   await expect(page.locator('.book-card').getByText('fa', { exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Library' })).toBeVisible();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
@@ -250,7 +256,7 @@ test('lays out a real mobile shelf and reader', async ({ page }) => {
   });
   expect(columns).toBe(2);
 
-  await page.getByRole('button', { name: 'Read' }).first().click();
+  await page.getByRole('button', { name: 'Read', exact: true }).first().click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
@@ -292,7 +298,7 @@ test('renames and deletes a category across its books', async ({ page }) => {
   await expect(group.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
   await expect(group.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
 
-  await group.getByRole('button', { name: 'Rename category' }).click();
+  await runCategoryAction(group, 'Rename category');
   const rename = page.getByRole('dialog', { name: 'Rename category' });
   await rename.getByLabel('Category name').fill('Classic novels');
   await rename.getByRole('button', { name: 'Save' }).click();
@@ -302,7 +308,7 @@ test('renames and deletes a category across its books', async ({ page }) => {
   await expect(renamed.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
   await expect(renamed.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
 
-  await renamed.getByRole('button', { name: 'Delete category' }).click();
+  await runCategoryAction(renamed, 'Delete category');
   const remove = page.getByRole('dialog', { name: 'Delete this category?' });
   await remove.getByRole('button', { name: 'Remove' }).click();
 
@@ -345,7 +351,7 @@ test('creates a category from the toolbar and keeps it when empty', async ({ pag
   await expect(reloaded).toHaveCount(1);
   await expect(reloaded.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
 
-  await reloaded.getByRole('button', { name: 'Delete category' }).click();
+  await runCategoryAction(reloaded, 'Delete category');
   await page
     .getByRole('dialog', { name: 'Delete this category?' })
     .getByRole('button', { name: 'Remove' })
@@ -376,23 +382,14 @@ test('reorders category sections and remembers the order', async ({ page }) => {
   await expect(names().first()).toHaveText('Alpha');
 
   // Move Zeta above Alpha with the button; the order survives a reload.
-  await page
-    .locator('.book-group', { hasText: 'Zeta' })
-    .getByRole('button', { name: 'Move category up' })
-    .click();
+  await runCategoryAction(page.locator('.book-group', { hasText: 'Zeta' }), 'Move category up');
   await expect(names().first()).toHaveText('Zeta');
 
   // From a fresh order, moving the FIRST category down must swap the two
   // (regression: a sparse order made this a no-op or jumped rows).
-  await page
-    .locator('.book-group', { hasText: 'Zeta' })
-    .getByRole('button', { name: 'Move category down' })
-    .click();
+  await runCategoryAction(page.locator('.book-group', { hasText: 'Zeta' }), 'Move category down');
   await expect(names().first()).toHaveText('Alpha');
-  await page
-    .locator('.book-group', { hasText: 'Zeta' })
-    .getByRole('button', { name: 'Move category up' })
-    .click();
+  await runCategoryAction(page.locator('.book-group', { hasText: 'Zeta' }), 'Move category up');
   await expect(names().first()).toHaveText('Zeta');
 
   await page.waitForTimeout(500);
@@ -498,11 +495,11 @@ test('keeps the last failed sync round visible', async ({ page }) => {
   // The library toolbar carries the same action: run a round and surface the
   // failure without opening settings.
   await dialog.getByRole('button', { name: 'Close' }).click();
-  const librarySync = page.locator('.library-tools').getByRole('button', { name: 'Sync now' });
+  const librarySync = page.locator('.library-toolbar').getByRole('button', { name: 'Sync now' });
   await expect(librarySync).toBeVisible();
   await librarySync.click();
   await expect(
-    page.locator('.library-tools').getByRole('button', { name: 'Sync failed' }),
+    page.locator('.library-toolbar').getByRole('button', { name: 'Sync failed' }),
   ).toBeVisible({ timeout: 15_000 });
 
   // The report is persisted, so reopening the app still explains the failure.
@@ -618,7 +615,7 @@ test('reports a missing book file instead of hiding the book', async ({ page }) 
     }
   });
 
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(
     page.getByText("This book's file is missing from Hāmesh storage. Import it again."),
   ).toBeVisible();
@@ -627,7 +624,7 @@ test('reports a missing book file instead of hiding the book', async ({ page }) 
 test('resumes at the saved position', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(fixture);
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
@@ -645,7 +642,7 @@ test('resumes at the saved position', async ({ page }) => {
   const saved = await progress.textContent();
 
   await page.getByRole('button', { name: 'Library' }).click();
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
@@ -654,7 +651,7 @@ test('resumes at the saved position', async ({ page }) => {
   await page.waitForTimeout(700);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toBeVisible();
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
@@ -673,7 +670,7 @@ test('filters the library and switches to list view', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'نمونه کتاب' })).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
@@ -700,7 +697,7 @@ test('filters the library and switches to list view', async ({ page }) => {
 test('navigates the TOC and changes reader settings', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(fixture);
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
@@ -774,7 +771,7 @@ test('navigates the TOC and changes reader settings', async ({ page }) => {
 const openReader = async (page: import('@playwright/test').Page) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(fixture);
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
@@ -843,7 +840,7 @@ test('creates a highlight and bookmark, then persists them', async ({ page }) =>
 
   await page.waitForTimeout(700);
   await page.reload();
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
@@ -895,7 +892,7 @@ test.describe('phone viewport', () => {
       );
     });
     await page.locator('input[type="file"]').setInputFiles(fixture);
-    await page.getByRole('button', { name: 'Read' }).click();
+    await page.getByRole('button', { name: 'Read', exact: true }).click();
     await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
       timeout: 15_000,
     });
@@ -956,7 +953,7 @@ test.describe('phone viewport', () => {
   test('turns pages and toggles the chrome with taps', async ({ page }) => {
     await page.goto('/');
     await page.locator('input[type="file"]').setInputFiles(fixture);
-    await page.getByRole('button', { name: 'Read' }).click();
+    await page.getByRole('button', { name: 'Read', exact: true }).click();
     await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
       timeout: 15_000,
     });
@@ -981,7 +978,7 @@ test('imports a Persian markdown file and reads it RTL', async ({ page }) => {
   await page.locator('input[type="file"]').setInputFiles(markdownFixture);
   await expect(page.getByRole('heading', { name: 'دفترچهٔ آزمون' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
@@ -996,7 +993,7 @@ test('imports and reads a PDF', async ({ page }) => {
   await page.locator('input[type="file"]').setInputFiles(pdfFixture);
   await expect(page.getByRole('heading', { name: 'Hamesh PDF Test' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
   });
@@ -1020,7 +1017,7 @@ test('imports and reads a PDF', async ({ page }) => {
 test('bookmarks PDF pages and lists them', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(pdfFixture);
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
@@ -1039,7 +1036,7 @@ test('bookmarks PDF pages and lists them', async ({ page }) => {
 test('detects PDF language and direction from the text layer', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(persianPdfFixture);
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
   });
@@ -1090,7 +1087,7 @@ test('lets the reader override PDF language and direction', async ({ page }) => 
 test('zooms a PDF with ctrl+wheel and shows highlight actions on right-click', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(pdfFixture);
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
   });
@@ -1130,7 +1127,7 @@ test('zooms a PDF with ctrl+wheel and shows highlight actions on right-click', a
 test('highlights PDF text and redraws it after reload', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(pdfFixture);
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
   });
@@ -1157,7 +1154,7 @@ test('highlights PDF text and redraws it after reload', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Library' }).click();
   await page.reload();
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
   });
@@ -1177,7 +1174,7 @@ test('resumes a multi-page PDF at the saved page', async ({ page }) => {
 
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(pdfFixture);
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
   });
@@ -1189,14 +1186,14 @@ test('resumes a multi-page PDF at the saved page', async ({ page }) => {
   await page.waitForTimeout(1000);
 
   await page.getByRole('button', { name: 'Library' }).click();
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
   });
   await expect(progress).toHaveText('Page 2 of 4');
 
   await page.reload();
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
   });
@@ -1276,7 +1273,7 @@ test('keeps highlights intact after changing font size', async ({ page }) => {
   // Reopening remounts the reader (fresh stage, fresh counter): the highlight
   // must be re-applied to the new document.
   await page.getByRole('button', { name: 'Library' }).click();
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
@@ -1318,7 +1315,7 @@ test('finds text inside book contents and opens the book', async ({ page }) => {
 test('applies the book direction when documents omit dir', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(nodirFixture);
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
@@ -1403,7 +1400,7 @@ test('the reader follows the app dark mode by default', async ({ page }) => {
     .click();
   await page.keyboard.press('Escape');
   await page.locator('input[type="file"]').setInputFiles(fixture);
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-theme', 'dark', {
     timeout: 15_000,
   });
@@ -1429,7 +1426,7 @@ test('hides zoom controls for EPUB but keeps them for PDF', async ({ page }) => 
 test('exposes PDF fit modes as pressed toggles', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(pdfFixture);
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
   });
@@ -1451,7 +1448,7 @@ test('imports an audio book and plays it in the player bar', async ({ page }) =>
   // Title and cover come from the embedded tags (ADR-0021).
   await expect(page.getByRole('heading', { name: 'Hāmesh Audio Test' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Listen' }).click();
+  await page.getByRole('button', { name: 'Listen', exact: true }).click();
   const bar = page.locator('.player-bar');
   await expect(bar).toBeVisible();
   await expect(page.locator('.player-title')).toHaveText('Hāmesh Audio Test');
@@ -1474,7 +1471,7 @@ test('imports an audio book and plays it in the player bar', async ({ page }) =>
 
   // The position persists through the reading state and restores on reopen.
   await page.reload();
-  await page.getByRole('button', { name: 'Listen' }).click();
+  await page.getByRole('button', { name: 'Listen', exact: true }).click();
   await expect(bar).toBeVisible();
   await expect.poll(currentTime, { timeout: 10_000 }).toBeGreaterThan(0.1);
   expect(pageErrors).toEqual([]);
@@ -1494,7 +1491,7 @@ test('keeps turning PDF pages under rapid taps and turns them with tap zones', a
   await touch.goto('/');
   await touch.locator('input[type="file"]').setInputFiles(bigPdfFixture);
   await expect(touch.getByRole('heading', { name: 'book', exact: true })).toBeVisible();
-  await touch.getByRole('button', { name: 'Read' }).click();
+  await touch.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(touch.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
   });
@@ -1530,7 +1527,7 @@ test('imports a video course and watches it with a persisted position', async ({
   await page.locator('input[type="file"]').setInputFiles(videoFixture);
   await expect(page.getByRole('heading', { name: 'lecture' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Watch' }).click();
+  await page.getByRole('button', { name: 'Watch', exact: true }).click();
   const video = page.locator('.video-stage video');
   await expect(video).toBeVisible();
 
@@ -1549,8 +1546,57 @@ test('imports a video course and watches it with a persisted position', async ({
   // The position persists through the reading state and restores on reopen.
   await page.waitForTimeout(300);
   await page.reload();
-  await page.getByRole('button', { name: 'Watch' }).click();
+  await page.getByRole('button', { name: 'Watch', exact: true }).click();
   await expect(video).toBeVisible();
   await expect.poll(currentTime, { timeout: 10_000 }).toBeGreaterThan(0.1);
   expect(pageErrors).toEqual([]);
+});
+
+test('catalog rows, continue strip, filters, and row menu', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture, pdfFixture]);
+  await expect(page.locator('.book-card')).toHaveCount(3);
+
+  await page.getByRole('button', { name: 'List view' }).click();
+  await expect(page.locator('.book-row')).toHaveCount(3);
+  // The row keeps the primary action explicit (tests and keyboard users rely
+  // on it); secondary actions live in the overflow menu.
+  const sampleRow = page.locator('.book-row', { hasText: 'Sample Book' });
+  await expect(sampleRow.getByRole('button', { name: 'Read', exact: true })).toBeVisible();
+
+  // Format chips narrow the catalog; clicking the active chip clears it.
+  await page.getByRole('button', { name: 'PDF', exact: true }).click();
+  await expect(page.locator('.book-row')).toHaveCount(1);
+  await page.getByRole('button', { name: 'PDF', exact: true }).click();
+  await expect(page.locator('.book-row')).toHaveCount(3);
+
+  // The rail filters by reading status.
+  const rail = page.locator('.library-rail');
+  await rail.getByRole('button', { name: /Not started/ }).click();
+  await expect(page.locator('.book-row')).toHaveCount(3);
+  await rail.getByRole('button', { name: /All books/ }).click();
+
+  // Open a book, turn a page, and come back: the Continue strip appears and
+  // the row carries its progress.
+  await sampleRow.getByRole('button', { name: 'Read', exact: true }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(700);
+  await page.getByRole('button', { name: 'Library' }).click();
+
+  await expect(page.locator('.continue-reading')).toBeVisible();
+  await expect(page.locator('.continue-item')).toHaveCount(1);
+  await expect(page.locator('.continue-item')).toContainText('Sample Book');
+  await expect(page.locator('.book-row', { hasText: 'Sample Book' })).toContainText('%');
+  await expect(rail.getByRole('button', { name: /Reading/ })).toContainText('1');
+
+  // The row menu keeps Edit reachable without three text links per line.
+  await page
+    .locator('.book-row', { hasText: 'Sample Book' })
+    .getByRole('button', { name: 'Book actions' })
+    .click();
+  await page.getByRole('menuitem', { name: 'Edit' }).click();
+  await expect(page.getByRole('dialog', { name: 'Book details' })).toBeVisible();
 });

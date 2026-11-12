@@ -3672,3 +3672,184 @@ body:has(.player-bar) .shell {
     display: none;
   }
 }
+
+/* ===== Direction 1 reader chrome =================================== */
+
+/* No header or footer rows: the reading stage owns the window and the
+   controls float above it. */
+.reader-shell {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+/* The old chrome used explicit rows; without this override the stage lands
+   in an implicit second row and collapses to zero height. */
+.reader-shell > .reader-main {
+  grid-row: 1;
+}
+
+.reader-shell .reader-stage {
+  /* Reserve the floating chrome's lanes so no line of text sits under the
+     back button or the pill. */
+  padding-block: 3.5rem 4.75rem;
+}
+
+.reader-back {
+  position: fixed;
+  inset-block-start: calc(1rem + var(--safe-area-inset-top, 0px));
+  inset-inline-start: calc(1rem + var(--safe-area-inset-inline-start, 0px));
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  block-size: 2.25rem;
+  padding-inline: 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hamesh-color-canvas) 82%, transparent);
+  backdrop-filter: blur(4px);
+  color: var(--hamesh-color-muted);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: opacity 160ms ease;
+}
+
+.reader-back:hover {
+  color: var(--hamesh-color-ink);
+  border-color: var(--hamesh-color-border);
+}
+
+.reader-back svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+[dir="rtl"] .reader-back svg {
+  transform: scaleX(-1);
+}
+
+.reader-pill {
+  position: fixed;
+  inset-block-end: calc(0.9rem + var(--safe-area-inset-bottom, 0px));
+  inset-inline: 0;
+  margin-inline: auto;
+  z-index: 35;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  inline-size: fit-content;
+  max-inline-size: calc(100vw - 1.5rem);
+  padding: 0.3rem;
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: 1.5rem;
+  background: color-mix(in srgb, var(--hamesh-color-surface) 92%, transparent);
+  box-shadow:
+    0 2px 6px rgb(20 22 26 / 0.08),
+    0 18px 40px -22px rgb(20 22 26 / 0.5);
+  backdrop-filter: blur(6px);
+  transition: opacity 160ms ease;
+}
+
+.pill-turns {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.reader-pill .reader-turn {
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  min-block-size: 2.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--hamesh-color-muted);
+}
+
+.reader-pill .reader-turn:hover {
+  color: var(--hamesh-color-ink);
+  background: color-mix(in srgb, var(--hamesh-color-accent) 8%, transparent);
+}
+
+.reader-pill .reader-turn svg {
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+}
+
+.pill-progress {
+  display: inline-flex;
+  align-items: center;
+  block-size: 2.5rem;
+  padding-inline: 0.6rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--hamesh-color-muted);
+  cursor: pointer;
+}
+
+.pill-progress:hover {
+  color: var(--hamesh-color-ink);
+  background: color-mix(in srgb, var(--hamesh-color-accent) 8%, transparent);
+}
+
+.pill-progress .reader-progress {
+  font-size: 0.75rem;
+}
+
+.pill-divider {
+  inline-size: 1px;
+  block-size: 1.25rem;
+  margin-inline: 0.25rem;
+  background: var(--hamesh-color-border);
+}
+
+.reader-pill .reader-action {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  min-block-size: 2.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--hamesh-color-muted);
+}
+
+.reader-pill .reader-action:hover {
+  color: var(--hamesh-color-ink);
+  background: color-mix(in srgb, var(--hamesh-color-accent) 8%, transparent);
+}
+
+.reader-pill .reader-action.is-selected {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--hamesh-color-accent) 14%, transparent);
+  color: var(--hamesh-color-accent);
+}
+
+.reader-seek-pop {
+  position: fixed;
+  inset-block-end: calc(4.6rem + var(--safe-area-inset-bottom, 0px));
+  inset-inline: 0;
+  margin-inline: auto;
+  z-index: 36;
+  inline-size: min(18rem, calc(100vw - 2rem));
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: 0.75rem;
+  background: var(--hamesh-color-surface);
+  box-shadow:
+    0 2px 6px rgb(20 22 26 / 0.08),
+    0 18px 40px -22px rgb(20 22 26 / 0.5);
+}
+
+.reader-seek-pop .reader-seek {
+  inline-size: 100%;
+}
+
+.reader-shell.is-immersive .reader-back,
+.reader-shell.is-immersive .reader-pill,
+.reader-shell.is-immersive .reader-seek-pop {
+  display: none;
+}

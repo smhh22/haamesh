@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import {
   type BookNoteRecord,
   type BookRecord,
+  createDictionaryCacheRepository,
   createSqlStorage,
   createSyncClockRepository,
   type LibrarySnapshot,
@@ -246,6 +247,77 @@ describe('SQL repositories', () => {
 
     await clocks.remove(['book:book-2:deleted']);
     expect(await clocks.list()).toEqual({ 'book:book-1': '0003:0' });
+  });
+
+  it('round-trips dictionary hits and misses, pruning expired and excess rows', async () => {
+    const cache = createDictionaryCacheRepository(await openDb());
+    await cache.set({
+      key: 'کتاب',
+      source: 'wiktionary-native',
+      entryJson: '{"title":"کتاب"}',
+      errorCode: null,
+      expiresAt: 1000,
+      createdAt: 10,
+    });
+    await cache.set({
+      key: 'zzz',
+      source: null,
+      entryJson: null,
+      errorCode: 'NO_DEFINITION',
+      expiresAt: 2000,
+      createdAt: 20,
+    });
+
+    expect(await cache.get('کتاب')).toMatchObject({
+      key: 'کتاب',
+      source: 'wiktionary-native',
+      entryJson: '{"title":"کتاب"}',
+      errorCode: null,
+    });
+    expect(await cache.get('zzz')).toMatchObject({
+      source: null,
+      entryJson: null,
+      errorCode: 'NO_DEFINITION',
+    });
+    expect(await cache.get('missing')).toBeNull();
+    expect(await cache.count()).toBe(2);
+
+    // A second hit for the same word replaces the row instead of duplicating it.
+    await cache.set({
+      key: 'کتاب',
+      source: 'wikipedia-summary',
+      entryJson: '{"title":"کتاب (۲)"}',
+      errorCode: null,
+      expiresAt: 3000,
+      createdAt: 30,
+    });
+    expect(await cache.count()).toBe(2);
+    expect((await cache.get('کتاب'))?.source).toBe('wikipedia-summary');
+
+    await cache.pruneExpired(2500);
+    expect(await cache.count()).toBe(1);
+    expect(await cache.get('zzz')).toBeNull();
+
+    await cache.remove('کتاب');
+    expect(await cache.count()).toBe(0);
+
+    for (let index = 0; index < 3; index += 1) {
+      await cache.set({
+        key: `word-${index}`,
+        source: 'wiktionary-definition',
+        entryJson: '{}',
+        errorCode: null,
+        expiresAt: 5000,
+        createdAt: index,
+      });
+    }
+    await cache.prune(2);
+    expect(await cache.count()).toBe(2);
+    expect(await cache.get('word-0')).toBeNull();
+    expect(await cache.get('word-2')).not.toBeNull();
+
+    await cache.clear();
+    expect(await cache.count()).toBe(0);
   });
 });
 

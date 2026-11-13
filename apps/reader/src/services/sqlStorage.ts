@@ -1,8 +1,10 @@
 import type { DataStorePort } from '@hamesh/platform';
 import {
+  createDictionaryCacheRepository,
   createSqlStorage,
   createSyncClockRepository,
   createTranslationCacheRepository,
+  type DictionaryCacheRepository,
   type LibrarySnapshot,
   migrate,
   migrateJsonSnapshot,
@@ -21,6 +23,8 @@ export interface ActiveStorage {
   clocks: SyncClockRepository;
   /** Device-local translation cache (ADR-0016); never synced. */
   translationCache: TranslationCacheRepository;
+  /** Device-local dictionary cache (ADR-0024); never synced. */
+  dictionaryCache: DictionaryCacheRepository;
   migrate: () => Promise<void>;
   migrateJson: (snapshot: LibrarySnapshot) => Promise<void>;
   flush: () => Promise<void>;
@@ -121,6 +125,7 @@ const buildActiveStorage = async (
     storage: createSqlStorage(db),
     clocks: createSyncClockRepository(db),
     translationCache: createTranslationCacheRepository(db),
+    dictionaryCache: createDictionaryCacheRepository(db),
     migrate: () => migrate(db),
     migrateJson: (value) => migrateJsonSnapshot(db, value),
     flush,

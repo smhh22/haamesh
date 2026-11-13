@@ -46,7 +46,7 @@ describe('storage migrations', () => {
     const db = port(new SQL.Database());
     await migrate(db);
 
-    expect(await version(db)).toBe(6);
+    expect(await version(db)).toBe(7);
     expect(await columns(db)).toEqual(expect.arrayContaining(['category', 'tags_json']));
     for (const table of [
       'sync_clocks',
@@ -79,7 +79,7 @@ describe('storage migrations', () => {
 
     await migrate(db);
 
-    expect(await version(db)).toBe(6);
+    expect(await version(db)).toBe(7);
     expect(await columns(db)).toEqual(expect.arrayContaining(['category', 'tags_json']));
     const rows = await db.all<{ title: string; category: string | null; tags_json: string }>(
       'SELECT title, category, tags_json FROM books WHERE id = ?',
@@ -92,6 +92,6 @@ describe('storage migrations', () => {
     const db = port(new SQL.Database());
     await migrate(db);
     await migrate(db);
-    expect(await version(db)).toBe(6);
+    expect(await version(db)).toBe(7);
   });
 });

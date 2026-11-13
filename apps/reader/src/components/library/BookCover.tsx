@@ -53,7 +53,11 @@ export const BookCover = ({ book, variant = 'cover', className }: BookCoverProps
         style={{ '--cover-a': tint.background, '--cover-b': tint.ink } as CSSProperties}
         aria-hidden="true"
       >
-        {book.title.trim().charAt(0).toLocaleUpperCase() || '?'}
+        {book.coverPath ? (
+          <img src={book.coverPath} alt="" />
+        ) : (
+          book.title.trim().charAt(0).toLocaleUpperCase() || '?'
+        )}
       </span>
     );
   }

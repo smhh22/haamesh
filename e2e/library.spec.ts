@@ -1550,6 +1550,10 @@ test('catalog rows, continue strip, filters, and row menu', async ({ page }) => 
 
   await page.getByRole('button', { name: 'List view' }).click();
   await expect(page.locator('.book-row')).toHaveCount(3);
+  // Real cover art shows in rows too; the thumb falls back to a letter.
+  await expect(
+    page.locator('.book-row', { hasText: 'نمونه کتاب' }).locator('.book-cover img'),
+  ).toBeVisible();
   // The row keeps the primary action explicit (tests and keyboard users rely
   // on it); secondary actions live in the overflow menu.
   const sampleRow = page.locator('.book-row', { hasText: 'Sample Book' });
@@ -1619,4 +1623,32 @@ test('shelves view features a book and shelves each category', async ({ page }) 
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 15_000,
   });
+});
+
+test('expand and collapse all category sections', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+  await expect(page.getByRole('heading', { name: 'Sample Book' })).toBeVisible();
+
+  await chooseBookAction(page.locator('.book-card', { hasText: 'Sample Book' }), 'Edit');
+  const dialog = page.getByRole('dialog', { name: 'Book details' });
+  await dialog.getByLabel('Category').selectOption('__new__');
+  await dialog.getByLabel('New category name').fill('Classics');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Collapse all' }).click();
+  await expect(page.locator('.book-group-toggle').first()).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  await expect(page.locator('.book-card')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Expand all' }).click();
+  await expect(page.locator('.book-group-toggle').first()).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('.book-card')).toHaveCount(2);
+
+  // The bulk choice persists like a manual toggle.
+  await page.reload();
+  await expect(page.locator('.book-card')).toHaveCount(2);
 });

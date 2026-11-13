@@ -24,6 +24,8 @@
     "statusFinished": "خوانده‌شده",
     "statusUnread": "خوانده‌نشده",
     "filters": "پالایش‌ها",
+    "expandAll": "باز کردن همه",
+    "collapseAll": "جمع کردن همه",
     "audio": "صوتی",
     "video": "ویدیو",
     "bookActions": "کارهای کتاب",

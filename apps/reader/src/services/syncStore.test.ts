@@ -73,6 +73,15 @@ const createFakeStorage = (repos: FakeRepos, clockMap: Map<string, string>): Act
       count: async () => 0,
       clear: async () => undefined,
     },
+    dictionaryCache: {
+      get: async () => null,
+      set: async () => undefined,
+      remove: async () => undefined,
+      pruneExpired: async () => undefined,
+      prune: async () => undefined,
+      count: async () => 0,
+      clear: async () => undefined,
+    },
     storage: {
       texts: {
         replace: async () => undefined,

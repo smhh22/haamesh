@@ -80,6 +80,8 @@ import type { ContentTextRepository } from './sql';
 
 export type {
   ContentTextRepository,
+  DictionaryCacheEntry,
+  DictionaryCacheRepository,
   SqlDatabase,
   SqlValue,
   SyncClockRepository,
@@ -88,6 +90,7 @@ export type {
 } from './sql';
 export {
   createContentTextRepository,
+  createDictionaryCacheRepository,
   createSqlStorage,
   createSyncClockRepository,
   createTranslationCacheRepository,

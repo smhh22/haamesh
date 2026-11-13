@@ -111,6 +111,46 @@ export interface TranslationCacheRepository {
   clear(): Promise<void>;
 }
 
+// ADR-0024: dictionary lookups are device-local and never synced. A row is
+// either a hit (entry_json) or a short-lived miss (error_code); the service
+// owns the TTLs and maps JSON back to DictionaryEntry.
+const AI_DICTIONARY_CACHE_TABLE = `CREATE TABLE IF NOT EXISTS ai_dictionary_cache (
+  key TEXT PRIMARY KEY,
+  source TEXT,
+  entry_json TEXT,
+  error_code TEXT,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ai_dictionary_cache_expiry
+  ON ai_dictionary_cache(expires_at);`;
+
+export interface DictionaryCacheEntry {
+  /** Normalized lookup word. */
+  key: string;
+  /** Winning source id from the lookup chain; null for a miss. */
+  source: string | null;
+  /** Serialized DictionaryEntry for a hit; null for a miss. */
+  entryJson: string | null;
+  /** DictionaryErrorCode for a miss; null for a hit. */
+  errorCode: string | null;
+  /** Absolute expiry in epoch milliseconds, owned by the caller. */
+  expiresAt: number;
+  createdAt: number;
+}
+
+export interface DictionaryCacheRepository {
+  get(key: string): Promise<DictionaryCacheEntry | null>;
+  set(entry: DictionaryCacheEntry): Promise<void>;
+  remove(key: string): Promise<void>;
+  /** Drop rows whose expiry has passed; called before reads/writes. */
+  pruneExpired(now: number): Promise<void>;
+  /** Drop the oldest rows above `maxEntries`. */
+  prune(maxEntries: number): Promise<void>;
+  count(): Promise<number>;
+  clear(): Promise<void>;
+}
+
 export const migrate = async (db: SqlDatabase): Promise<void> => {
   const rows = await db.all<{ user_version: number }>('PRAGMA user_version');
   const version = Number(rows[0]?.user_version ?? 0);
@@ -146,6 +186,11 @@ export const migrate = async (db: SqlDatabase): Promise<void> => {
   if (version < 6) {
     await db.exec(AI_TRANSLATION_CACHE_TABLE);
     await db.exec('PRAGMA user_version = 6');
+  }
+  // v7 adds the device-local dictionary cache (ADR-0024).
+  if (version < 7) {
+    await db.exec(AI_DICTIONARY_CACHE_TABLE);
+    await db.exec('PRAGMA user_version = 7');
   }
 };
 
@@ -487,6 +532,70 @@ export const createTranslationCacheRepository = (db: SqlDatabase): TranslationCa
   },
   async clear() {
     await db.run('DELETE FROM ai_translation_cache');
+  },
+});
+
+export const createDictionaryCacheRepository = (db: SqlDatabase): DictionaryCacheRepository => ({
+  async get(key) {
+    const rows = await db.all<{
+      key: string;
+      source: string;
+      entry_json: string | null;
+      error_code: string | null;
+      expires_at: number;
+      created_at: number;
+    }>(
+      `SELECT key, source, entry_json, error_code, expires_at, created_at
+       FROM ai_dictionary_cache WHERE key = ?`,
+      [key],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      key: row.key,
+      source: row.source,
+      entryJson: row.entry_json,
+      errorCode: row.error_code,
+      expiresAt: Number(row.expires_at),
+      createdAt: Number(row.created_at),
+    };
+  },
+  async set(entry) {
+    await db.run(
+      `INSERT INTO ai_dictionary_cache
+         (key, source, entry_json, error_code, expires_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET
+         source = excluded.source,
+         entry_json = excluded.entry_json,
+         error_code = excluded.error_code,
+         expires_at = excluded.expires_at,
+         created_at = excluded.created_at`,
+      [entry.key, entry.source, entry.entryJson, entry.errorCode, entry.expiresAt, entry.createdAt],
+    );
+  },
+  async remove(key) {
+    await db.run('DELETE FROM ai_dictionary_cache WHERE key = ?', [key]);
+  },
+  async pruneExpired(now) {
+    await db.run('DELETE FROM ai_dictionary_cache WHERE expires_at <= ?', [now]);
+  },
+  async prune(maxEntries) {
+    await db.run(
+      `DELETE FROM ai_dictionary_cache WHERE key NOT IN (
+         SELECT key FROM ai_dictionary_cache ORDER BY created_at DESC LIMIT ?
+       )`,
+      [Math.max(0, maxEntries)],
+    );
+  },
+  async count() {
+    const rows = await db.all<{ total: number }>(
+      'SELECT COUNT(*) AS total FROM ai_dictionary_cache',
+    );
+    return Number(rows[0]?.total ?? 0);
+  },
+  async clear() {
+    await db.run('DELETE FROM ai_dictionary_cache');
   },
 });
 

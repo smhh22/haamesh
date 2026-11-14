@@ -34,6 +34,7 @@ export {
 } from './pdfHighlights';
 export type { TextProfile } from './pdfLanguage';
 export { profilePdfText } from './pdfLanguage';
+export { limitRangeReads, MAX_CONCURRENT_RANGE_READS } from './pdfRangeLimit';
 export { isSanitizableMediaType, sanitizeEpubHtml } from './sanitize';
 
 /** Placeholder for the foliate-js reader boundary; import is implemented. */

@@ -2,6 +2,7 @@ import type { Locator, TocItem } from '@hamesh/core';
 import {
   applyPdfHighlights,
   isSanitizableMediaType,
+  limitRangeReads,
   PDF_OVERLAY_ID,
   type PdfHighlightDraft,
   pageTurnForKey,
@@ -719,7 +720,7 @@ export const ReaderView = ({
 
     void (async () => {
       try {
-        const parsed = await makeBook(file);
+        const parsed = await makeBook(isPdf ? limitRangeReads(file) : file);
         if (cancelled) {
           parsed.destroy();
           return;

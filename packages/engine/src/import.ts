@@ -5,6 +5,7 @@ import { resolveBookDirection } from './direction';
 import { ImportError } from './error';
 import { sha256Hex } from './hash';
 import { convertMarkdownToEpub, isMarkdownFile } from './markdown';
+import { limitRangeReads } from './pdfRangeLimit';
 
 export { ImportError, type ImportErrorCode } from './error';
 export { sha256Hex } from './hash';
@@ -74,7 +75,7 @@ const importBookWithFormat = async (file: File, format: BookFormat): Promise<Imp
 
   let book: Awaited<ReturnType<typeof makeBook>>;
   try {
-    book = await makeBook(file);
+    book = await makeBook(format === 'pdf' ? limitRangeReads(file) : file);
   } catch (cause) {
     throw new ImportError('PARSE_FAILED', 'Could not parse the book file.', { cause });
   }

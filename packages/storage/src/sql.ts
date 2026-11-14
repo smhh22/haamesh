@@ -1,5 +1,5 @@
 import type { Direction, Locator, ReadingStatus } from '@hamesh/core';
-import { normalizeForSearch } from '@hamesh/core';
+import { normalizeForSearch, normalizeForSearchWithOffsets } from '@hamesh/core';
 import type {
   BookNoteRecord,
   BookRecord,
@@ -386,13 +386,15 @@ export const searchBookTexts = (
   const out: Array<{ bookId: string; section: number; snippet: string }> = [];
   for (const row of rows) {
     if (out.length >= limit) break;
-    const normalized = normalizeForSearch(row.content);
+    const { text: normalized, offsets } = normalizeForSearchWithOffsets(row.content);
     const index = normalized.indexOf(needle);
     if (index < 0) continue;
-    // Normalization is length-preserving for the folded characters, so the
-    // normalized index maps onto the original text for the snippet window.
-    const start = Math.max(0, index - SNIPPET_RADIUS);
-    const end = Math.min(row.content.length, index + needle.length + SNIPPET_RADIUS);
+    // Normalization drops ZWNJ/diacritics, so map the match back through the
+    // offsets instead of assuming the index is unchanged.
+    const matchStart = offsets[index] ?? index;
+    const matchEnd = (offsets[index + needle.length - 1] ?? matchStart) + 1;
+    const start = Math.max(0, matchStart - SNIPPET_RADIUS);
+    const end = Math.min(row.content.length, matchEnd + SNIPPET_RADIUS);
     const snippet = `${start > 0 ? '…' : ''}${row.content.slice(start, end).replace(/\s+/g, ' ').trim()}${end < row.content.length ? '…' : ''}`;
     out.push({ bookId: row.bookId, section: row.section, snippet });
   }

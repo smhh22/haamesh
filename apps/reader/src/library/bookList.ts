@@ -1,3 +1,4 @@
+import { normalizeForSearch } from '@hamesh/core';
 import type { BookRecord } from '@hamesh/storage';
 
 export type BookSort = 'recent' | 'title' | 'author';
@@ -65,12 +66,10 @@ export const groupBooksByCategory = (
   return groups;
 };
 
-const normalize = (value: string): string =>
-  value.normalize('NFKC').replace(/[يى]/g, 'ی').replace(/ك/g, 'ک').toLocaleLowerCase();
-
 /**
- * Filter by title, author, or series and sort a copy. Persian search also
- * normalizes Arabic yeh/kaf variants so queries match regardless of keyboard.
+ * Filter by title, author, or series and sort a copy. The shared normalizer
+ * folds Arabic yeh/kaf variants and drops ZWNJ/diacritics, so a query matches
+ * regardless of keyboard or how the title was typed.
  */
 export const filterAndSortBooks = (
   books: BookRecord[],
@@ -79,7 +78,7 @@ export const filterAndSortBooks = (
   collator: Intl.Collator = new Intl.Collator(),
   filters: BookFilters = {},
 ): BookRecord[] => {
-  const needle = normalize(query.trim());
+  const needle = normalizeForSearch(query.trim());
   const selectedTags = filters.tags ?? [];
   const byTags =
     selectedTags.length === 0
@@ -88,7 +87,7 @@ export const filterAndSortBooks = (
   const filtered = needle
     ? byTags.filter((book) =>
         [book.title, ...book.authors, book.series ?? '', book.category ?? '', ...book.tags].some(
-          (value) => normalize(value).includes(needle),
+          (value) => normalizeForSearch(value).includes(needle),
         ),
       )
     : byTags;

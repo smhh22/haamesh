@@ -8,6 +8,25 @@ const rows = [
 ];
 
 describe('searchBookTexts', () => {
+  it('matches text across ZWNJ and diacritics on either side', () => {
+    const marked = [
+      { bookId: 'b3', section: 0, content: 'او هر روز به مدرسه می‌رود و کتاب می‌خواند.' },
+      { bookId: 'b4', section: 0, content: 'این کِتاب دربارهٔ تاریخ است.' },
+    ];
+    // Query without the ZWNJ matches content that has one.
+    expect(searchBookTexts(marked, 'میرود', 10).map((item) => item.bookId)).toEqual(['b3']);
+    // Query without the kasra matches content that has one.
+    expect(searchBookTexts(marked, 'کتاب', 10).map((item) => item.bookId)).toContain('b4');
+    // Query with a ZWNJ matches content that lacks one.
+    expect(searchBookTexts(rows, 'کتاب‌خوانی', 10).map((item) => item.bookId)).toEqual(['b2']);
+  });
+
+  it('cuts the snippet from the original text around a mark-dropped match', () => {
+    const marked = [{ bookId: 'b4', section: 0, content: 'این کِتاب دربارهٔ تاریخ است.' }];
+    const [hit] = searchBookTexts(marked, 'کتاب', 10);
+    expect(hit?.snippet).toContain('کِتاب');
+  });
+
   it('finds Persian text ignoring zero-width joins in the query', () => {
     const results = searchBookTexts(rows, 'کتاب', 10);
     expect(results.map((item) => item.bookId)).toContain('b1');

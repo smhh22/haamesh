@@ -1,4 +1,5 @@
 import type { BookRecord } from '@hamesh/storage';
+import type { DragEvent as ReactDragEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatAuthorList, primaryActionLabel } from '../../library/bookDisplay';
 import type { UiLocale } from '../../stores/uiStore';
@@ -18,6 +19,12 @@ interface BookCardProps {
   onEdit: () => void;
   onRemove: () => void;
   onDownload: () => void;
+  /** Set when the card can be filed into a group (ADR-0025). */
+  onAddToGroup?: () => void;
+  /** Dragging the card files it into a group drop target. */
+  draggable?: boolean;
+  onDragStart?: (event: ReactDragEvent) => void;
+  onDragEnd?: () => void;
 }
 
 /**
@@ -37,6 +44,10 @@ export const BookCard = ({
   onEdit,
   onRemove,
   onDownload,
+  onAddToGroup,
+  draggable,
+  onDragStart,
+  onDragEnd,
 }: BookCardProps) => {
   const { t } = useTranslation();
   const percentFormat = new Intl.NumberFormat(locale === 'fa' ? 'fa-IR' : 'en-US');
@@ -45,7 +56,12 @@ export const BookCard = ({
   const label = primaryActionLabel(book, t, opening, hasFile);
 
   return (
-    <li className={variant === 'shelf' ? 'book-card book-shelf-item' : 'book-card book-plate'}>
+    <li
+      className={variant === 'shelf' ? 'book-card book-shelf-item' : 'book-card book-plate'}
+      draggable={draggable || undefined}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+    >
       <button
         type="button"
         className="book-plate-cover"
@@ -87,6 +103,7 @@ export const BookCard = ({
             onEdit={onEdit}
             onRemove={onRemove}
             onDownload={onDownload}
+            onAddToGroup={onAddToGroup}
           />
         </div>
       </div>

@@ -1066,3 +1066,56 @@ describe('audio book blobs (ADR-0021)', () => {
     expect([...((await storeB.bookFile(sha))?.data ?? [])]).toEqual([1, 2, 3, 4]);
   });
 });
+
+describe('group records (ADR-0025)', () => {
+  it('propagates a group, membership, and its deletion', async () => {
+    const provider = createMemoryProvider();
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    const storeB = createMemoryStore('device-b', now);
+
+    await storeA.localEdit({
+      id: 'g1',
+      kind: 'group',
+      fields: { name: 'Lecture Notes', category: 'Calculus II', order: ['b1'] },
+      deleted: false,
+      updatedAt: 1000,
+    });
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+
+    wall = 2000;
+    const report = await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+    expect(report.ok).toBe(true);
+    const pulled = storeB.records.get('group:g1');
+    expect(pulled?.fields.name).toBe('Lecture Notes');
+    expect(pulled?.fields.order).toEqual(['b1']);
+
+    // Deleting the group tombstones it; the tombstone reaches device A.
+    wall = 3000;
+    await storeB.localEdit({ id: 'g1', kind: 'group', fields: {}, deleted: true, updatedAt: 3000 });
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+    }).sync();
+    await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    expect(storeA.records.get('group:g1')?.deleted).toBe(true);
+  });
+});

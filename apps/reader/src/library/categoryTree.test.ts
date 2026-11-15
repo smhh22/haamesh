@@ -23,6 +23,7 @@ const book = (id: string, category: string | null): BookRecord =>
     category,
     tags: [],
     filePath: `books/${id}.epub`,
+    groupId: null,
     coverPath: null,
     coverMime: null,
     addedAt: 0,
@@ -56,12 +57,12 @@ describe('buildCategoryTree', () => {
       collator,
     );
     expect(roots.map((node) => node.path)).toEqual(['Fiction', 'History']);
-    const fiction = roots[0]!;
-    expect(fiction.name).toBe('Fiction');
-    expect(fiction.books.map((item) => item.id)).toEqual(['b']);
-    expect(fiction.total).toBe(2);
-    expect(fiction.children[0]?.path).toBe('Fiction/Sci-Fi');
-    expect(fiction.children[0]?.total).toBe(1);
+    const [fiction] = roots;
+    expect(fiction?.name).toBe('Fiction');
+    expect(fiction?.books.map((item) => item.id)).toEqual(['b']);
+    expect(fiction?.total).toBe(2);
+    expect(fiction?.children[0]?.path).toBe('Fiction/Sci-Fi');
+    expect(fiction?.children[0]?.total).toBe(1);
   });
 
   it('orders siblings by the manual order, then the collator', () => {

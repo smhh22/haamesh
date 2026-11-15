@@ -16,6 +16,7 @@ const book = (hash: string): BookRecord => ({
   category: null,
   tags: [],
   filePath: `${hash}.epub`,
+  groupId: null,
   coverPath: null,
   addedAt: 0,
   updatedAt: 0,

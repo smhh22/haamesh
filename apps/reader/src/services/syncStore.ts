@@ -58,6 +58,7 @@ export const createSqlSyncStore = (
         direction: book.direction,
         category: book.category,
         tags: book.tags,
+        groupId: book.groupId,
         sha256: book.hash,
         ext: book.format,
         coverMime: book.coverMime,
@@ -96,6 +97,17 @@ export const createSqlSyncStore = (
     }));
   };
 
+  const listGroups = async (): Promise<SyncRecord[]> => {
+    const groups = await storage.groups.list();
+    return groups.map((group) => ({
+      id: group.id,
+      kind: 'group',
+      fields: { name: group.name, category: group.category, order: group.order },
+      deleted: false,
+      updatedAt: group.updatedAt,
+    }));
+  };
+
   /** Books deleted locally keep only a `book:<id>:deleted` clock tombstone. */
   const listBookTombstones = async (live: Set<string>): Promise<SyncRecord[]> => {
     const all = await clocks.list();
@@ -109,12 +121,34 @@ export const createSqlSyncStore = (
     return out;
   };
 
+  /** Groups deleted locally keep a `group:<id>:deleted` tombstone clock. */
+  const listGroupTombstones = async (live: Set<string>): Promise<SyncRecord[]> => {
+    const all = await clocks.list();
+    const out: SyncRecord[] = [];
+    for (const key of Object.keys(all)) {
+      const match = /^group:([^:]+):deleted$/.exec(key);
+      if (match?.[1] && !live.has(match[1])) {
+        out.push({ id: match[1], kind: 'group', fields: {}, deleted: true, updatedAt: 0 });
+      }
+    }
+    return out;
+  };
+
   return {
     async list() {
       const books = await listBooks();
       const live = new Set(books.map((book) => book.id));
       const tombstones = await listBookTombstones(live);
-      return [...books, ...(await listReading()), ...(await listNotes()), ...tombstones];
+      const groups = await listGroups();
+      const liveGroups = new Set(groups.map((group) => group.id));
+      return [
+        ...books,
+        ...(await listReading()),
+        ...(await listNotes()),
+        ...groups,
+        ...tombstones,
+        ...(await listGroupTombstones(liveGroups)),
+      ];
     },
 
     async apply(record) {
@@ -159,6 +193,12 @@ export const createSqlSyncStore = (
           tags: Array.isArray(fields.tags)
             ? (fields.tags as string[]).filter((tag) => typeof tag === 'string')
             : (existing?.tags ?? []),
+          groupId:
+            typeof fields.groupId === 'string'
+              ? fields.groupId
+              : fields.groupId === null
+                ? null
+                : (existing?.groupId ?? null),
           filePath: existing?.filePath ?? `books/${hash}.${format}`,
           coverPath: existing?.coverPath ?? null,
           coverMime:
@@ -178,6 +218,32 @@ export const createSqlSyncStore = (
           return;
         }
         await storage.books.upsert(book);
+        return;
+      }
+
+      if (record.kind === 'group') {
+        const fields = record.fields as Record<string, unknown>;
+        if (record.deleted) {
+          // Remove-wins (ADR-0006): the tombstone clears the shelf; members
+          // keep their books and files, only the membership link is dropped.
+          await storage.groups.clearMembers(record.id);
+          await storage.groups.remove(record.id);
+          return;
+        }
+        const existing = await storage.groups.get(record.id);
+        await storage.groups.upsert({
+          id: record.id,
+          name: typeof fields.name === 'string' ? fields.name : (existing?.name ?? record.id),
+          category:
+            fields.category === null || typeof fields.category === 'string'
+              ? (fields.category as string | null)
+              : (existing?.category ?? null),
+          order: Array.isArray(fields.order)
+            ? (fields.order as unknown[]).filter((id): id is string => typeof id === 'string')
+            : (existing?.order ?? []),
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        });
         return;
       }
 
@@ -262,7 +328,7 @@ export const createSqlSyncStore = (
       return { mime: book?.coverMime ?? 'image/jpeg', data };
     },
 
-    async saveCoverFile(sha256, mime, data) {
+    async saveCoverFile(sha256, _mime, data) {
       await dataStore.write(`covers/${sha256}`, data);
     },
   };

@@ -1,7 +1,13 @@
 import type { Direction } from '@hamesh/core';
 import { HybridLogicalClock } from '@hamesh/core';
 import type { DataStorePort } from '@hamesh/platform';
-import type { BookNoteRecord, BookRecord, LibrarySnapshot, ReadingState } from '@hamesh/storage';
+import type {
+  BookGroupRecord,
+  BookNoteRecord,
+  BookRecord,
+  LibrarySnapshot,
+  ReadingState,
+} from '@hamesh/storage';
 import { useLibraryStore } from '../stores/libraryStore';
 import { useNotesStore } from '../stores/notesStore';
 import { useReadingStore } from '../stores/readingStore';
@@ -24,9 +30,12 @@ const BOOK_SYNC_FIELDS = [
   'direction',
   'category',
   'tags',
+  'groupId',
   'sha256',
   'ext',
 ] as const;
+/** Group fields (ADR-0025); stamped on `group:<id>` like a book's fields. */
+const GROUP_SYNC_FIELDS = ['name', 'category', 'order'] as const;
 const NOTE_SYNC_FIELDS = ['bookId', 'type', 'locator', 'color', 'text', 'note'] as const;
 let store: DataStorePort | null = null;
 let activeStorage: ActiveStorage | null = null;
@@ -139,7 +148,7 @@ export const initLibraryPersistence = async (): Promise<void> => {
   if (!snapshot) return;
 
   const hydrated = await hydrateCovers(snapshot.books, store);
-  useLibraryStore.setState({ books: hydrated });
+  useLibraryStore.setState({ books: hydrated, groups: snapshot.groups ?? [] });
   useReadingStore.setState({ states: snapshot.reading ?? {} });
   useNotesStore.setState({ notes: snapshot.notes ?? [] });
 };
@@ -151,6 +160,7 @@ const persistNow = async (): Promise<void> => {
     books: useLibraryStore.getState().books.map((book) => ({ ...book, coverPath: null })),
     reading: useReadingStore.getState().states,
     notes: useNotesStore.getState().notes,
+    groups: useLibraryStore.getState().groups,
   };
   await store.write(MANIFEST, new TextEncoder().encode(JSON.stringify(snapshot)));
 };
@@ -195,6 +205,7 @@ export const persistBookOrganization = async (
     publisher?: string | null;
     category: string | null;
     tags: string[];
+    groupId?: string | null;
     language?: string | null;
     direction?: Direction;
   },
@@ -209,11 +220,90 @@ export const persistBookOrganization = async (
     if (organization.authors !== undefined) stamped.push('authors');
     if (organization.series !== undefined) stamped.push('series');
     if (organization.publisher !== undefined) stamped.push('publisher');
+    if (organization.groupId !== undefined) stamped.push('groupId');
     await stampFieldClocks(activeStorage.clocks, syncClock, `book:${book.id}`, stamped);
   }
   await activeStorage?.flush();
   // The JSON manifest remains the reload fallback; keep it in step.
   await persistNow();
+};
+
+/** Persist a group create/edit (name, category, member order) — ADR-0025. */
+export const persistGroup = async (group: BookGroupRecord): Promise<void> => {
+  const clock = syncClock;
+  await activeStorage?.storage.groups.upsert(group);
+  if (activeStorage && clock) {
+    await stampFieldClocks(activeStorage.clocks, clock, `group:${group.id}`, GROUP_SYNC_FIELDS);
+  }
+  useLibraryStore.getState().upsertGroup(group);
+  await activeStorage?.flush();
+  schedulePersist();
+};
+
+/**
+ * Delete a group (ADR-0025): the group tombstones for sync, membership on
+ * every book clears with its own field clock, and no book or file is touched.
+ */
+export const deleteGroupPersisted = async (group: BookGroupRecord): Promise<void> => {
+  const clock = syncClock;
+  if (activeStorage && clock) {
+    await stampRecordClock(activeStorage.clocks, clock, `group:${group.id}:deleted`);
+    await activeStorage.storage.groups.clearMembers(group.id);
+    const members = useLibraryStore.getState().books.filter((book) => book.groupId === group.id);
+    for (const book of members) {
+      await activeStorage.storage.books.upsert({ ...book, groupId: null, updatedAt: Date.now() });
+      await stampFieldClocks(activeStorage.clocks, clock, `book:${book.id}`, ['groupId']);
+    }
+    await activeStorage.storage.groups.remove(group.id);
+  }
+  useLibraryStore.getState().removeGroup(group.id);
+  await activeStorage?.flush();
+  schedulePersist();
+};
+
+/**
+ * File a book into a group (ADR-0025): membership plus the group's category
+ * (the shelf wins), both stamped on the book.
+ */
+export const addBookToGroupPersisted = async (
+  book: BookRecord,
+  group: BookGroupRecord,
+): Promise<void> => {
+  const clock = syncClock;
+  const stamped: string[] = ['groupId'];
+  if (book.category !== group.category) {
+    stamped.push('category');
+  }
+  const updated: BookRecord = {
+    ...book,
+    groupId: group.id,
+    category: group.category,
+    updatedAt: Date.now(),
+  };
+  if (activeStorage) {
+    await activeStorage.storage.books.upsert(updated);
+    if (clock) await stampFieldClocks(activeStorage.clocks, clock, `book:${book.id}`, stamped);
+  }
+  useLibraryStore.getState().updateBook(book.id, {
+    groupId: updated.groupId,
+    category: updated.category,
+    updatedAt: updated.updatedAt,
+  });
+  await activeStorage?.flush();
+  schedulePersist();
+};
+
+/** Remove a book from its group; the book stays in the group's category. */
+export const removeBookFromGroupPersisted = async (book: BookRecord): Promise<void> => {
+  const clock = syncClock;
+  const updated: BookRecord = { ...book, groupId: null, updatedAt: Date.now() };
+  if (activeStorage) {
+    await activeStorage.storage.books.upsert(updated);
+    if (clock) await stampFieldClocks(activeStorage.clocks, clock, `book:${book.id}`, ['groupId']);
+  }
+  useLibraryStore.getState().updateBook(book.id, { groupId: null, updatedAt: updated.updatedAt });
+  await activeStorage?.flush();
+  schedulePersist();
 };
 
 /**
@@ -299,12 +389,13 @@ export const reloadLibraryFromStorage = async (): Promise<void> => {
   const hydrated = await hydrateCovers(books, store);
   const reading = await activeStorage.storage.reading.list();
   const notes = await activeStorage.storage.notes.listAll();
+  const groups = await activeStorage.storage.groups.list();
   // Covers are replaced on every reload; release the previous blob URLs or a
   // long session leaks one cover per book per sync round.
   for (const book of useLibraryStore.getState().books) {
     if (book.coverPath?.startsWith('blob:')) URL.revokeObjectURL(book.coverPath);
   }
-  useLibraryStore.setState({ books: hydrated });
+  useLibraryStore.setState({ books: hydrated, groups });
   useReadingStore.setState({
     states: Object.fromEntries(reading.map((state) => [state.bookId, state])),
   });

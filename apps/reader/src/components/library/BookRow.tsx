@@ -1,4 +1,5 @@
 import type { BookRecord } from '@hamesh/storage';
+import type { DragEvent as ReactDragEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatAuthorList, primaryActionLabel } from '../../library/bookDisplay';
 import type { UiLocale } from '../../stores/uiStore';
@@ -16,6 +17,16 @@ interface BookRowProps {
   onEdit: () => void;
   onRemove: () => void;
   onDownload: () => void;
+  /** Set when the row can be filed into a group (ADR-0025). */
+  onAddToGroup?: () => void;
+  /** Set for members of a group in a flattened view. */
+  onRemoveFromGroup?: () => void;
+  /** Group name shown in the meta line when the member is surfaced. */
+  groupLabel?: string | null;
+  /** Dragging the row files it into a group drop target (ADR-0025). */
+  draggable?: boolean;
+  onDragStart?: (event: ReactDragEvent) => void;
+  onDragEnd?: () => void;
 }
 
 /**
@@ -35,6 +46,12 @@ export const BookRow = ({
   onEdit,
   onRemove,
   onDownload,
+  onAddToGroup,
+  onRemoveFromGroup,
+  groupLabel,
+  draggable,
+  onDragStart,
+  onDragEnd,
 }: BookRowProps) => {
   const { t } = useTranslation();
   const percentFormat = new Intl.NumberFormat(locale === 'fa' ? 'fa-IR' : 'en-US');
@@ -48,7 +65,12 @@ export const BookRow = ({
   const primaryLabel = primaryActionLabel(book, t, opening, hasFile);
 
   return (
-    <li className="book-card book-row">
+    <li
+      className="book-card book-row"
+      draggable={draggable || undefined}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+    >
       <BookCover book={book} variant="thumb" />
 
       <div className="book-row-text">
@@ -60,6 +82,11 @@ export const BookRow = ({
             {authors}
             {book.series ? ` · ${book.series}` : ''}
           </span>
+          {groupLabel ? (
+            <span className="group-path" title={groupLabel}>
+              {t('library.groupIn', { group: groupLabel })}
+            </span>
+          ) : null}
           <span className="format-chip">{FORMAT_LABEL[book.format]}</span>
           {book.language ? <span className="format-chip">{book.language}</span> : null}
         </p>
@@ -101,6 +128,8 @@ export const BookRow = ({
           onEdit={onEdit}
           onRemove={onRemove}
           onDownload={onDownload}
+          onAddToGroup={onAddToGroup}
+          onRemoveFromGroup={onRemoveFromGroup}
         />
       </div>
     </li>

@@ -1,6 +1,8 @@
 import type { Direction, Locator, ReadingStatus } from '@hamesh/core';
 import { normalizeForSearch, normalizeForSearchWithOffsets } from '@hamesh/core';
 import type {
+  BookGroupRecord,
+  BookGroupRepository,
   BookNoteRecord,
   BookRecord,
   BookRepository,
@@ -83,6 +85,17 @@ const SYNC_CLOCKS_TABLE = `CREATE TABLE IF NOT EXISTS sync_clocks (
   hlc TEXT NOT NULL
 );`;
 
+// ADR-0025: categories' shelves. Membership lives on books.group_id; `order`
+// is the display order and may hold ids of books that were since deleted.
+const BOOK_GROUPS_TABLE = `CREATE TABLE IF NOT EXISTS book_groups (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  category TEXT,
+  order_json TEXT NOT NULL DEFAULT '[]',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);`;
+
 // ADR-0016: translation cache is device-local and never synced.
 const AI_TRANSLATION_CACHE_TABLE = `CREATE TABLE IF NOT EXISTS ai_translation_cache (
   key TEXT PRIMARY KEY,
@@ -147,6 +160,15 @@ export const migrate = async (db: SqlDatabase): Promise<void> => {
     await db.exec(AI_TRANSLATION_CACHE_TABLE);
     await db.exec('PRAGMA user_version = 6');
   }
+  // v7 adds categories' shelves (ADR-0025). Column check like v5 so a crash
+  // between statements cannot wedge the next start.
+  if (version < 7) {
+    const columns = await db.all<{ name: string }>('PRAGMA table_info(books)');
+    const names = new Set(columns.map((column) => column.name));
+    if (!names.has('group_id')) await db.exec('ALTER TABLE books ADD COLUMN group_id TEXT');
+    await db.exec(BOOK_GROUPS_TABLE);
+    await db.exec('PRAGMA user_version = 7');
+  }
 };
 
 const parseJson = <T>(value: unknown, fallback: T): T => {
@@ -176,6 +198,7 @@ const mapBook = (row: Record<string, unknown>): BookRecord => ({
   identifiers: parseJson<Record<string, string>>(row.identifiers_json, {}),
   direction: (row.direction === 'rtl' ? 'rtl' : 'ltr') as Direction,
   category: row.category == null ? null : String(row.category),
+  groupId: row.group_id == null ? null : String(row.group_id),
   tags: parseJson<string[]>(row.tags_json, []).filter((tag) => typeof tag === 'string'),
   filePath: String(row.file_path ?? ''),
   coverPath: null,
@@ -227,15 +250,16 @@ const createBookRepository = (db: SqlDatabase): BookRepository => ({
     await db.run(
       `INSERT INTO books (
         id, hash, format, title, authors_json, language, publisher, series,
-        identifiers_json, direction, category, tags_json, file_path, cover_mime,
+        identifiers_json, direction, category, tags_json, group_id, file_path, cover_mime,
         added_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         hash = excluded.hash, format = excluded.format, title = excluded.title,
         authors_json = excluded.authors_json, language = excluded.language,
         publisher = excluded.publisher, series = excluded.series,
         identifiers_json = excluded.identifiers_json, direction = excluded.direction,
         category = excluded.category, tags_json = excluded.tags_json,
+        group_id = excluded.group_id,
         file_path = excluded.file_path, cover_mime = excluded.cover_mime,
         added_at = excluded.added_at, updated_at = excluded.updated_at`,
       [
@@ -251,6 +275,7 @@ const createBookRepository = (db: SqlDatabase): BookRepository => ({
         book.direction,
         book.category ?? null,
         JSON.stringify(book.tags ?? []),
+        book.groupId ?? null,
         book.filePath,
         book.coverMime ?? null,
         book.addedAt,
@@ -350,6 +375,56 @@ export const createSqlStorage = (db: SqlDatabase): Storage => ({
   reading: createReadingRepository(db),
   notes: createNoteRepository(db),
   texts: createContentTextRepository(db),
+  groups: createBookGroupRepository(db),
+});
+
+const mapGroup = (row: Record<string, unknown>): BookGroupRecord => ({
+  id: String(row.id ?? ''),
+  name: String(row.name ?? ''),
+  category: row.category == null ? null : String(row.category),
+  order: parseJson<string[]>(row.order_json, []).filter((id) => typeof id === 'string'),
+  createdAt: Number(row.created_at ?? 0),
+  updatedAt: Number(row.updated_at ?? 0),
+});
+
+export const createBookGroupRepository = (db: SqlDatabase): BookGroupRepository => ({
+  async list() {
+    const rows = await db.all<Record<string, unknown>>(
+      'SELECT * FROM book_groups ORDER BY created_at ASC',
+    );
+    return rows.map(mapGroup);
+  },
+  async get(id) {
+    const rows = await db.all<Record<string, unknown>>('SELECT * FROM book_groups WHERE id = ?', [
+      id,
+    ]);
+    const row = rows[0];
+    return row ? mapGroup(row) : null;
+  },
+  async upsert(group) {
+    await db.run(
+      `INSERT INTO book_groups (id, name, category, order_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         name = excluded.name, category = excluded.category,
+         order_json = excluded.order_json,
+         created_at = excluded.created_at, updated_at = excluded.updated_at`,
+      [
+        group.id,
+        group.name,
+        group.category ?? null,
+        JSON.stringify(group.order ?? []),
+        group.createdAt,
+        group.updatedAt,
+      ],
+    );
+  },
+  async remove(id) {
+    await db.run('DELETE FROM book_groups WHERE id = ?', [id]);
+  },
+  async clearMembers(groupId) {
+    await db.run('UPDATE books SET group_id = NULL WHERE group_id = ?', [groupId]);
+  },
 });
 
 /**
@@ -550,6 +625,9 @@ export const migrateJsonSnapshot = async (
       await storage.reading.save(state);
     }
     for (const note of snapshot.notes ?? []) await storage.notes.upsert(note);
+    // Groups are additive in the manifest (ADR-0025); a manifest from an
+    // older build simply has none.
+    for (const group of snapshot.groups ?? []) await storage.groups.upsert(group);
     await db.run("INSERT OR REPLACE INTO meta (key, value) VALUES ('json_migrated', '1')");
     await db.exec('COMMIT');
   } catch (error) {

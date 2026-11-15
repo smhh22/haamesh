@@ -1,0 +1,238 @@
+import type { BookGroupRecord, BookRecord } from '@hamesh/storage';
+import type { DragEvent as ReactDragEvent } from 'react';
+import { useTranslation } from 'react-i18next';
+import { BookCover } from './BookCover';
+import { GroupMark } from './GroupMark';
+import { OverflowMenu } from './OverflowMenu';
+
+interface GroupMemberRowProps {
+  book: BookRecord;
+  /** "64% read" style line from the caller. */
+  meta: string;
+  progressPercent: number;
+  locale: string;
+  /** Dragging this row reorders members within the group (ADR-0025). */
+  draggable?: boolean;
+  isDropTarget?: boolean;
+  onOpen: () => void;
+  onDragStart?: (event: ReactDragEvent) => void;
+  onDragEnd?: () => void;
+  onDragOver?: (event: ReactDragEvent) => void;
+  onDrop?: (event: ReactDragEvent) => void;
+  onRemoveFromGroup: () => void;
+}
+
+/**
+ * One member row inside the group view. Identical grid to a catalog row, but
+ * the overflow menu manages membership instead of the library.
+ */
+export const GroupMemberRow = ({
+  book,
+  meta,
+  progressPercent,
+  locale,
+  draggable = false,
+  isDropTarget = false,
+  onOpen,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
+  onRemoveFromGroup,
+}: GroupMemberRowProps) => {
+  const { t } = useTranslation();
+  const numberFormat = new Intl.NumberFormat(locale === 'fa' ? 'fa-IR' : 'en-US');
+  void numberFormat;
+
+  return (
+    <li
+      className={`book-card book-row member-row${isDropTarget ? ' is-drop-target' : ''}`}
+      draggable={draggable || undefined}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      <span className="group-grip" aria-hidden="true">
+        <svg width="12" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="9" cy="6" r="1.3" />
+          <circle cx="15" cy="6" r="1.3" />
+          <circle cx="9" cy="12" r="1.3" />
+          <circle cx="15" cy="12" r="1.3" />
+          <circle cx="9" cy="18" r="1.3" />
+          <circle cx="15" cy="18" r="1.3" />
+        </svg>
+      </span>
+      <BookCover book={book} variant="thumb" />
+      <div className="book-row-text">
+        <h3 className="book-row-title">
+          <span dir="auto">{book.title}</span>
+        </h3>
+        <p className="book-row-meta">{meta}</p>
+      </div>
+      <span className="book-row-progress is-desktop">
+        {progressPercent > 0 ? (
+          <>
+            <span className="progress-track">
+              <span style={{ inlineSize: `${progressPercent}%` }} />
+            </span>
+            <span className="progress-value">
+              {t('library.percent', { percent: numberFormat.format(progressPercent) })}
+            </span>
+          </>
+        ) : null}
+      </span>
+      <div className="book-row-actions">
+        <button type="button" className="book-open-button" onClick={onOpen}>
+          {t('library.openShort')}
+        </button>
+        <OverflowMenu label={t('library.bookActions')}>
+          {(close) => (
+            <button
+              type="button"
+              role="menuitem"
+              className="is-danger"
+              onClick={() => {
+                close();
+                onRemoveFromGroup();
+              }}
+            >
+              {t('library.groupRemoveBook')}
+            </button>
+          )}
+        </OverflowMenu>
+      </div>
+    </li>
+  );
+};
+
+export interface GroupViewProps {
+  group: BookGroupRecord;
+  members: BookRecord[];
+  locale: string;
+  /** Human lines per member id (format/pages/progress summary). */
+  metaFor: (book: BookRecord) => string;
+  percentFor: (book: BookRecord) => number;
+  onBack: () => void;
+  onOpenBook: (book: BookRecord) => void;
+  onRename: () => void;
+  onAddBooks: () => void;
+  onDelete: () => void;
+  onRemoveMember: (book: BookRecord) => void;
+  onReorder: (draggedId: string, targetId: string) => void;
+}
+
+/**
+ * The group surface (ADR-0025): breadcrumb back to the category, a header
+ * with the folder mark and actions, then the members. Member rows drag to
+ * reorder; drops on rows reorder, drops elsewhere in the view do nothing.
+ */
+export const GroupView = ({
+  group,
+  members,
+  locale,
+  metaFor,
+  percentFor,
+  onBack,
+  onOpenBook,
+  onRename,
+  onAddBooks,
+  onDelete,
+  onRemoveMember,
+  onReorder,
+}: GroupViewProps) => {
+  const { t } = useTranslation();
+  const numberFormat = new Intl.NumberFormat(locale === 'fa' ? 'fa-IR' : 'en-US');
+
+  const ordered = members;
+
+  return (
+    <div className="group-view">
+      <nav className="group-breadcrumb" aria-label={t('library.groupBreadcrumb')}>
+        <button type="button" className="group-back" onClick={onBack}>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m15 6-6 6 6 6" />
+          </svg>
+          {t('library.groupBack')}
+        </button>
+        <span className="group-breadcrumb-sep" aria-hidden="true">
+          /
+        </span>
+        {group.category ? <span>{group.category}</span> : null}
+        {group.category ? (
+          <span className="group-breadcrumb-sep" aria-hidden="true">
+            /
+          </span>
+        ) : null}
+        <span aria-current="page">{group.name}</span>
+      </nav>
+
+      <div className="group-header">
+        <GroupMark count={members.length} size="header" />
+        <div className="group-header-text">
+          <h2 className="group-header-name">
+            <span dir="auto">{group.name}</span>
+          </h2>
+          <p className="group-header-meta">
+            {t('library.groupFiles', {
+              count: members.length,
+              total: numberFormat.format(members.length),
+            })}{' '}
+            · {t('library.groupReorderHint')}
+          </p>
+        </div>
+        <div className="group-header-actions">
+          <button type="button" className="reader-action" onClick={onRename}>
+            {t('library.groupRename')}
+          </button>
+          <button type="button" className="reader-action" onClick={onAddBooks}>
+            {t('library.groupAddBooks')}
+          </button>
+          <button type="button" className="reader-action is-danger" onClick={onDelete}>
+            {t('library.groupDelete')}
+          </button>
+        </div>
+      </div>
+
+      {ordered.length === 0 ? (
+        <p className="group-empty">{t('library.groupEmpty')}</p>
+      ) : (
+        <ul className="book-grid is-list">
+          {ordered.map((book) => (
+            <GroupMemberRow
+              key={book.id}
+              book={book}
+              meta={metaFor(book)}
+              progressPercent={percentFor(book)}
+              locale={locale}
+              draggable
+              onOpen={() => onOpenBook(book)}
+              onRemoveFromGroup={() => onRemoveMember(book)}
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', `reorder:${book.id}`);
+              }}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                const raw = event.dataTransfer.getData('text/plain');
+                const draggedId = raw.startsWith('reorder:') ? raw.slice('reorder:'.length) : null;
+                if (draggedId && draggedId !== book.id) onReorder(draggedId, book.id);
+              }}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};

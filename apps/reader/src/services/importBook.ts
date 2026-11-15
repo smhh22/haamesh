@@ -42,6 +42,7 @@ export const importBookFile = async (file: File): Promise<ImportedBookFile> => {
       id: metadata.hash,
       category: null,
       tags: [],
+      groupId: null,
       filePath: file.name,
       coverPath,
       coverMime: cover?.type || null,

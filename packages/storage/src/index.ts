@@ -6,12 +6,28 @@ export interface BookRecord extends BookMetadata {
   category: string | null;
   /** User-assigned labels; synced as one LWW field (ADR-0013). */
   tags: string[];
+  /** Group that owns this book on the shelf (ADR-0025); at most one. */
+  groupId: string | null;
   filePath: string;
   /** Runtime object URL; never persisted. */
   coverPath: string | null;
   /** Needed to recreate the cover Blob after a restart. */
   coverMime?: string | null;
   addedAt: number;
+  updatedAt: number;
+}
+
+/**
+ * A shelf inside a category (ADR-0025). Membership lives on the book
+ * (`BookRecord.groupId`); `order` is the member display order and may keep
+ * stale ids after a book is deleted — callers filter against live books.
+ */
+export interface BookGroupRecord {
+  id: string;
+  name: string;
+  category: string | null;
+  order: string[];
+  createdAt: number;
   updatedAt: number;
 }
 
@@ -23,12 +39,14 @@ export interface ReadingState {
   updatedAt: number;
 }
 
-/** Phase 1 manifest (ADR-0010). `notes` is additive. */
+/** Phase 1 manifest (ADR-0010). `notes` and `groups` are additive. */
 export interface LibrarySnapshot {
   version: 1;
   books: BookRecord[];
   reading: Record<string, ReadingState>;
   notes?: BookNoteRecord[];
+  /** ADR-0025; absent in manifests written before groups existed. */
+  groups?: BookGroupRecord[];
 }
 
 export interface BookNoteRecord {
@@ -49,6 +67,15 @@ export interface BookRepository {
   get(id: string): Promise<BookRecord | null>;
   upsert(book: BookRecord): Promise<void>;
   remove(id: string): Promise<void>;
+}
+
+export interface BookGroupRepository {
+  list(): Promise<BookGroupRecord[]>;
+  get(id: string): Promise<BookGroupRecord | null>;
+  upsert(group: BookGroupRecord): Promise<void>;
+  remove(id: string): Promise<void>;
+  /** Clear membership on every book of a deleted group (ADR-0025). */
+  clearMembers(groupId: string): Promise<void>;
 }
 
 export interface ReadingStateRepository {
@@ -74,6 +101,8 @@ export interface Storage {
   notes: NoteRepository;
   /** v3: per-section extracted text for library content search. */
   texts: ContentTextRepository;
+  /** v8: categories' shelves (ADR-0025). */
+  groups: BookGroupRepository;
 }
 
 import type { ContentTextRepository } from './sql';

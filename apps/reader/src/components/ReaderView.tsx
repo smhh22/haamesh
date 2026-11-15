@@ -25,7 +25,12 @@ import { persistBookLanguage, persistNoteRecord } from '../services/libraryPersi
 import { translateText } from '../services/translateService';
 import { useLibraryStore } from '../stores/libraryStore';
 import { notesForBook, useNotesStore } from '../stores/notesStore';
-import { type ResolvedReaderTheme, useReaderSettings } from '../stores/readerSettingsStore';
+import {
+  type PdfSpread,
+  type ResolvedReaderTheme,
+  renditionSpreadFor,
+  useReaderSettings,
+} from '../stores/readerSettingsStore';
 import { useResolvedUiTheme, useUiStore } from '../stores/uiStore';
 import {
   BookmarkIcon,
@@ -118,6 +123,12 @@ export const ReaderView = ({
   const removeNote = useNotesStore((state) => state.remove);
   const bookNotes = useMemo(() => notesForBook(allNotes, book.id), [allNotes, book.id]);
   const isPdf = book.format === 'pdf';
+  // Subscribed separately from `settings` so a spread change can re-open the
+  // book without every preference change doing the same. The value only
+  // matters for PDFs, so non-PDF sessions keep one identity for the dep and
+  // never re-open when the pref changes.
+  const pdfSpread = useReaderSettings((state) => state.pdfSpread);
+  const spreadSetting = isPdf ? pdfSpread : ('auto' as PdfSpread);
   // 'auto' follows the app theme so a dark app opens a dark book.
   const resolvedAppTheme = useResolvedUiTheme();
   const readerTheme: ResolvedReaderTheme =
@@ -181,6 +192,9 @@ export const ReaderView = ({
   const turnInFlightRef = useRef<Promise<unknown> | null>(null);
   const lastRelocateAtRef = useRef(0);
   const lastFractionRef = useRef(initialFraction);
+  // Newest PDF page seen; a spread change re-opens the book and resumes here
+  // instead of jumping back to the page saved when the reader mounted.
+  const currentPageRef = useRef<number | null>(null);
   const [progress, setProgress] = useState(initialFraction);
   const [pageInfo, setPageInfo] = useState<{ current: number; total: number } | null>(null);
   const [failed, setFailed] = useState(false);
@@ -425,6 +439,7 @@ export const ReaderView = ({
       lastRelocateAtRef.current = Date.now();
 
       if (typeof detail?.section?.current === 'number') {
+        currentPageRef.current = detail.section.current + 1;
         setPageInfo({
           current: detail.section.current + 1,
           total: detail.section.total ?? 0,
@@ -726,17 +741,21 @@ export const ReaderView = ({
           return;
         }
         parsedBook = parsed;
-        // PDFs default to two-page spreads, which parks page 1 on the right
-        // half behind an invisible blank spacer. A single centered page
-        // (Readest-style) is the right presentation for a reader app.
-        if (isPdf) parsed.rendition = { ...parsed.rendition, spread: 'none' };
+        // The fixed-layout renderer reads `spread` once per open: 'none'
+        // centers every page alone, 'both' always pairs, and 'auto' pairs
+        // pages but falls back to a single page in portrait orientation.
+        if (isPdf) {
+          parsed.rendition = { ...parsed.rendition, spread: renditionSpreadFor(spreadSetting) };
+        }
         parsed.transformTarget?.addEventListener('data', onData);
         setToc((parsed.toc ?? []) as TocItem[]);
 
         await view.open(parsed);
+        // A spread change re-opens the book; resume on the newest page seen
+        // rather than the page saved when the reader mounted.
+        const resumePage = isPdf ? (currentPageRef.current ?? initialPage) : null;
         await view.init({
-          lastLocation:
-            isPdf && initialPage != null ? initialPage - 1 : initialLocation || undefined,
+          lastLocation: resumePage != null ? resumePage - 1 : initialLocation || undefined,
           showTextStart: true,
         });
 
@@ -785,7 +804,7 @@ export const ReaderView = ({
       view.remove();
       viewRef.current = null;
     };
-  }, [performTurn, file, initialLocation, initialPage, isPdf]);
+  }, [performTurn, file, initialLocation, initialPage, isPdf, spreadSetting]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

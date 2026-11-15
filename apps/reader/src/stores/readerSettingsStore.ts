@@ -7,6 +7,17 @@ export type ResolvedReaderTheme = Exclude<ReaderTheme, 'auto'>;
 export type ReaderFlow = 'paginated' | 'scrolled';
 export type ReaderFont = 'vazirmatn' | 'naskh' | 'literata' | 'sans' | 'serif';
 export type PdfZoom = 'fit-page' | 'fit-width' | number;
+/** How PDF pages pair up: adaptive, always one, or always two. */
+export type PdfSpread = 'auto' | 'single' | 'double';
+
+/**
+ * Map the setting to foliate's fixed-layout rendition value, which is read
+ * once per book open: 'none' renders every page centered alone, 'both'
+ * always pairs pages side by side, and 'auto' pairs them but falls back to a
+ * single page in portrait orientation.
+ */
+export const renditionSpreadFor = (spread: PdfSpread): string =>
+  spread === 'single' ? 'none' : spread === 'double' ? 'both' : 'auto';
 
 export const READER_SETTINGS_VERSION = 3;
 
@@ -50,6 +61,8 @@ export interface ReaderSettings {
   justify: boolean;
   flow: ReaderFlow;
   pdfZoom: PdfZoom;
+  /** PDF page pairing; device-local, applies on the next (re)open. */
+  pdfSpread: PdfSpread;
   /**
    * Dark themes only: invert book images so formula/screen shots with white
    * backgrounds stop glaring (raster formulas cannot recolor any other way).
@@ -67,6 +80,7 @@ export interface ReaderSettings {
   toggleJustify: () => void;
   setFlow: (flow: ReaderFlow) => void;
   setPdfZoom: (zoom: PdfZoom) => void;
+  setPdfSpread: (spread: PdfSpread) => void;
   toggleInvertImages: () => void;
   zoomIn: () => void;
   zoomOut: () => void;
@@ -92,6 +106,7 @@ export const useReaderSettings = create<ReaderSettings>()(
       justify: true,
       flow: 'paginated',
       pdfZoom: 'fit-page',
+      pdfSpread: 'auto',
       invertImages: false,
       increaseFont: () =>
         set((state) => ({ fontSize: clamp(state.fontSize + 10, FONT_SIZE_MIN, FONT_SIZE_MAX) })),
@@ -108,6 +123,7 @@ export const useReaderSettings = create<ReaderSettings>()(
       toggleJustify: () => set((state) => ({ justify: !state.justify })),
       setFlow: (flow) => set({ flow }),
       setPdfZoom: (pdfZoom) => set({ pdfZoom }),
+      setPdfSpread: (pdfSpread) => set({ pdfSpread }),
       toggleInvertImages: () => set((state) => ({ invertImages: !state.invertImages })),
       zoomIn: () =>
         set((state) => {

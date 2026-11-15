@@ -1430,6 +1430,50 @@ test('exposes PDF fit modes as pressed toggles', async ({ page }) => {
   await expect(fitPage).toHaveAttribute('aria-pressed', 'false');
 });
 
+test('applies the PDF page layout from the reader panel and keeps the page', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(pdfFixture);
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
+
+  // The fixed-layout renderer reads its spread once per open: 'auto' pairs
+  // pages adaptively, 'both' always pairs, 'none' centers each page alone.
+  // Page frames live in the renderer's shadow root, so getContents() is the
+  // observable for how many pages are mounted.
+  const spread = () =>
+    page.evaluate(() => {
+      const view = document.querySelector('foliate-view');
+      const renderer = view?.renderer as {
+        spread?: string;
+        getContents?: () => unknown[];
+      } | null | undefined;
+      return { spread: renderer?.spread, frames: renderer?.getContents?.().length ?? 0 };
+    });
+  await expect.poll(spread).toMatchObject({ spread: 'auto' });
+
+  // Turn to the next spread (pages 2–3): both halves are real pages here,
+  // unlike the first spread whose left half is a blank.
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  const progress = () =>
+    page.evaluate(() => document.querySelector('.reader-progress')?.textContent ?? '');
+  await expect.poll(progress).toContain('2');
+  const before = await progress();
+  await expect.poll(spread).toMatchObject({ frames: 2 });
+
+  // Forcing two-page pairing re-opens the book and resumes on this page.
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Two pages' }).click();
+  await expect.poll(spread).toMatchObject({ spread: 'both', frames: 2 });
+  await expect.poll(progress).toBe(before);
+
+  // Back to a single centered page: one frame, same page.
+  await page.getByRole('button', { name: 'Single page' }).click();
+  await expect.poll(spread).toMatchObject({ spread: 'none', frames: 1 });
+  await expect.poll(progress).toBe(before);
+});
+
 test('imports an audio book and plays it in the player bar', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));

@@ -340,6 +340,13 @@
       "dark": "Dark"
     },
     "language": "Language",
+    "pdfSpread": "PDF page layout",
+    "pdfSpreadOptions": {
+      "auto": "Auto",
+      "single": "Single page",
+      "double": "Two pages"
+    },
+    "pdfSpreadHint": "Applies to PDF books only and stays on this device.",
     "shortcuts": "Keyboard",
     "show": "Show",
     "updates": "Updates",

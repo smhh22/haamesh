@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { migrateReaderSettings, useReaderSettings } from './readerSettingsStore';
+import {
+  migrateReaderSettings,
+  renditionSpreadFor,
+  useReaderSettings,
+} from './readerSettingsStore';
 
 beforeEach(() => {
   useReaderSettings.setState({
@@ -13,6 +17,7 @@ beforeEach(() => {
     justify: true,
     flow: 'paginated',
     pdfZoom: 'fit-page',
+    pdfSpread: 'auto',
   });
 });
 
@@ -57,6 +62,23 @@ describe('readerSettingsStore', () => {
     expect(useReaderSettings.getState().fontFamily).toBe('naskh');
     toggleHyphenate();
     expect(useReaderSettings.getState().hyphenate).toBe(true);
+  });
+
+  it('defaults to adaptive spreads and switches the PDF layout', () => {
+    expect(useReaderSettings.getState().pdfSpread).toBe('auto');
+    const { setPdfSpread } = useReaderSettings.getState();
+    setPdfSpread('double');
+    expect(useReaderSettings.getState().pdfSpread).toBe('double');
+    setPdfSpread('single');
+    expect(useReaderSettings.getState().pdfSpread).toBe('single');
+  });
+});
+
+describe('renditionSpreadFor', () => {
+  it('maps the setting to foliate fixed-layout values', () => {
+    expect(renditionSpreadFor('auto')).toBe('auto');
+    expect(renditionSpreadFor('single')).toBe('none');
+    expect(renditionSpreadFor('double')).toBe('both');
   });
 });
 

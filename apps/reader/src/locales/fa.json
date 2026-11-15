@@ -340,6 +340,13 @@
       "dark": "تیره"
     },
     "language": "زبان",
+    "pdfSpread": "چیدمان صفحات PDF",
+    "pdfSpreadOptions": {
+      "auto": "خودکار",
+      "single": "تک‌صفحه",
+      "double": "دو صفحه"
+    },
+    "pdfSpreadHint": "فقط روی کتاب‌های PDF اعمال می‌شود و روی همین دستگاه می‌ماند.",
     "shortcuts": "صفحه‌کلید",
     "show": "نمایش",
     "updates": "به‌روزرسانی",

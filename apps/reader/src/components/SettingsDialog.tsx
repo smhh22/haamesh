@@ -4,6 +4,7 @@ import { useDialogFocus } from '../hooks/useDialogFocus';
 import { readAppProxy, saveAppProxy } from '../services/httpFetch';
 import { formatStartupRun, readLastStartupRun } from '../services/startupTrace';
 import { checkForUpdate, installUpdate, supportsInAppUpdate } from '../services/updater';
+import { type PdfSpread, useReaderSettings } from '../stores/readerSettingsStore';
 import { type UiTheme, useUiStore } from '../stores/uiStore';
 import { MarkdownView } from './MarkdownView';
 import { ShortcutsList } from './ShortcutsList';
@@ -16,6 +17,8 @@ interface SettingsDialogProps {
 }
 
 type SettingsSection = 'general' | 'shortcuts' | 'translation' | 'sync' | 'updates' | 'about';
+
+const PDF_SPREADS: ReadonlyArray<PdfSpread> = ['auto', 'single', 'double'];
 
 const SECTIONS: ReadonlyArray<{ id: SettingsSection; labelKey: string }> = [
   { id: 'general', labelKey: 'settings.general' },
@@ -32,6 +35,8 @@ const GeneralSection = () => {
   const setTheme = useUiStore((state) => state.setTheme);
   const locale = useUiStore((state) => state.locale);
   const setLocale = useUiStore((state) => state.setLocale);
+  const pdfSpread = useReaderSettings((state) => state.pdfSpread);
+  const setPdfSpread = useReaderSettings((state) => state.setPdfSpread);
 
   // The app-level proxy backs every sync/translation connection that has no
   // per-provider value; read at each request, so it applies without a restart
@@ -82,6 +87,23 @@ const GeneralSection = () => {
           {locale === 'fa' ? 'English' : 'فارسی'}
         </button>
       </div>
+      <div className="setting-row">
+        <span>{t('settings.pdfSpread')}</span>
+        <div className="setting-controls">
+          {PDF_SPREADS.map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              className={pdfSpread === mode ? 'reader-action is-selected' : 'reader-action'}
+              aria-pressed={pdfSpread === mode}
+              onClick={() => setPdfSpread(mode)}
+            >
+              {t(`settings.pdfSpreadOptions.${mode}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="hint">{t('settings.pdfSpreadHint')}</p>
     </>
   );
 };

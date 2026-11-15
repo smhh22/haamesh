@@ -8,6 +8,7 @@ import {
   LINE_HEIGHT_MIN,
   MARGIN_MAX,
   MARGIN_MIN,
+  type PdfSpread,
   type ReaderFont,
   type ReaderSettings,
   type ReaderTheme,
@@ -21,6 +22,7 @@ interface SettingsPanelProps {
 
 const FONTS: ReaderFont[] = ['vazirmatn', 'naskh', 'literata', 'sans', 'serif'];
 const THEMES: ReaderTheme[] = ['auto', 'light', 'sepia', 'dark'];
+const PDF_SPREADS: PdfSpread[] = ['auto', 'single', 'double'];
 
 export const SettingsPanel = ({ settings, isPdf, onClose }: SettingsPanelProps) => {
   const { t, i18n } = useTranslation();
@@ -85,6 +87,27 @@ export const SettingsPanel = ({ settings, isPdf, onClose }: SettingsPanelProps) 
             >
               +
             </button>
+          </div>
+        </div>
+      ) : null}
+
+      {isPdf ? (
+        <div className="setting-row">
+          <span>{t('settings.pdfSpread')}</span>
+          <div className="setting-controls">
+            {PDF_SPREADS.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={
+                  settings.pdfSpread === mode ? 'reader-action is-selected' : 'reader-action'
+                }
+                aria-pressed={settings.pdfSpread === mode}
+                onClick={() => settings.setPdfSpread(mode)}
+              >
+                {t(`settings.pdfSpreadOptions.${mode}`)}
+              </button>
+            ))}
           </div>
         </div>
       ) : null}

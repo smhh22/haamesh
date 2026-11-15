@@ -1445,10 +1445,13 @@ test('applies the PDF page layout from the reader panel and keeps the page', asy
   const spread = () =>
     page.evaluate(() => {
       const view = document.querySelector('foliate-view');
-      const renderer = view?.renderer as {
-        spread?: string;
-        getContents?: () => unknown[];
-      } | null | undefined;
+      const renderer = view?.renderer as
+        | {
+            spread?: string;
+            getContents?: () => unknown[];
+          }
+        | null
+        | undefined;
       return { spread: renderer?.spread, frames: renderer?.getContents?.().length ?? 0 };
     });
   await expect.poll(spread).toMatchObject({ spread: 'auto' });

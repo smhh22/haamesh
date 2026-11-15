@@ -184,8 +184,11 @@ export const GroupView = ({
             <span dir="auto">{group.name}</span>
           </h2>
           <p className="group-header-meta">
-            {t('library.groupFiles', { count: members.length, total: numberFormat.format(members.length) })} ·{' '}
-            {t('library.groupReorderHint')}
+            {t('library.groupFiles', {
+              count: members.length,
+              total: numberFormat.format(members.length),
+            })}{' '}
+            · {t('library.groupReorderHint')}
           </p>
         </div>
         <div className="group-header-actions">

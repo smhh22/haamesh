@@ -17,6 +17,7 @@ const book: BookRecord = {
   direction: 'ltr',
   category: 'Fiction',
   tags: ['tag'],
+  groupId: null,
   filePath: 'books/a.epub',
   coverPath: null,
   coverMime: null,

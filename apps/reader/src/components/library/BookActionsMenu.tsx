@@ -8,6 +8,10 @@ interface BookActionsMenuProps {
   onEdit: () => void;
   onRemove: () => void;
   onDownload: () => void;
+  /** Set inside a group's search/flat view: files the book into a group (ADR-0025). */
+  onAddToGroup?: () => void;
+  /** Set for members of a group: membership only — the book itself stays. */
+  onRemoveFromGroup?: () => void;
 }
 
 /**
@@ -22,6 +26,8 @@ export const BookActionsMenu = ({
   onEdit,
   onRemove,
   onDownload,
+  onAddToGroup,
+  onRemoveFromGroup,
 }: BookActionsMenuProps) => {
   const { t } = useTranslation();
 
@@ -42,6 +48,18 @@ export const BookActionsMenu = ({
               {downloading ? t('library.downloading') : t('library.download')}
             </button>
           ) : null}
+          {onAddToGroup ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                close();
+                onAddToGroup();
+              }}
+            >
+              {t('library.groupAddTo')}
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"
@@ -52,6 +70,19 @@ export const BookActionsMenu = ({
           >
             {t('library.edit')}
           </button>
+          {onRemoveFromGroup ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="is-danger"
+              onClick={() => {
+                close();
+                onRemoveFromGroup();
+              }}
+            >
+              {t('library.groupRemoveBook')}
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"

@@ -3,6 +3,8 @@ import { OverflowMenu } from './OverflowMenu';
 
 interface CategoryActionsMenuProps {
   onAddSubcategory: () => void;
+  /** Offered when the view supports group shelves (ADR-0025). */
+  onAddGroup?: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRename: () => void;
@@ -15,6 +17,7 @@ interface CategoryActionsMenuProps {
  */
 export const CategoryActionsMenu = ({
   onAddSubcategory,
+  onAddGroup,
   onMoveUp,
   onMoveDown,
   onRename,
@@ -34,6 +37,11 @@ export const CategoryActionsMenu = ({
             <button type="button" role="menuitem" onClick={() => run(onAddSubcategory)}>
               {t('library.addSubcategory')}
             </button>
+            {onAddGroup ? (
+              <button type="button" role="menuitem" onClick={() => run(onAddGroup)}>
+                {t('library.newGroup')}
+              </button>
+            ) : null}
             <button type="button" role="menuitem" onClick={() => run(onMoveUp)}>
               {t('library.moveCategoryUp')}
             </button>

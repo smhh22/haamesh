@@ -11,7 +11,7 @@ import {
   type SqlDatabase,
   type SqlValue,
 } from '@hamesh/storage';
-import initSqlJs, { type Database } from 'sql.js';
+import initSqlJs from 'sql.js';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
@@ -60,6 +60,7 @@ const book = (overrides: Partial<BookRecord> = {}): BookRecord => ({
   category: 'تاریخ',
   tags: ['ایران', 'تاریخ'],
   filePath: 'sample.epub',
+  groupId: null,
   coverPath: null,
   coverMime: 'image/jpeg',
   addedAt: 1,
@@ -205,6 +206,43 @@ describe('SQL repositories', () => {
     const deleted = await storage.notes.listAll();
     expect(deleted.find((item) => item.id === 'note-2')?.deletedAt).toBe(9);
     expect(deleted.find((item) => item.id === 'note-1')?.note).toBe('یادداشت من');
+  });
+
+  it('round-trips groups and membership (ADR-0025)', async () => {
+    const storage = createSqlStorage(await openDb());
+    await storage.groups.upsert({
+      id: 'g1',
+      name: 'Lecture Notes',
+      category: 'Calculus II',
+      order: ['book-1'],
+      createdAt: 1,
+      updatedAt: 2,
+    });
+    await storage.books.upsert(book({ groupId: 'g1' }));
+
+    expect(await storage.groups.get('g1')).toMatchObject({
+      name: 'Lecture Notes',
+      category: 'Calculus II',
+      order: ['book-1'],
+    });
+    expect((await storage.books.get('book-1'))?.groupId).toBe('g1');
+
+    await storage.groups.upsert({
+      id: 'g1',
+      name: 'Lecture Notes (renamed)',
+      category: 'Calculus II',
+      order: [],
+      createdAt: 1,
+      updatedAt: 3,
+    });
+    expect((await storage.groups.get('g1'))?.name).toBe('Lecture Notes (renamed)');
+
+    // Deleting the group clears membership but keeps the book.
+    await storage.groups.clearMembers('g1');
+    expect((await storage.books.get('book-1'))?.groupId).toBeNull();
+    await storage.groups.remove('g1');
+    expect(await storage.groups.get('g1')).toBeNull();
+    expect(await storage.books.list()).toHaveLength(1);
   });
 
   it('searches extracted text across Arabic/Persian letter variants', async () => {

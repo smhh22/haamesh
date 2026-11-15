@@ -84,6 +84,8 @@ export interface IndexDoc {
   devices: Record<string, DeviceDoc>;
   books: Record<string, RecordDoc>;
   notes: Record<string, RecordDoc>;
+  /** ADR-0025: category shelves. Additive; absent in older documents. */
+  groups: Record<string, RecordDoc>;
   /** Unknown top-level keys from newer clients; preserved on rewrite. */
   extra?: Record<string, unknown>;
 }
@@ -93,6 +95,7 @@ export const emptyIndexDoc = (): IndexDoc => ({
   devices: {},
   books: {},
   notes: {},
+  groups: {},
 });
 
 const isEnvelope = (value: unknown): value is Envelope =>
@@ -138,6 +141,7 @@ export const decodeIndexDoc = (input: unknown): IndexDoc => {
     devices?: unknown;
     books?: unknown;
     notes?: unknown;
+    groups?: unknown;
   };
   if (
     typeof raw.schemaVersion !== 'number' ||
@@ -153,7 +157,7 @@ export const decodeIndexDoc = (input: unknown): IndexDoc => {
   const doc = emptyIndexDoc();
   // Unknown top-level keys belong to newer clients; keep them so a rewrite
   // does not silently drop additive data (AGENTS.md wire invariant).
-  const known = new Set(['schemaVersion', 'devices', 'books', 'notes']);
+  const known = new Set(['schemaVersion', 'devices', 'books', 'notes', 'groups']);
   const extra: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(migrated)) {
     if (!known.has(key)) extra[key] = value;
@@ -168,6 +172,11 @@ export const decodeIndexDoc = (input: unknown): IndexDoc => {
   }
   for (const [key, value] of Object.entries((migrated.notes ?? {}) as Record<string, unknown>)) {
     doc.notes[key] = decodeRecordDoc(value, `notes.${key}`);
+  }
+  // Groups are additive (ADR-0025): a document from an older client has none,
+  // and unknown top-level keys never reach this loop.
+  for (const [key, value] of Object.entries((migrated.groups ?? {}) as Record<string, unknown>)) {
+    doc.groups[key] = decodeRecordDoc(value, `groups.${key}`);
   }
   return doc;
 };
@@ -219,6 +228,7 @@ export const mergeIndexDoc = (a: IndexDoc, b: IndexDoc): IndexDoc => {
     devices,
     books: mergeMaps(a.books, b.books),
     notes: mergeMaps(a.notes, b.notes),
+    groups: mergeMaps(a.groups, b.groups),
   };
   if (a.extra || b.extra) {
     // Conflicting unknown values keep a's copy; additive keys from either

@@ -1652,3 +1652,86 @@ test('expand and collapse all category sections', async ({ page }) => {
   await page.reload();
   await expect(page.locator('.book-card')).toHaveCount(2);
 });
+
+test('groups file books into one library item (ADR-0025)', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+  await expect(page.locator('.book-card')).toHaveCount(2);
+
+  await page.getByRole('button', { name: 'New group' }).click();
+  await page.getByLabel('Group name').fill('Lecture Notes');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.group-row')).toBeVisible();
+  await expect(page.locator('.group-row')).toContainText('0 files');
+
+  // "Add to group…" from the row menu files the book; the group represents
+  // it, so the standalone row disappears from the catalog.
+  await page
+    .locator('.book-row', { hasText: 'Sample Book' })
+    .getByRole('button', { name: 'Book actions' })
+    .click();
+  await page.getByRole('menuitem', { name: 'Add to group…' }).click();
+  await page
+    .getByRole('dialog', { name: /Add “Sample Book” to a group/ })
+    .getByRole('button', { name: 'Add', exact: true })
+    .click();
+  await expect(page.locator('.book-row', { hasText: 'Sample Book' })).toHaveCount(0);
+  await expect(page.locator('.group-row')).toContainText('1 file');
+
+  // Drag the remaining book row onto the group row: the drop files it.
+  await page
+    .locator('.book-row', { hasText: 'نمونه کتاب' })
+    .dragTo(page.locator('.group-row', { hasText: 'Lecture Notes' }));
+  await expect(page.locator('.book-row', { hasText: 'نمونه کتاب' })).toHaveCount(0);
+  await expect(page.locator('.group-row')).toContainText('2 files');
+
+  // The group view lists members and removal returns the book.
+  await page.locator('.group-row').getByRole('button', { name: 'Open', exact: true }).click();
+  await expect(page.locator('.group-view')).toBeVisible();
+  await expect(page.locator('.member-row')).toHaveCount(2);
+  await page
+    .locator('.member-row', { hasText: 'Sample Book' })
+    .getByRole('button', { name: 'Book actions' })
+    .click();
+  await page.getByRole('menuitem', { name: 'Remove from this group' }).click();
+  await expect(page.locator('.member-row')).toHaveCount(1);
+
+  // Deleting the group keeps the books in the library.
+  await page.getByRole('button', { name: 'Delete group' }).click();
+  await page.getByRole('button', { name: 'Remove' }).click();
+  await expect(page.locator('.group-view')).toHaveCount(0);
+  await expect(page.locator('.book-row', { hasText: 'Sample Book' })).toBeVisible();
+  await expect(page.locator('.book-row', { hasText: 'نمونه کتاب' })).toBeVisible();
+});
+
+test('search surfaces group members with their group path (ADR-0025)', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+  await expect(page.locator('.book-card')).toHaveCount(2);
+
+  await page.getByRole('button', { name: 'New group' }).click();
+  await page.getByLabel('Group name').fill('Lecture Notes');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.group-row')).toBeVisible();
+  await page
+    .locator('.book-row', { hasText: 'Sample Book' })
+    .getByRole('button', { name: 'Book actions' })
+    .click();
+  await page.getByRole('menuitem', { name: 'Add to group…' }).click();
+  await page
+    .getByRole('dialog', { name: /Add “Sample Book” to a group/ })
+    .getByRole('button', { name: 'Add', exact: true })
+    .click();
+  await expect(page.locator('.book-row', { hasText: 'Sample Book' })).toHaveCount(0);
+
+  // Browsing hides members; searching surfaces the member with its group.
+  await page.getByRole('searchbox').fill('sample');
+  await expect(page.locator('.book-row', { hasText: 'Sample Book' })).toBeVisible();
+  await expect(page.locator('.book-row', { hasText: 'Sample Book' })).toContainText(
+    'in Lecture Notes',
+  );
+  // The group itself matches by name.
+  await page.getByRole('searchbox').fill('lecture notes');
+  await expect(page.locator('.group-row', { hasText: 'Lecture Notes' })).toBeVisible();
+  await expect(page.locator('.book-row', { hasText: 'Sample Book' })).toHaveCount(0);
+});

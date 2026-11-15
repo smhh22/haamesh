@@ -21,6 +21,7 @@ const book = (
   category: null,
   tags: [],
   filePath: `${title}.epub`,
+  groupId: null,
   coverPath: null,
   addedAt,
   updatedAt: addedAt,

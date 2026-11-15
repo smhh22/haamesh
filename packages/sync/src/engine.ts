@@ -25,7 +25,7 @@ const MAX_BLOB_BYTES = 1024 * 1024 * 1024;
 /** Covers are thumbnails; anything larger is skipped rather than synced. */
 const MAX_COVER_BYTES = 512 * 1024;
 
-export type SyncKind = 'book' | 'reading' | 'note';
+export type SyncKind = 'book' | 'reading' | 'note' | 'group';
 
 /**
  * Kind-neutral record exchanged between the engine and the app store.
@@ -164,7 +164,8 @@ export const buildLocalDoc = (
       }
       continue;
     }
-    const target = record.kind === 'note' ? doc.notes : doc.books;
+    const target =
+      record.kind === 'note' ? doc.notes : record.kind === 'group' ? doc.groups : doc.books;
     const fields: Record<string, Envelope> = {};
     for (const [field, value] of Object.entries(record.fields)) {
       fields[field] = { v: value, t: stampFor(record, field) };
@@ -299,6 +300,20 @@ export const createSyncEngine = (options: SyncOptions) => {
             });
             report.pulledRecords += 1;
             stampPulled('note', id, entry);
+          }
+        }
+        const pullGroups = diffPull(localDoc.groups, remote.groups);
+        for (const [id, entry] of Object.entries(pullGroups)) {
+          if (Object.keys(entry.fields).length > 0 || entry.deletedAt) {
+            await store.apply({
+              id,
+              kind: 'group',
+              fields: Object.fromEntries(Object.entries(entry.fields).map(([k, e]) => [k, e.v])),
+              deleted: Boolean(entry.deletedAt),
+              updatedAt: 0,
+            });
+            report.pulledRecords += 1;
+            stampPulled('group', id, entry);
           }
         }
         if (fieldClockEntries.length > 0) await store.setFieldClocks(fieldClockEntries);

@@ -52,12 +52,23 @@ const indexDocArb: fc.Arbitrary<IndexDoc> = fc
         maxLength: 5,
       },
     ),
+    fc.uniqueArray(
+      fc.tuple(
+        fc.string({ minLength: 1, maxLength: 8 }).map((s) => `g-${s}`),
+        recordDocArb,
+      ),
+      {
+        selector: (entry) => entry[0],
+        maxLength: 4,
+      },
+    ),
   )
-  .map(([books, notes]) => ({
+  .map(([books, notes, groups]) => ({
     schemaVersion: SCHEMA_VERSION,
     devices: {},
     books: Object.fromEntries(books),
     notes: Object.fromEntries(notes),
+    groups: Object.fromEntries(groups),
   }));
 
 describe('index document merge', () => {

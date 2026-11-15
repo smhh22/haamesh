@@ -74,6 +74,13 @@ const createFakeStorage = (repos: FakeRepos, clockMap: Map<string, string>): Act
       clear: async () => undefined,
     },
     storage: {
+      groups: {
+        list: async () => [],
+        get: async () => null,
+        upsert: async () => undefined,
+        remove: async () => undefined,
+        clearMembers: async () => undefined,
+      },
       texts: {
         replace: async () => undefined,
         remove: async () => undefined,
@@ -140,6 +147,7 @@ const baseBook = (): BookRecord => ({
   category: null,
   tags: [],
   filePath: 'books/sha-b1.epub',
+  groupId: null,
   coverPath: null,
   coverMime: null,
   addedAt: 1000,

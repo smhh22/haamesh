@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { createRequire } from 'node:module';
 import {
+  type BookGroupRecord,
   type BookNoteRecord,
   type BookRecord,
   createSqlStorage,
@@ -360,5 +361,205 @@ describe('JSON manifest migration', () => {
     // The marker rolled back with the transaction, so a valid snapshot imports.
     await migrateJsonSnapshot(db, snapshot([book()]));
     expect(await storage.books.list()).toHaveLength(1);
+  });
+
+  it('export round-trips into a fresh library (Phase 2 exit criterion)', async () => {
+    // The source library: every format, every locator kind, notes, and the
+    // nested groups of ADR-0027.
+    const source = createSqlStorage(await openDb());
+    const epub = book({ groupId: 'g1' });
+    const pdf = book({
+      id: 'pdf-1',
+      hash: 'b'.repeat(64),
+      format: 'pdf',
+      title: 'Lecture',
+      groupId: 'g2',
+      direction: 'ltr',
+      category: null,
+      tags: [],
+      filePath: 'lecture.pdf',
+    });
+    const audio = book({
+      id: 'audio-1',
+      hash: 'c'.repeat(64),
+      format: 'audio',
+      title: 'کتاب صوتی',
+      category: null,
+      tags: [],
+    });
+    const video = book({
+      id: 'video-1',
+      hash: 'd'.repeat(64),
+      format: 'video',
+      title: 'Lecture video',
+      category: null,
+      tags: [],
+    });
+    const groups: BookGroupRecord[] = [
+      {
+        id: 'g1',
+        name: 'CS224W',
+        category: null,
+        parentId: null,
+        order: [epub.id, 'g2'],
+        createdAt: 1,
+        updatedAt: 2,
+      },
+      {
+        id: 'g2',
+        name: 'Slides',
+        category: null,
+        parentId: 'g1',
+        order: [pdf.id],
+        createdAt: 3,
+        updatedAt: 4,
+      },
+    ];
+    for (const entry of [epub, pdf, audio, video]) await source.books.upsert(entry);
+    for (const group of groups) await source.groups.upsert(group);
+    await source.reading.save({
+      bookId: epub.id,
+      locator: { kind: 'cfi', cfi: 'epubcfi(/6/4!/4/2)', fraction: 0.5 },
+      fraction: 0.5,
+      status: 'reading',
+      updatedAt: 5,
+    });
+    await source.reading.save({
+      bookId: pdf.id,
+      locator: { kind: 'pdf', page: 12, text: 'گراف', occurrence: 1, fraction: 0.75 },
+      fraction: 0.75,
+      status: 'reading',
+      updatedAt: 6,
+    });
+    await source.reading.save({
+      bookId: audio.id,
+      locator: { kind: 'audio', seconds: 42, fraction: 0.2 },
+      fraction: 0.2,
+      status: 'reading',
+      updatedAt: 7,
+    });
+    await source.reading.save({
+      bookId: video.id,
+      locator: { kind: 'time', seconds: 128, fraction: 0.4 },
+      fraction: 0.4,
+      status: 'reading',
+      updatedAt: 8,
+    });
+    const notes: BookNoteRecord[] = [
+      {
+        id: 'n1',
+        bookId: epub.id,
+        type: 'highlight',
+        locator: { kind: 'cfi', cfi: 'epubcfi(/6/4!/4/2)', fraction: 0.5 },
+        color: 'yellow',
+        text: 'متن برجسته',
+        note: 'یادداشت من',
+        createdAt: 9,
+        updatedAt: 9,
+        deletedAt: null,
+      },
+      {
+        id: 'n2',
+        bookId: pdf.id,
+        type: 'note',
+        locator: { kind: 'pdf', page: 12, text: 'گراف', occurrence: 0, fraction: 0.75 },
+        color: null,
+        text: null,
+        note: '### خلاصه',
+        createdAt: 10,
+        updatedAt: 10,
+        deletedAt: null,
+      },
+      {
+        id: 'n3',
+        bookId: audio.id,
+        type: 'bookmark',
+        locator: { kind: 'audio', seconds: 42, fraction: 0.2 },
+        color: null,
+        text: null,
+        note: null,
+        createdAt: 11,
+        updatedAt: 11,
+        deletedAt: null,
+      },
+      {
+        id: 'n4',
+        bookId: epub.id,
+        type: 'note',
+        locator: { kind: 'cfi', cfi: 'epubcfi(/6/8)', fraction: 0.9 },
+        color: 'green',
+        text: 'حذف‌شده',
+        note: null,
+        createdAt: 12,
+        updatedAt: 13,
+        deletedAt: 14,
+      },
+    ];
+    for (const note of notes) await source.notes.upsert(note);
+
+    // Exactly what persistNow writes to library.json: all stores serialized,
+    // cover object URLs never persisted.
+    const manifest = JSON.parse(
+      JSON.stringify({
+        version: 1,
+        books: (await source.books.list()).map((entry) => ({ ...entry, coverPath: null })),
+        reading: Object.fromEntries(
+          (await source.reading.list()).map((state) => [state.bookId, state]),
+        ),
+        notes: await source.notes.listAll(),
+        groups: await source.groups.list(),
+      }),
+    ) as LibrarySnapshot;
+
+    // A fresh library imports the manifest and every record survives.
+    const freshDb = await openDb();
+    await migrateJsonSnapshot(freshDb, manifest);
+    const target = createSqlStorage(freshDb);
+
+    const books = await target.books.list();
+    expect(books).toHaveLength(4);
+    expect(books.find((entry) => entry.id === epub.id)).toMatchObject({
+      groupId: 'g1',
+      category: 'تاریخ',
+      tags: ['ایران', 'تاریخ'],
+      coverMime: 'image/jpeg',
+    });
+    expect(books.find((entry) => entry.id === video.id)?.format).toBe('video');
+
+    const reading = await target.reading.list();
+    expect(reading.find((state) => state.bookId === epub.id)?.locator).toEqual({
+      kind: 'cfi',
+      cfi: 'epubcfi(/6/4!/4/2)',
+      fraction: 0.5,
+    });
+    expect(reading.find((state) => state.bookId === pdf.id)?.locator).toEqual({
+      kind: 'pdf',
+      page: 12,
+      text: 'گراف',
+      occurrence: 1,
+      fraction: 0.75,
+    });
+    expect(reading.find((state) => state.bookId === audio.id)?.locator).toEqual({
+      kind: 'audio',
+      seconds: 42,
+      fraction: 0.2,
+    });
+    expect(reading.find((state) => state.bookId === video.id)?.locator).toEqual({
+      kind: 'time',
+      seconds: 128,
+      fraction: 0.4,
+    });
+
+    expect(await target.notes.listAll()).toEqual(notes);
+    expect(await target.groups.get('g1')).toMatchObject({
+      name: 'CS224W',
+      parentId: null,
+      order: [epub.id, 'g2'],
+    });
+    expect(await target.groups.get('g2')).toMatchObject({
+      name: 'Slides',
+      parentId: 'g1',
+      order: [pdf.id],
+    });
   });
 });

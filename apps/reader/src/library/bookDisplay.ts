@@ -26,5 +26,7 @@ export const primaryActionLabel = (
   hasFile: boolean,
 ): string => {
   if (opening) return hasFile ? t('library.opening') : t('library.downloading');
+  // A pending link has no bytes yet (ADR-0026); say what the click does.
+  if (!hasFile && book.identifiers.pending === '1') return t('library.linkDownload');
   return t(primaryActionKey(book.format));
 };

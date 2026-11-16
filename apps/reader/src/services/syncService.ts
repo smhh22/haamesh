@@ -21,7 +21,13 @@ import { extractMissingBookTexts } from './bookTexts';
 import { createDataStore, isTauriRuntime } from './dataStore';
 import { providerFetch } from './httpFetch';
 import { keychainDelete, keychainGet, keychainSet } from './keychain';
-import { getActiveStorage, getSyncClock, reloadLibraryFromStorage } from './libraryPersistence';
+import {
+  clearBookBlobNeeded,
+  getActiveStorage,
+  getSyncClock,
+  markBookBlobNeeded,
+  reloadLibraryFromStorage,
+} from './libraryPersistence';
 import { createLocalFolderFs, isLocalFolderAvailable, restoreSyncRoot } from './localFolderFs';
 import { connectSftp, createSftpFs, isSftpAvailable } from './sftpFs';
 import { finishStartupRun, markStartup } from './startupTrace';
@@ -801,10 +807,20 @@ export const downloadBook = async (book: BookRecord): Promise<BookDownloadOutcom
     });
     if (result.ok) {
       await reloadLibraryFromStorage();
+      const refreshed = getActiveStorage();
+      if (refreshed) {
+        const current = (await refreshed.storage.books.get(book.id)) ?? book;
+        await clearBookBlobNeeded(current);
+      }
       await extractMissingBookTexts();
       return { ok: true };
     }
     lastCode = result.code;
+  }
+  if (lastCode === 'NETWORK') {
+    // A rot-able source link (ADR-0026): ask the fleet for the bytes.
+    await markBookBlobNeeded(book);
+    await reloadLibraryFromStorage();
   }
   return { ok: false, code: lastCode };
 };

@@ -72,9 +72,19 @@ import {
   persistBook,
   persistBookOrganization,
   persistGroup,
+  persistPendingBook,
   persistReadingState,
   removeBookFromGroupPersisted,
 } from './services/libraryPersistence';
+import {
+  cancelLinkDownload,
+  isPendingBook,
+  LinkImportError,
+  materializePendingBook,
+  normalizeLinkUrl,
+  pendingBookRecord,
+  probeLink,
+} from './services/linkImport';
 import {
   downloadBook,
   isProviderConfigured,
@@ -86,6 +96,22 @@ import { useReadingStore } from './stores/readingStore';
 import { type UiLocale as Locale, useUiStore } from './stores/uiStore';
 
 const directionFor = (locale: Locale): Direction => (locale === 'fa' ? 'rtl' : 'ltr');
+
+/** Link-import failures surface through the library error line. */
+const linkErrorCode = (
+  code: LinkImportError['code'],
+): 'URL_INVALID' | 'UNSUPPORTED_FORMAT' | 'LINK_TOO_LARGE' | 'DOWNLOAD_FAILED' => {
+  switch (code) {
+    case 'URL_INVALID':
+      return 'URL_INVALID';
+    case 'UNSUPPORTED_FORMAT':
+      return 'UNSUPPORTED_FORMAT';
+    case 'TOO_LARGE':
+      return 'LINK_TOO_LARGE';
+    default:
+      return 'DOWNLOAD_FAILED';
+  }
+};
 
 type ReadingStatusFilter = 'all' | ReadingStatus;
 type FormatFilter = 'all' | BookRecord['format'];
@@ -115,6 +141,7 @@ export const App = () => {
     | 'URL_INVALID'
     | 'URL_FAILED'
     | 'DOWNLOAD_FAILED'
+    | 'LINK_TOO_LARGE'
     | null
   >(null);
   const [openingBookId, setOpeningBookId] = useState<string | null>(null);
@@ -122,6 +149,14 @@ export const App = () => {
   // and covers only, so a remote-known book starts without its file.
   const [fileHashes, setFileHashes] = useState<Set<string>>(() => new Set());
   const [downloadingHash, setDownloadingHash] = useState<string | null>(null);
+  // Link-only materialization progress (ADR-0026): 0–1, or null while the
+  // total is still unknown; the bookId scopes the card that shows it.
+  const [linkProgress, setLinkProgress] = useState<{
+    bookId: string;
+    fraction: number | null;
+  } | null>(null);
+  const linkAbortRef = useRef<AbortController | null>(null);
+  const linkTokenRef = useRef<string | null>(null);
   const [query, setQuery] = useState('');
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
@@ -574,23 +609,36 @@ export const App = () => {
     event.currentTarget.value = '';
   };
 
-  /** Add a book from a link (ADR-0019); the sync mode was chosen in the dialog. */
+  /**
+   * Add a book from a link. ADR-0019 asked how the book syncs; ADR-0026 made
+   * the link mode real: nothing downloads until the user opens the card.
+   */
   const handleUrlImport = async (url: string, syncVia: UrlSyncMode) => {
     setUrlImportOpen(false);
     setIsImporting(true);
     setErrorCode(null);
     try {
+      if (syncVia === 'url') {
+        const parsed = normalizeLinkUrl(url);
+        const probe = await probeLink(parsed);
+        const record = await pendingBookRecord(parsed, probe);
+        addBook(record);
+        await persistPendingBook(record);
+        return;
+      }
       const imported = await importBookFromUrl(url, syncVia);
       addBook(imported.record);
       await persistBook(imported.record, imported.file, imported.cover);
       void storeBookTexts(imported.record.id, imported.file);
     } catch (error) {
       setErrorCode(
-        error instanceof UrlImportError
-          ? error.code
-          : error instanceof ImportError
+        error instanceof LinkImportError
+          ? linkErrorCode(error.code)
+          : error instanceof UrlImportError
             ? error.code
-            : 'UNKNOWN',
+            : error instanceof ImportError
+              ? error.code
+              : 'UNKNOWN',
       );
     } finally {
       setIsImporting(false);
@@ -737,6 +785,45 @@ export const App = () => {
 
   const openingRef = useRef<string | null>(null);
 
+  /**
+   * Fetch a pending link's bytes and turn it into a normal book (ADR-0026),
+   * with progress and cancel. Returns null when cancelled or failed (the
+   * error code is already surfaced).
+   */
+  const materializeLink = async (book: BookRecord): Promise<BookRecord | null> => {
+    if (linkProgress) return null;
+    const controller = new AbortController();
+    const token = crypto.randomUUID();
+    linkAbortRef.current = controller;
+    linkTokenRef.current = token;
+    setLinkProgress({ bookId: book.id, fraction: null });
+    setErrorCode(null);
+    try {
+      const result = await materializePendingBook(book, {
+        signal: controller.signal,
+        onProgress: (fraction) => setLinkProgress({ bookId: book.id, fraction }),
+      });
+      setFileHashes((current) => new Set(current).add(result.book.hash));
+      return result.book;
+    } catch (error) {
+      if (error instanceof LinkImportError && error.code === 'CANCELLED') return null;
+      setErrorCode(
+        error instanceof LinkImportError ? linkErrorCode(error.code) : 'DOWNLOAD_FAILED',
+      );
+      return null;
+    } finally {
+      linkAbortRef.current = null;
+      linkTokenRef.current = null;
+      setLinkProgress(null);
+    }
+  };
+
+  const cancelMaterialize = () => {
+    linkAbortRef.current?.abort();
+    const token = linkTokenRef.current;
+    if (token) void cancelLinkDownload(token);
+  };
+
   const openReader = async (book: BookRecord) => {
     if (openingRef.current) return;
     openingRef.current = book.id;
@@ -745,18 +832,27 @@ export const App = () => {
     try {
       // A freshly imported book still sits in the runtime cache; the derived
       // set may lag one render behind, so the cache check comes first.
-      let file = getBookFile(book.hash);
-      if (!file && fileHashes.has(book.hash)) {
-        file = await loadBookFile(book);
+      let target = book;
+      let file = getBookFile(target.hash);
+      if (!file && fileHashes.has(target.hash)) {
+        file = await loadBookFile(target);
+      }
+      if (!file && isPendingBook(target)) {
+        // A pending link materializes on first open (ADR-0026): the fetched
+        // bytes become a normal content-hashed book, then the reader opens it.
+        const materialized = await materializeLink(target);
+        if (!materialized) return;
+        target = materialized;
+        file = getBookFile(target.hash) ?? (await loadBookFile(target));
       }
       if (!file) {
         // On-demand download (ADR-0020): opening a remote-known book fetches
         // its bytes first, then opens it. With no provider configured there is
         // nothing to fetch from, so fall through to the missing-file report.
-        const result = await downloadBook(book);
+        const result = await downloadBook(target);
         if (result.ok) {
-          setFileHashes((current) => new Set(current).add(book.hash));
-          file = await loadBookFile(book);
+          setFileHashes((current) => new Set(current).add(target.hash));
+          file = await loadBookFile(target);
         } else if (result.code !== 'CONFIGURATION') {
           setErrorCode('DOWNLOAD_FAILED');
           return;
@@ -769,17 +865,17 @@ export const App = () => {
       // Audio books play through the persistent player bar instead of the
       // paginated reader (ADR-0021); video courses watch full-screen
       // (ADR-0023).
-      if (book.format === 'audio') {
-        setAudioSession({ book, file });
+      if (target.format === 'audio') {
+        setAudioSession({ book: target, file });
         return;
       }
-      if (book.format === 'video') {
-        setVideoSession({ book, file });
+      if (target.format === 'video') {
+        setVideoSession({ book: target, file });
         return;
       }
       setReaderSession({
-        book,
-        start: useReadingStore.getState().states[book.id] ?? null,
+        book: target,
+        start: useReadingStore.getState().states[target.id] ?? null,
       });
     } catch {
       setErrorCode('OPEN_FAILED');
@@ -791,6 +887,10 @@ export const App = () => {
 
   const downloadBookFile = async (book: BookRecord) => {
     if (downloadingHash) return;
+    if (isPendingBook(book)) {
+      await materializeLink(book);
+      return;
+    }
     setDownloadingHash(book.hash);
     setErrorCode(null);
     try {
@@ -828,6 +928,8 @@ export const App = () => {
       hasFile={fileHashes.has(book.hash)}
       opening={openingBookId === book.id}
       downloading={downloadingHash === book.hash}
+      downloadFraction={linkProgress?.bookId === book.id ? linkProgress.fraction : undefined}
+      onCancelDownload={cancelMaterialize}
       onOpen={() => void openReader(book)}
       onEdit={() => setEditingBookId(book.id)}
       onRemove={() => setRemovingBookId(book.id)}
@@ -847,6 +949,8 @@ export const App = () => {
       hasFile={fileHashes.has(book.hash)}
       opening={openingBookId === book.id}
       downloading={downloadingHash === book.hash}
+      downloadFraction={linkProgress?.bookId === book.id ? linkProgress.fraction : undefined}
+      onCancelDownload={cancelMaterialize}
       onOpen={() => void openReader(book)}
       onEdit={() => setEditingBookId(book.id)}
       onRemove={() => setRemovingBookId(book.id)}
@@ -863,6 +967,8 @@ export const App = () => {
       hasFile={fileHashes.has(book.hash)}
       opening={openingBookId === book.id}
       downloading={downloadingHash === book.hash}
+      downloadFraction={linkProgress?.bookId === book.id ? linkProgress.fraction : undefined}
+      onCancelDownload={cancelMaterialize}
       onOpen={() => void openReader(book)}
       onEdit={() => setEditingBookId(book.id)}
       onRemove={() => setRemovingBookId(book.id)}

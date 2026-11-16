@@ -343,7 +343,11 @@ export const createSyncEngine = (options: SyncOptions) => {
               ? (identifiers as Record<string, unknown>)
               : {};
           const syncViaUrl = meta.syncVia === 'url';
-          if (!remoteBlob && localBlob && !syncViaUrl) {
+          // A device that could not reach a dead link sets blobNeeded
+          // (ADR-0026): whoever holds the file then uploads it once, so the
+          // user's storage is only used when a source actually rots.
+          const blobNeeded = meta.blobNeeded === '1';
+          if (!remoteBlob && localBlob && (!syncViaUrl || blobNeeded)) {
             // Read the bytes only when an upload is actually happening; the
             // stat above decided the transfer, the file could still vanish.
             const local = await store.bookFile(sha256);

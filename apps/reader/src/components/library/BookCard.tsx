@@ -21,6 +21,9 @@ interface BookCardProps {
   onDownload: () => void;
   /** Set when the card can be filed into a group (ADR-0025). */
   onAddToGroup?: () => void;
+  /** Link-only materialization progress (ADR-0026); undefined when idle. */
+  downloadFraction?: number | null;
+  onCancelDownload?: () => void;
   /** Dragging the card files it into a group drop target. */
   draggable?: boolean;
   onDragStart?: (event: ReactDragEvent) => void;
@@ -45,6 +48,8 @@ export const BookCard = ({
   onRemove,
   onDownload,
   onAddToGroup,
+  downloadFraction,
+  onCancelDownload,
   draggable,
   onDragStart,
   onDragEnd,
@@ -53,7 +58,10 @@ export const BookCard = ({
   const percentFormat = new Intl.NumberFormat(locale === 'fa' ? 'fa-IR' : 'en-US');
   const authors = formatAuthorList(book.authors, locale) || t('library.unknownAuthor');
   const percent = Math.round(fraction * 100);
-  const label = primaryActionLabel(book, t, opening, hasFile);
+  const downloadingLink = downloadFraction !== undefined;
+  const label = downloadingLink
+    ? t('library.linkCancelDownload')
+    : primaryActionLabel(book, t, opening, hasFile);
 
   return (
     <li
@@ -80,11 +88,31 @@ export const BookCard = ({
         </p>
         <p className="book-plate-tags">
           <span className="format-chip">{FORMAT_LABEL[book.format]}</span>
+          {book.identifiers.pending === '1' ? (
+            <span className="format-chip is-link">{t('library.linkSource')}</span>
+          ) : null}
           {book.language ? <span className="format-chip">{book.language}</span> : null}
         </p>
         {/* The row renders even at 0% so cards align across a row. */}
         <span className="book-plate-progress">
-          {fraction > 0 ? (
+          {downloadingLink ? (
+            <>
+              <span className="progress-track">
+                <span
+                  style={{
+                    inlineSize: `${downloadFraction === null ? 0 : Math.round(downloadFraction * 100)}%`,
+                  }}
+                />
+              </span>
+              <span className="progress-value">
+                {downloadFraction === null
+                  ? '…'
+                  : t('library.percent', {
+                      percent: percentFormat.format(Math.round(downloadFraction * 100)),
+                    })}
+              </span>
+            </>
+          ) : fraction > 0 ? (
             <>
               <span className="progress-track">
                 <span style={{ inlineSize: `${percent}%` }} />
@@ -96,7 +124,12 @@ export const BookCard = ({
           ) : null}
         </span>
         <div className="book-plate-actions">
-          <button type="button" className="book-open-button" disabled={opening} onClick={onOpen}>
+          <button
+            type="button"
+            className="book-open-button"
+            disabled={opening || downloadingLink}
+            onClick={downloadingLink ? onCancelDownload : onOpen}
+          >
             {label}
           </button>
           <BookActionsMenu

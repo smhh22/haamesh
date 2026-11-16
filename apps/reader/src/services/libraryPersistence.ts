@@ -192,6 +192,53 @@ export const persistBook = async (
 };
 
 /**
+ * Persist a link-only pending record (ADR-0026). Pending records have no
+ * bytes yet, so this only writes the metadata row and its synced fields.
+ */
+export const persistPendingBook = async (book: BookRecord): Promise<void> => {
+  await activeStorage?.storage.books.upsert(book);
+  if (activeStorage && syncClock) {
+    await activeStorage.clocks.remove([`book:${book.id}:deleted`]);
+    await stampFieldClocks(activeStorage.clocks, syncClock, `book:${book.id}`, BOOK_SYNC_FIELDS);
+  }
+  await activeStorage?.flush();
+  await persistNow();
+};
+
+/**
+ * Rescue signalling for url-mode books (ADR-0026). When a device cannot fetch
+ * a book from its source link it asks the sync fleet for the bytes; any device
+ * holding the file uploads it once. The identifiers object carries both flags.
+ */
+export const markBookBlobNeeded = async (book: BookRecord): Promise<void> => {
+  if (book.identifiers.syncVia !== 'url' || book.identifiers.blobNeeded === '1') return;
+  const updated: BookRecord = {
+    ...book,
+    identifiers: { ...book.identifiers, blobNeeded: '1' },
+    updatedAt: Date.now(),
+  };
+  await activeStorage?.storage.books.upsert(updated);
+  if (activeStorage && syncClock) {
+    await stampFieldClocks(activeStorage.clocks, syncClock, `book:${book.id}`, ['identifiers']);
+  }
+  await activeStorage?.flush();
+  await persistNow();
+};
+
+export const clearBookBlobNeeded = async (book: BookRecord): Promise<void> => {
+  if (book.identifiers.blobNeeded !== '1') return;
+  const { blobNeeded: _removed, ...identifiers } = book.identifiers;
+  void _removed;
+  const updated: BookRecord = { ...book, identifiers, updatedAt: Date.now() };
+  await activeStorage?.storage.books.upsert(updated);
+  if (activeStorage && syncClock) {
+    await stampFieldClocks(activeStorage.clocks, syncClock, `book:${book.id}`, ['identifiers']);
+  }
+  await activeStorage?.flush();
+  await persistNow();
+};
+
+/**
  * Persist a book details edit (ADR-0013, plus language/direction overrides).
  * Only the fields present in `organization` are stamped, so a concurrent
  * progress write on another device is not clobbered.

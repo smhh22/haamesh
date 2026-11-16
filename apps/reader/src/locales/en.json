@@ -71,7 +71,8 @@
       "OPEN_FAILED": "This book could not be opened.",
       "UNKNOWN": "Something went wrong while importing.",
       "URL_INVALID": "That link is not a valid http(s) address.",
-      "URL_FAILED": "The download failed. Check the link and try again."
+      "URL_FAILED": "The download failed. Check the link and try again.",
+      "LINK_TOO_LARGE": "This link is larger than the link download limit in Settings."
     },
     "contentMatches": "In book contents",
     "removeTitle": "Remove this book?",
@@ -135,8 +136,8 @@
     "bookUrl": "Book URL",
     "urlSyncQuestion": "How should this book sync?",
     "urlSyncFile": "Sync the book file through my storage",
-    "urlSyncLink": "Sync only the link; other devices download it from the source",
-    "urlSyncHint": "The link's content is verified against the book's hash on every device.",
+    "urlSyncLink": "Keep only the link; the file downloads when you open it",
+    "urlSyncHint": "The file is verified against the book on every device, and your storage only holds links unless a source disappears.",
     "newCategoryOption": "New category…",
     "newCategoryName": "New category name",
     "moveCategoryUp": "Move category up",
@@ -144,7 +145,11 @@
     "language": "Language",
     "groupCount_one": "{{total}} book",
     "groupCount_other": "{{total}} books",
-    "openShort": "Open"
+    "openShort": "Open",
+    "linkSource": "Link",
+    "linkDownloading": "Downloading…",
+    "linkCancelDownload": "Cancel download",
+    "linkDownload": "Download"
   },
   "reader": {
     "back": "Library",
@@ -368,7 +373,9 @@
       "sync": "Only reading state syncs. Settings stay on this device.",
       "updates": "Release channel and the installed version.",
       "about": "Local-first by design: no accounts, no servers, no telemetry."
-    }
+    },
+    "linkSizeCap": "Link download limit (MB)",
+    "linkSizeCapHint": "Applies to link imports and link-only books; 0 means no limit. Stored on this device."
   },
   "shortcuts": {
     "title": "Keyboard shortcuts",

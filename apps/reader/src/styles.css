@@ -12,11 +12,16 @@ body,
 }
 
 :root {
-  --safe-area-inset-top: env(safe-area-inset-top, 0px);
-  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  /* Android (MainActivity.kt) forwards system-bar insets as --android-safe-*
+     custom properties because the WebView never reports env() values; the
+     max() keeps platforms that do report them working unchanged. */
+  --safe-area-inset-top: max(env(safe-area-inset-top, 0px), var(--android-safe-top, 0px));
+  --safe-area-inset-bottom: max(env(safe-area-inset-bottom, 0px), var(--android-safe-bottom, 0px));
   --safe-area-inset-inline-start: max(
     env(safe-area-inset-left, 0px),
-    env(safe-area-inset-right, 0px)
+    env(safe-area-inset-right, 0px),
+    var(--android-safe-left, 0px),
+    var(--android-safe-right, 0px)
   );
 }
 
@@ -1686,6 +1691,12 @@ kbd {
   display: grid;
   place-items: center;
   padding: var(--hamesh-space-4);
+  /* Notched devices: the backdrop spans the screen under a translucent
+     status bar, so dialogs need the system-bar insets themselves — the
+     library shell's own padding does not apply here. */
+  padding-block-start: calc(var(--hamesh-space-4) + var(--safe-area-inset-top));
+  padding-block-end: calc(var(--hamesh-space-4) + var(--safe-area-inset-bottom));
+  padding-inline: calc(var(--hamesh-space-4) + var(--safe-area-inset-inline-start));
   z-index: 40;
   backdrop-filter: blur(3px);
 }
@@ -3869,6 +3880,11 @@ body:has(.player-bar) .shell {
 .settings-backdrop {
   display: block;
   padding: 0;
+  /* The page surface spans the whole window, so its content must clear the
+     system bars itself (Android never reports env(), so the safe-area vars
+     carry the injected values). */
+  padding-block-start: var(--safe-area-inset-top);
+  padding-block-end: var(--safe-area-inset-bottom);
   background: var(--hamesh-color-canvas);
   backdrop-filter: none;
   overflow-y: auto;
@@ -4287,6 +4303,22 @@ body:has(.player-bar) .shell {
 
 .member-row:hover .group-grip {
   color: var(--hamesh-color-accent);
+}
+
+/* Touch reorder (ADR-0025): grip long-press. Rows keep their DOM slots and
+   shift with direct transforms; the lifted row rides the finger. */
+.book-grid.is-touch-reordering .book-card.member-row {
+  transition: transform 150ms ease;
+  touch-action: none;
+}
+
+.member-row.is-touch-lifted {
+  position: relative;
+  z-index: 5;
+  transition: none;
+  outline: 2px solid var(--hamesh-color-accent);
+  outline-offset: -2px;
+  box-shadow: 0 10px 24px rgb(36 33 28 / 22%);
 }
 
 /* Add-books and pick-group dialogs reuse the confirm-dialog chrome. */

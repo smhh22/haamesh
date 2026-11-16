@@ -1050,6 +1050,51 @@ test('detects PDF language and direction from the text layer', async ({ page }) 
   ).toBeVisible();
 });
 
+test('pairs RTL PDF spreads from the persisted direction', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(persianPdfFixture);
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
+
+  // First open: detection samples the text layer and persists direction.
+  await page.getByRole('button', { name: 'Library' }).click();
+  const card = page.locator('.book-card', { hasText: 'نمونه فارسی' });
+  await expect(card.locator('.format-chip', { hasText: 'fa' })).toBeVisible({ timeout: 10_000 });
+
+  // Second open seeds foliate's book.dir from the persisted direction, so a
+  // forced two-page layout pairs with the first page on the leading side.
+  const state = () =>
+    page.evaluate(() => {
+      const view = document.querySelector('foliate-view');
+      const renderer = view?.renderer as
+        | {
+            spread?: string;
+            rtl?: boolean;
+            getContents?: () => unknown[];
+          }
+        | null
+        | undefined;
+      return {
+        spread: renderer?.spread,
+        rtl: renderer?.rtl,
+        frames: renderer?.getContents?.().length ?? 0,
+      };
+    });
+  await card.getByRole('button', { name: 'Read', exact: true }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
+  await expect.poll(state).toMatchObject({ spread: 'auto', rtl: true });
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Two pages' }).click();
+  // A one-page PDF still mounts a blank half next to the page, so the frame
+  // count stays at 2 — the RTL pairing is what this assertion pins down.
+  await expect.poll(state).toMatchObject({ spread: 'both', rtl: true });
+});
+
 test('lets the reader override PDF language and direction', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(pdfFixture);
@@ -1781,4 +1826,76 @@ test('search surfaces group members with their group path (ADR-0025)', async ({ 
   await page.getByRole('searchbox').fill('lecture notes');
   await expect(page.locator('.group-row', { hasText: 'Lecture Notes' })).toBeVisible();
   await expect(page.locator('.book-row', { hasText: 'Sample Book' })).toHaveCount(0);
+});
+
+test('reorders group members with a grip long-press on touch (ADR-0025)', async ({ browser }) => {
+  // Touch context: the gesture is pointer events with pointerType 'touch'.
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  const page = await context.newPage();
+
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+  await expect(page.locator('.book-card')).toHaveCount(2);
+
+  await page.getByRole('button', { name: 'New group' }).click();
+  await page.getByLabel('Group name').fill('Lecture Notes');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.group-row')).toBeVisible();
+
+  // File both members through the menu (touch has no HTML5 drag).
+  for (const title of ['Sample Book', 'نمونه کتاب']) {
+    await page
+      .locator('.book-row', { hasText: title })
+      .getByRole('button', { name: 'Book actions' })
+      .click();
+    await page.getByRole('menuitem', { name: 'Add to group…' }).click();
+    await page
+      .getByRole('dialog', { name: new RegExp(`Add “${title}” to a group`) })
+      .getByRole('button', { name: 'Add', exact: true })
+      .click();
+  }
+  await page.locator('.group-row').getByRole('button', { name: 'Open', exact: true }).click();
+  await expect(page.locator('.member-row')).toHaveCount(2);
+  const titles = () =>
+    page
+      .locator('.member-row .book-row-title')
+      .evaluateAll((nodes) => nodes.map((node) => node.textContent ?? ''));
+  await expect.poll(titles).toEqual(['Sample Book', 'نمونه کتاب']);
+
+  // Long-press the first row's grip, drag it over the second row, release.
+  await page.evaluate(() => {
+    const fire = (element: Element, type: string, clientY: number) =>
+      element.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 7,
+          pointerType: 'touch',
+          isPrimary: true,
+          clientX: 24,
+          clientY,
+        }),
+      );
+    const grips = [...document.querySelectorAll('.member-row .group-grip')];
+    const first = grips[0]?.getBoundingClientRect();
+    const second = grips[1]?.getBoundingClientRect();
+    if (!first || !second) throw new Error('grips missing');
+    const grip = grips[0] as HTMLElement;
+    fire(grip, 'pointerdown', first.top + first.height / 2);
+    window.setTimeout(() => fire(grip, 'pointermove', second.top + second.height / 2), 350);
+    window.setTimeout(() => fire(grip, 'pointerup', second.top + second.height / 2), 500);
+  });
+
+  // The dragged row lands before the hovered row, and the order persists.
+  await expect.poll(titles).toEqual(['نمونه کتاب', 'Sample Book']);
+  await page.waitForTimeout(500);
+  await page.reload();
+  await page.locator('.group-row').getByRole('button', { name: 'Open', exact: true }).click();
+  await expect.poll(titles).toEqual(['نمونه کتاب', 'Sample Book']);
+
+  await context.close();
 });

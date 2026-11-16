@@ -746,6 +746,11 @@ export const ReaderView = ({
         // pages but falls back to a single page in portrait orientation.
         if (isPdf) {
           parsed.rendition = { ...parsed.rendition, spread: renditionSpreadFor(spreadSetting) };
+          // The fixed-layout renderer pairs spreads by book.dir at open. PDF
+          // direction is only known after the text layer loads and detection
+          // persists it, so seed the persisted direction here: the first open
+          // of an undetected PDF pairs LTR, every later open follows it.
+          if (bookRef.current.direction === 'rtl') parsed.dir = 'rtl';
         }
         parsed.transformTarget?.addEventListener('data', onData);
         setToc((parsed.toc ?? []) as TocItem[]);

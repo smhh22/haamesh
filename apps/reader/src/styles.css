@@ -3123,6 +3123,9 @@ body:has(.player-bar) .shell {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  /* Reserve both clamped lines: a one-line title must not shift the author,
+     progress and action rows of its neighbours in the same row. */
+  min-block-size: 2.8em;
 }
 
 .book-plate-author {
@@ -3145,6 +3148,9 @@ body:has(.player-bar) .shell {
   align-items: center;
   gap: var(--hamesh-space-2);
   margin-block-start: var(--hamesh-space-1);
+  /* Cards without progress keep the row's height, so the action rows of a
+     mixed started/unstarted row stay flush. */
+  min-block-size: 1.5rem;
 }
 
 .book-plate-actions {
@@ -3375,6 +3381,9 @@ body:has(.player-bar) .shell {
   align-items: baseline;
   gap: var(--hamesh-space-3);
   margin-block-end: var(--hamesh-space-3);
+  /* The divider belongs under the category name, not under the covers. */
+  padding-block-end: var(--hamesh-space-2);
+  border-block-end: 1px solid var(--hamesh-color-border);
 }
 
 .shelf-title {
@@ -3427,30 +3436,6 @@ body:has(.player-bar) .shell {
 
 .shelf-track::-webkit-scrollbar {
   display: none;
-}
-
-.shelf-track::after {
-  content: "";
-  position: absolute;
-  inset-inline: 0;
-  inset-block-start: calc(var(--cover-w) * 1.5 - 1px);
-  block-size: 1px;
-  background: linear-gradient(
-    to right,
-    var(--hamesh-color-border),
-    var(--hamesh-color-border) 88%,
-    transparent
-  );
-  pointer-events: none;
-}
-
-[dir="rtl"] .shelf-track::after {
-  background: linear-gradient(
-    to left,
-    var(--hamesh-color-border),
-    var(--hamesh-color-border) 88%,
-    transparent
-  );
 }
 
 .book-shelf-item {

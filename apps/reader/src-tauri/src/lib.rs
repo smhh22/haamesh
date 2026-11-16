@@ -1,11 +1,11 @@
 use rusqlite::params_from_iter;
-use sha2::{Digest, Sha256};
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
 use rusqlite::types::ValueRef;
 use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 mod media;
 mod sftp;
@@ -884,7 +884,10 @@ async fn stream_link_download(
     }
 
     let digest = hasher.finalize();
-    let sha256 = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    let sha256 = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
     let _ = app.emit(
         "link-download-progress",
         serde_json::json!({ "token": token, "received": received, "total": received }),

@@ -205,21 +205,43 @@ test('imports a link-only book and materializes it on first open', async ({ page
   await expect(placeholder.locator('.format-chip.is-link')).toHaveText('Link');
   expect(methods.filter((method) => method !== 'HEAD')).toEqual([]);
 
+  // A link can be organized before it is ever fetched (ADR-0026): the member
+  // row keeps the catalog contract — Link chip, Download action.
+  await page.getByRole('button', { name: 'New group' }).click();
+  await page.getByLabel('Group name').fill('Reading list');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.group-row')).toBeVisible();
+  await placeholder.getByRole('button', { name: 'Book actions' }).click();
+  await page.getByRole('menuitem', { name: 'Add to group…' }).click();
+  await page
+    .getByRole('dialog', { name: /Add [.“]persian[.”] to a group/ })
+    .locator('.group-add-row', { hasText: 'Reading list' })
+    .getByRole('button', { name: 'Add', exact: true })
+    .click();
+  await expect(page.locator('.group-row')).toContainText('1 file');
+  await page.locator('.group-row').getByRole('button', { name: 'Open', exact: true }).click();
+  const member = page.locator('.member-row', { hasText: 'persian' });
+  await expect(member).toBeVisible();
+  await expect(member.locator('.format-chip.is-link')).toHaveText('Link');
+  await expect(member.getByRole('button', { name: 'Download', exact: true })).toBeVisible();
+
   // The pending action says Download (there are no bytes yet); pressing it
-  // materializes and opens: the fetch runs once and the card becomes the
+  // materializes and opens: the fetch runs once and the row becomes the
   // real book (metadata title, no link chip).
-  await placeholder.getByRole('button', { name: 'Download', exact: true }).click();
+  await member.getByRole('button', { name: 'Download', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
   });
   await page.getByRole('button', { name: 'Library' }).click();
-  const real = page.locator('.book-card', { hasText: 'نمونه کتاب' });
-  await expect(real).toBeVisible();
-  await expect(page.locator('.format-chip.is-link')).toHaveCount(0);
   expect(methods.filter((method) => method === 'GET')).toHaveLength(1);
 
-  // From then on it behaves like any imported book.
-  await real.getByRole('button', { name: 'Read', exact: true }).click();
+  // Returning lands back inside the group (the open group is kept), and the
+  // materialized book kept the membership the link already had (ADR-0026).
+  const materialized = page.locator('.member-row', { hasText: 'نمونه کتاب' });
+  await expect(materialized).toBeVisible();
+  await expect(page.locator('.format-chip.is-link')).toHaveCount(0);
+  // From then on it behaves like any imported book (EPUB → Read).
+  await materialized.getByRole('button', { name: 'Read', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
   });

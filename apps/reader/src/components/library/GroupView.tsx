@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { BookCover } from './BookCover';
 import { GroupMark } from './GroupMark';
 import { OverflowMenu } from './OverflowMenu';
+import { useTouchReorder } from './useTouchReorder';
 
 interface GroupMemberRowProps {
   book: BookRecord;
@@ -14,11 +15,18 @@ interface GroupMemberRowProps {
   /** Dragging this row reorders members within the group (ADR-0025). */
   draggable?: boolean;
   isDropTarget?: boolean;
+  /** Touch: true while a long-press drag moves this row. */
+  isTouchLifted?: boolean;
   onOpen: () => void;
   onDragStart?: (event: ReactDragEvent) => void;
   onDragEnd?: () => void;
   onDragOver?: (event: ReactDragEvent) => void;
   onDrop?: (event: ReactDragEvent) => void;
+  onGripPointerDown?: (event: React.PointerEvent) => void;
+  onGripPointerMove?: (event: React.PointerEvent) => void;
+  onGripPointerUp?: (event: React.PointerEvent) => void;
+  onGripPointerCancel?: (event: React.PointerEvent) => void;
+  setRowRef?: (row: HTMLElement | null) => void;
   onRemoveFromGroup: () => void;
 }
 
@@ -33,11 +41,17 @@ export const GroupMemberRow = ({
   locale,
   draggable = false,
   isDropTarget = false,
+  isTouchLifted = false,
   onOpen,
   onDragStart,
   onDragEnd,
   onDragOver,
   onDrop,
+  onGripPointerDown,
+  onGripPointerMove,
+  onGripPointerUp,
+  onGripPointerCancel,
+  setRowRef,
   onRemoveFromGroup,
 }: GroupMemberRowProps) => {
   const { t } = useTranslation();
@@ -46,14 +60,24 @@ export const GroupMemberRow = ({
 
   return (
     <li
-      className={`book-card book-row member-row${isDropTarget ? ' is-drop-target' : ''}`}
+      ref={setRowRef}
+      className={`book-card book-row member-row${isDropTarget ? ' is-drop-target' : ''}${
+        isTouchLifted ? ' is-touch-lifted' : ''
+      }`}
       draggable={draggable || undefined}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
-      <span className="group-grip" aria-hidden="true">
+      <span
+        className="group-grip"
+        aria-hidden="true"
+        onPointerDown={onGripPointerDown}
+        onPointerMove={onGripPointerMove}
+        onPointerUp={onGripPointerUp}
+        onPointerCancel={onGripPointerCancel}
+      >
         <svg width="12" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <circle cx="9" cy="6" r="1.3" />
           <circle cx="15" cy="6" r="1.3" />
@@ -145,6 +169,12 @@ export const GroupView = ({
   const numberFormat = new Intl.NumberFormat(locale === 'fa' ? 'fa-IR' : 'en-US');
 
   const ordered = members;
+  // Touch reorder (grip long-press): same commit contract as a desktop drop.
+  const touch = useTouchReorder({
+    ids: ordered.map((book) => book.id),
+    onReorder,
+    enabled: ordered.length > 1,
+  });
 
   return (
     <div className="group-view">
@@ -207,7 +237,7 @@ export const GroupView = ({
       {ordered.length === 0 ? (
         <p className="group-empty">{t('library.groupEmpty')}</p>
       ) : (
-        <ul className="book-grid is-list">
+        <ul className={`book-grid is-list${touch.liftedId ? ' is-touch-reordering' : ''}`}>
           {ordered.map((book) => (
             <GroupMemberRow
               key={book.id}
@@ -216,6 +246,8 @@ export const GroupView = ({
               progressPercent={percentFor(book)}
               locale={locale}
               draggable
+              isTouchLifted={touch.liftedId === book.id}
+              setRowRef={touch.setRowRef(book.id)}
               onOpen={() => onOpenBook(book)}
               onRemoveFromGroup={() => onRemoveMember(book)}
               onDragStart={(event) => {
@@ -229,6 +261,10 @@ export const GroupView = ({
                 const draggedId = raw.startsWith('reorder:') ? raw.slice('reorder:'.length) : null;
                 if (draggedId && draggedId !== book.id) onReorder(draggedId, book.id);
               }}
+              onGripPointerDown={(event) => touch.onGripPointerDown(book.id, event)}
+              onGripPointerMove={touch.onGripPointerMove}
+              onGripPointerUp={touch.onGripPointerUp}
+              onGripPointerCancel={touch.onGripPointerCancel}
             />
           ))}
         </ul>

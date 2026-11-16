@@ -205,9 +205,10 @@ test('imports a link-only book and materializes it on first open', async ({ page
   await expect(placeholder.locator('.format-chip.is-link')).toHaveText('Link');
   expect(methods.filter((method) => method !== 'HEAD')).toEqual([]);
 
-  // Opening it materializes: the fetch runs once, and the card becomes the
+  // The pending action says Download (there are no bytes yet); pressing it
+  // materializes and opens: the fetch runs once and the card becomes the
   // real book (metadata title, no link chip).
-  await placeholder.getByRole('button', { name: 'Read', exact: true }).click();
+  await placeholder.getByRole('button', { name: 'Download', exact: true }).click();
   await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
     timeout: 20_000,
   });
@@ -216,6 +217,12 @@ test('imports a link-only book and materializes it on first open', async ({ page
   await expect(real).toBeVisible();
   await expect(page.locator('.format-chip.is-link')).toHaveCount(0);
   expect(methods.filter((method) => method === 'GET')).toHaveLength(1);
+
+  // From then on it behaves like any imported book.
+  await real.getByRole('button', { name: 'Read', exact: true }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
 });
 
 test('organizes books into a category with tags and filters by them', async ({ page }) => {

@@ -4,7 +4,8 @@
  * clocks. Local writes must stamp the clock (see SyncStore contract) — the
  * persistence layer calls `stampRecordClock` for that.
  */
-import type { HybridLogicalClock, Locator, ReadingStatus } from '@hamesh/core';
+import type { HybridLogicalClock, ReadingStatus } from '@hamesh/core';
+import { isLocator } from '@hamesh/core';
 import type { DataStorePort } from '@hamesh/platform';
 import type { BookNoteRecord, BookRecord } from '@hamesh/storage';
 import type { SyncRecord, SyncStore } from '@hamesh/sync';
@@ -30,9 +31,6 @@ export const stampFieldClocks = async (
 ): Promise<void> => {
   await clocks.setFields(fields.map((field) => [key, field, clockFor(clock)] as const));
 };
-
-const isLocator = (value: unknown): value is Locator =>
-  typeof value === 'object' && value !== null && 'kind' in value;
 
 export const createSqlSyncStore = (
   activeStorage: ActiveStorage,

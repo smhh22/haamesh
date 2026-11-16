@@ -75,3 +75,38 @@ export const clampFraction = (fraction: number): number => {
 /** Fraction for a locator, or 0 when there is no position yet. */
 export const locatorFraction = (locator: Locator | null): number =>
   locator ? clampFraction(locator.fraction) : 0;
+
+/**
+ * Wire guard for a reading position (ADR-0011). Each variant must carry its
+ * full payload and a finite fraction, so a corrupted or hostile sync record
+ * falls back to the previous position instead of poisoning the reader, the
+ * progress bar, or an export.
+ */
+export const isLocator = (value: unknown): value is Locator => {
+  if (typeof value !== 'object' || value === null) return false;
+  const locator = value as Record<string, unknown>;
+  const finite = (input: unknown): input is number =>
+    typeof input === 'number' && Number.isFinite(input);
+  const count = (input: unknown): input is number => finite(input) && input >= 0;
+  switch (locator.kind) {
+    case 'cfi':
+      return typeof locator.cfi === 'string' && locator.cfi !== '' && finite(locator.fraction);
+    case 'page':
+      return count(locator.page) && finite(locator.fraction);
+    case 'pdf':
+      return (
+        count(locator.page) &&
+        typeof locator.text === 'string' &&
+        count(locator.occurrence) &&
+        Number.isInteger(locator.occurrence) &&
+        finite(locator.fraction)
+      );
+    case 'offset':
+      return count(locator.offset) && finite(locator.fraction);
+    case 'audio':
+    case 'time':
+      return count(locator.seconds) && finite(locator.fraction);
+    default:
+      return false;
+  }
+};

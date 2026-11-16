@@ -380,11 +380,19 @@ export const materializePendingBook = async (
   const buffer = new ArrayBuffer(outcome.bytes.byteLength);
   new Uint8Array(buffer).set(outcome.bytes);
   const imported = await importBookFile(new File([buffer], name, { type }));
-  useLibraryStore.getState().addBook(imported.record);
-  await persistBook(imported.record, imported.file, imported.cover);
+  // The user may have organized the link before opening it: the real record
+  // keeps the pending record's group, category and tags (ADR-0026).
+  const record: BookRecord = {
+    ...imported.record,
+    groupId: book.groupId,
+    category: book.category,
+    tags: book.tags,
+  };
+  useLibraryStore.getState().addBook(record);
+  await persistBook(record, imported.file, imported.cover);
   // The pending record is replaced by the content-addressed one; the
   // tombstone keeps other devices from resurrecting the placeholder.
   await deletePersistedBook(book);
   useLibraryStore.getState().removeBook(book.id);
-  return { book: imported.record, deduped: false };
+  return { book: record, deduped: false };
 };

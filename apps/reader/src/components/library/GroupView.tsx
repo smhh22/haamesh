@@ -1,17 +1,17 @@
 import type { BookGroupRecord, BookRecord } from '@hamesh/storage';
 import type { DragEvent as ReactDragEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BookCover } from './BookCover';
+import { BookCover, FORMAT_LABEL } from './BookCover';
 import { GroupMark } from './GroupMark';
 import { OverflowMenu } from './OverflowMenu';
 import { useTouchReorder } from './useTouchReorder';
 
 interface GroupMemberRowProps {
   book: BookRecord;
-  /** "64% read" style line from the caller. */
-  meta: string;
   progressPercent: number;
   locale: string;
+  /** Same contract as the catalog row: Download for a pending link. */
+  primaryLabel: string;
   /** Dragging this row reorders members within the group (ADR-0025). */
   draggable?: boolean;
   isDropTarget?: boolean;
@@ -36,7 +36,7 @@ interface GroupMemberRowProps {
  */
 export const GroupMemberRow = ({
   book,
-  meta,
+  primaryLabel,
   progressPercent,
   locale,
   draggable = false,
@@ -92,7 +92,12 @@ export const GroupMemberRow = ({
         <h3 className="book-row-title">
           <span dir="auto">{book.title}</span>
         </h3>
-        <p className="book-row-meta">{meta}</p>
+        <p className="book-row-meta">
+          <span className="format-chip">{FORMAT_LABEL[book.format]}</span>
+          {book.identifiers.pending === '1' ? (
+            <span className="format-chip is-link">{t('library.linkSource')}</span>
+          ) : null}
+        </p>
       </div>
       <span className="book-row-progress is-desktop">
         {progressPercent > 0 ? (
@@ -108,7 +113,7 @@ export const GroupMemberRow = ({
       </span>
       <div className="book-row-actions">
         <button type="button" className="book-open-button" onClick={onOpen}>
-          {t('library.openShort')}
+          {primaryLabel}
         </button>
         <OverflowMenu label={t('library.bookActions')}>
           {(close) => (
@@ -140,8 +145,8 @@ export interface GroupViewProps {
   /** Files in the whole subtree, for the header and the mark. */
   totalFiles: number;
   locale: string;
-  /** Human lines per member id (format/pages/progress summary). */
-  metaFor: (book: BookRecord) => string;
+  /** Same contract as the catalog: Download for a pending link, Open otherwise. */
+  primaryLabelFor: (book: BookRecord) => string;
   percentFor: (book: BookRecord) => number;
   onBack: () => void;
   /** Jump to an ancestor group from the breadcrumb. */
@@ -170,7 +175,7 @@ export const GroupView = ({
   ancestors,
   totalFiles,
   locale,
-  metaFor,
+  primaryLabelFor,
   percentFor,
   onBack,
   onNavigate,
@@ -295,7 +300,7 @@ export const GroupView = ({
             <GroupMemberRow
               key={book.id}
               book={book}
-              meta={metaFor(book)}
+              primaryLabel={primaryLabelFor(book)}
               progressPercent={percentFor(book)}
               locale={locale}
               draggable

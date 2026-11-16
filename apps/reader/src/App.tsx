@@ -22,7 +22,6 @@ import { useTranslation } from 'react-i18next';
 import { type BookOrganization, BookOrganizationDialog } from './components/BookOrganizationDialog';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { BookCard } from './components/library/BookCard';
-import { FORMAT_LABEL } from './components/library/BookCover';
 import { BookPickGroupDialog } from './components/library/BookPickGroupDialog';
 import { BookRow } from './components/library/BookRow';
 import { CategoryActionsMenu } from './components/library/CategoryActionsMenu';
@@ -43,6 +42,7 @@ import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { type TagSummary, TagsDialog } from './components/TagsDialog';
 import { UpdateBanner } from './components/UpdateBanner';
 import { UrlImportDialog } from './components/UrlImportDialog';
+import { primaryActionLabel } from './library/bookDisplay';
 import { type BookSort, filterAndSortBooks, groupBooksByCategory } from './library/bookList';
 import {
   buildCategoryTree,
@@ -1560,7 +1560,14 @@ export const App = () => {
                     ancestors={groupAncestors(groups, openGroup.id)}
                     totalFiles={subtreeStats.get(openGroup.id)?.files ?? 0}
                     locale={locale}
-                    metaFor={(book) => FORMAT_LABEL[book.format]}
+                    primaryLabelFor={(book) =>
+                      primaryActionLabel(
+                        book,
+                        t,
+                        openingBookId === book.id,
+                        fileHashes.has(book.hash),
+                      )
+                    }
                     percentFor={(book) => Math.round((readingStates[book.id]?.fraction ?? 0) * 100)}
                     onBack={() => setOpenGroupId(displayParentId(groups, openGroup))}
                     onNavigate={(groupId) => setOpenGroupId(groupId)}

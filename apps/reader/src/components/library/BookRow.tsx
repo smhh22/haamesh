@@ -19,6 +19,9 @@ interface BookRowProps {
   onDownload: () => void;
   /** Set when the row can be filed into a group (ADR-0025). */
   onAddToGroup?: () => void;
+  /** Link-only materialization progress (ADR-0026); undefined when idle. */
+  downloadFraction?: number | null;
+  onCancelDownload?: () => void;
   /** Set for members of a group in a flattened view. */
   onRemoveFromGroup?: () => void;
   /** Group name shown in the meta line when the member is surfaced. */
@@ -47,6 +50,8 @@ export const BookRow = ({
   onRemove,
   onDownload,
   onAddToGroup,
+  downloadFraction,
+  onCancelDownload,
   onRemoveFromGroup,
   groupLabel,
   draggable,
@@ -62,7 +67,10 @@ export const BookRow = ({
 
   const authors = formatAuthorList(book.authors, locale) || t('library.unknownAuthor');
   const percent = Math.round(fraction * 100);
-  const primaryLabel = primaryActionLabel(book, t, opening, hasFile);
+  const downloadingLink = downloadFraction !== undefined;
+  const primaryLabel = downloadingLink
+    ? t('library.linkCancelDownload')
+    : primaryActionLabel(book, t, opening, hasFile);
 
   return (
     <li
@@ -88,6 +96,9 @@ export const BookRow = ({
             </span>
           ) : null}
           <span className="format-chip">{FORMAT_LABEL[book.format]}</span>
+          {book.identifiers.pending === '1' ? (
+            <span className="format-chip is-link">{t('library.linkSource')}</span>
+          ) : null}
           {book.language ? <span className="format-chip">{book.language}</span> : null}
         </p>
         {fraction > 0 ? (
@@ -103,7 +114,24 @@ export const BookRow = ({
       </div>
 
       <span className="book-row-progress is-desktop">
-        {fraction > 0 ? (
+        {downloadingLink ? (
+          <>
+            <span className="progress-track">
+              <span
+                style={{
+                  inlineSize: `${downloadFraction === null ? 0 : Math.round(downloadFraction * 100)}%`,
+                }}
+              />
+            </span>
+            <span className="progress-value">
+              {downloadFraction === null
+                ? '…'
+                : t('library.percent', {
+                    percent: percentFormat.format(Math.round(downloadFraction * 100)),
+                  })}
+            </span>
+          </>
+        ) : fraction > 0 ? (
           <>
             <span className="progress-track">
               <span style={{ inlineSize: `${percent}%` }} />
@@ -118,7 +146,12 @@ export const BookRow = ({
       <span className="book-row-added">{dateFormat.format(book.addedAt)}</span>
 
       <div className="book-row-actions">
-        <button type="button" className="book-open-button" disabled={opening} onClick={onOpen}>
+        <button
+          type="button"
+          className="book-open-button"
+          disabled={opening || downloadingLink}
+          onClick={downloadingLink ? onCancelDownload : onOpen}
+        >
           {primaryLabel}
         </button>
         <BookActionsMenu

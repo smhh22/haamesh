@@ -1,4 +1,7 @@
 use rusqlite::params_from_iter;
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use rusqlite::types::ValueRef;
 use serde_json::{Map, Value};
 use std::fs;
@@ -6,7 +9,9 @@ use std::path::{Component, Path, PathBuf};
 
 mod media;
 mod sftp;
+use std::sync::Arc;
 use std::sync::Mutex;
+use tauri::Emitter;
 use tauri::Manager;
 
 struct DbState(Mutex<rusqlite::Connection>);
@@ -746,6 +751,163 @@ async fn http_request(
     })
 }
 
+/// Cancellation flags for in-flight link downloads, keyed by a JS token.
+struct LinkDownloads(Mutex<HashMap<String, Arc<AtomicBool>>>);
+
+#[derive(serde::Serialize)]
+struct LinkDownloadResult {
+    sha256: String,
+    bytes: u64,
+}
+
+/// Stream a link-only book's bytes to the app data directory while hashing
+/// them (ADR-0026). Progress is emitted as `link-download-progress` events;
+/// cancellation comes through `link_cancel`. The caller decides what to do
+/// with the file once the digest is known (materialize or dedupe).
+#[tauri::command]
+async fn link_download(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, LinkDownloads>,
+    url: String,
+    relative: String,
+    proxy: Option<String>,
+    token: String,
+    max_bytes: u64,
+) -> Result<LinkDownloadResult, String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("only http(s) URLs are supported".into());
+    }
+    let flag = Arc::new(AtomicBool::new(false));
+    {
+        let mut downloads = state.0.lock().map_err(|error| error.to_string())?;
+        downloads.insert(token.clone(), flag.clone());
+    }
+
+    let result = stream_link_download(&app, &url, &relative, proxy, &token, max_bytes, &flag).await;
+
+    if let Ok(mut downloads) = state.0.lock() {
+        downloads.remove(&token);
+    }
+    result
+}
+
+async fn stream_link_download(
+    app: &tauri::AppHandle,
+    url: &str,
+    relative: &str,
+    proxy: Option<String>,
+    token: &str,
+    max_bytes: u64,
+    flag: &AtomicBool,
+) -> Result<LinkDownloadResult, String> {
+    // Every redirect hop must stay on http(s); reqwest's limited() policy
+    // alone would allow a downgrade to another scheme.
+    let redirects = reqwest::redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() >= 5 {
+            return attempt.error("too many redirects");
+        }
+        match attempt.url().scheme() {
+            "http" | "https" => attempt.follow(),
+            _ => attempt.error("redirect to an unsupported scheme"),
+        }
+    });
+    let mut builder = reqwest::Client::builder()
+        // No total timeout: course videos can take a while. Connect timeouts
+        // still bound a dead endpoint, and the cancel token bounds the rest.
+        .connect_timeout(std::time::Duration::from_secs(30))
+        .redirect(redirects);
+    if let Some(proxy_url) = proxy.filter(|value| !value.is_empty()) {
+        builder =
+            builder.proxy(reqwest::Proxy::all(&proxy_url).map_err(|error| error.to_string())?);
+    }
+    let client = builder.build().map_err(|error| error.to_string())?;
+
+    let mut response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("download failed: HTTP {status}"));
+    }
+    let total = response.content_length();
+    if max_bytes > 0 && total.is_some_and(|length| length > max_bytes) {
+        return Err("download-too-large".into());
+    }
+
+    let path = resolve_data_path(app, relative)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let mut file = fs::File::create(&path).map_err(|error| error.to_string())?;
+    let mut hasher = Sha256::new();
+    let mut received: u64 = 0;
+    let mut last_emit = std::time::Instant::now();
+
+    let outcome: Result<(), String> = loop {
+        if flag.load(Ordering::Relaxed) {
+            break Err("cancelled".into());
+        }
+        match response.chunk().await {
+            Ok(Some(chunk)) => {
+                received += chunk.len() as u64;
+                if max_bytes > 0 && received > max_bytes {
+                    break Err("download-too-large".into());
+                }
+                use std::io::Write;
+                if let Err(error) = file.write_all(&chunk) {
+                    break Err(error.to_string());
+                }
+                hasher.update(&chunk);
+                if last_emit.elapsed() >= std::time::Duration::from_millis(250) {
+                    last_emit = std::time::Instant::now();
+                    let _ = app.emit(
+                        "link-download-progress",
+                        serde_json::json!({
+                            "token": token,
+                            "received": received,
+                            "total": total,
+                        }),
+                    );
+                }
+            }
+            Ok(None) => break Ok(()),
+            Err(error) => break Err(error.to_string()),
+        }
+    };
+    drop(file);
+
+    if let Err(error) = outcome {
+        let _ = fs::remove_file(&path);
+        return Err(error);
+    }
+
+    let digest = hasher.finalize();
+    let sha256 = digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+    let _ = app.emit(
+        "link-download-progress",
+        serde_json::json!({ "token": token, "received": received, "total": received }),
+    );
+    Ok(LinkDownloadResult {
+        sha256,
+        bytes: received,
+    })
+}
+
+#[tauri::command]
+fn link_cancel(state: tauri::State<'_, LinkDownloads>, token: String) -> Result<(), String> {
+    if let Some(flag) = state
+        .0
+        .lock()
+        .map_err(|error| error.to_string())?
+        .get(&token)
+    {
+        flag.store(true, Ordering::Relaxed);
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -787,7 +949,9 @@ pub fn run() {
             keychain_delete,
             install_kind,
             install_deb_update,
-            http_request
+            http_request,
+            link_download,
+            link_cancel
         ])
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
@@ -798,6 +962,7 @@ pub fn run() {
                 base_url: Mutex::new(None),
             });
             app.manage(SyncRootState(Mutex::new(None)));
+            app.manage(LinkDownloads(Mutex::new(HashMap::new())));
             app.manage(sftp::SftpSessions(Mutex::new(
                 std::collections::HashMap::new(),
             )));

@@ -179,23 +179,43 @@ test('configures a Dropbox provider with a user-owned app', async ({ page }) => 
   await expect(dialog.getByText('Needs setup')).toBeVisible();
 });
 
-test('imports a book from a URL and records the sync choice', async ({ page }) => {
+test('imports a link-only book and materializes it on first open', async ({ page }) => {
   const epub = await (await import('node:fs/promises')).readFile(fixture);
   // The app's fetch of the book is answered locally; no network involved.
-  await page.route('https://books.example/**', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/epub+zip', body: epub }),
-  );
+  // Request methods are recorded so the test can prove the import does not
+  // download (ADR-0026): only a HEAD probe, bytes on demand.
+  const methods: string[] = [];
+  await page.route('https://books.example/**', (route) => {
+    methods.push(route.request().method());
+    return route.fulfill({ status: 200, contentType: 'application/epub+zip', body: epub });
+  });
   await page.goto('/');
 
   await page.getByRole('button', { name: 'Add from URL' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add from URL' });
   await dialog.getByLabel('Book URL').fill('https://books.example/persian.epub');
-  await dialog.getByText('Sync only the link; other devices download it from the source').click();
+  await dialog.getByText('Keep only the link; the file downloads when you open it').click();
   await dialog.getByRole('button', { name: 'Import books' }).click();
   await expect(dialog).toHaveCount(0);
 
-  const card = page.locator('.book-card', { hasText: 'نمونه کتاب' });
-  await expect(card).toBeVisible();
+  // The placeholder is titled from the URL and carries the link chip; no
+  // bytes were fetched (HEAD only).
+  const placeholder = page.locator('.book-card', { hasText: 'persian' });
+  await expect(placeholder).toBeVisible();
+  await expect(placeholder.locator('.format-chip.is-link')).toHaveText('Link');
+  expect(methods.filter((method) => method !== 'HEAD')).toEqual([]);
+
+  // Opening it materializes: the fetch runs once, and the card becomes the
+  // real book (metadata title, no link chip).
+  await placeholder.getByRole('button', { name: 'Read', exact: true }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 20_000,
+  });
+  await page.getByRole('button', { name: 'Library' }).click();
+  const real = page.locator('.book-card', { hasText: 'نمونه کتاب' });
+  await expect(real).toBeVisible();
+  await expect(page.locator('.format-chip.is-link')).toHaveCount(0);
+  expect(methods.filter((method) => method === 'GET')).toHaveLength(1);
 });
 
 test('organizes books into a category with tags and filters by them', async ({ page }) => {

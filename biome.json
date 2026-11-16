@@ -29,7 +29,7 @@
       "!**/test-results",
       "!**/playwright-report",
       "!**/e2e/artifacts",
-      "!docs/design/prototypes",
+      "!docs",
       "!apps/reader/src-tauri/gen",
       "!apps/reader/src-tauri/target",
       "!apps/reader/public/vendor",

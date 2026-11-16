@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDialogFocus } from '../hooks/useDialogFocus';
 import { readAppProxy, saveAppProxy } from '../services/httpFetch';
+import { readLinkSizeCapMb, saveLinkSizeCapMb } from '../services/linkImport';
 import { formatStartupRun, readLastStartupRun } from '../services/startupTrace';
 import { checkForUpdate, installUpdate, supportsInAppUpdate } from '../services/updater';
 import { type PdfSpread, useReaderSettings } from '../stores/readerSettingsStore';
@@ -42,6 +43,9 @@ const GeneralSection = () => {
   // per-provider value; read at each request, so it applies without a restart
   // (the updater's own client is separate and documented as not proxied).
   const [proxyDraft, setProxyDraft] = useState(() => readAppProxy());
+  // Link downloads are capped by a device-local limit (ADR-0026); 0 means no
+  // cap. Kept as a draft so typing does not rewrite storage per keystroke.
+  const [linkCapDraft, setLinkCapDraft] = useState(() => String(readLinkSizeCapMb()));
 
   return (
     <>
@@ -61,6 +65,23 @@ const GeneralSection = () => {
         />
       </div>
       <p className="hint">{t('settings.networkProxyHint')}</p>
+      <div className="setting-row is-field">
+        <label htmlFor="link-size-cap">{t('settings.linkSizeCap')}</label>
+        <input
+          id="link-size-cap"
+          className="text-input"
+          type="number"
+          min={0}
+          step={256}
+          value={linkCapDraft}
+          onChange={(event) => {
+            setLinkCapDraft(event.currentTarget.value);
+            const value = Number(event.currentTarget.value);
+            if (Number.isFinite(value) && value >= 0) saveLinkSizeCapMb(value);
+          }}
+        />
+      </div>
+      <p className="hint">{t('settings.linkSizeCapHint')}</p>
       <div className="setting-row">
         <span>{t('settings.theme')}</span>
         <div className="setting-controls">

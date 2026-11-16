@@ -2841,6 +2841,13 @@ body:has(.player-bar) .shell {
   text-overflow: ellipsis;
 }
 
+/* Pending link imports (ADR-0026): the chip marks a record whose bytes are
+   still at the source. */
+.format-chip.is-link {
+  border-color: color-mix(in srgb, var(--hamesh-color-accent) 45%, transparent);
+  color: var(--hamesh-color-accent);
+}
+
 .format-chip {
   flex: none;
   padding: 0.05rem 0.3rem;

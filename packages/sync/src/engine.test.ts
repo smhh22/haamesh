@@ -200,6 +200,80 @@ describe('url-sourced books', () => {
     expect(await storeC.bookFile(sha1)).toBeNull();
   });
 
+  it('uploads a url-mode blob once a device asks for rescue', async () => {
+    const provider = createMemoryProvider();
+    const bytes = new Uint8Array([5, 5, 5]);
+    const sha = await sha256Hex(bytes);
+    let wall = 1000;
+    const now = () => wall;
+    const storeA = createMemoryStore('device-a', now);
+    blobs.set(sha, bytes);
+
+    // Device B could not reach the link and set the rescue flag; it carries
+    // no bytes itself (the flag rides the synced identifiers).
+    const storeB = createMemoryStore('device-b', now, new Map());
+    await storeB.localEdit({
+      ...bookRecord('3', 'Dead Link', 500),
+      fields: {
+        ...bookRecord('3', 'Dead Link', 500).fields,
+        sha256: sha,
+        identifiers: { syncVia: 'url', blobNeeded: '1' },
+      },
+    });
+    const fetchDead = async (): Promise<ArrayBuffer> => {
+      throw new Error('404');
+    };
+
+    // First a round so device A learns the record (and the flag) …
+    await createSyncEngine({
+      deviceId: 'device-b',
+      clock: storeB.clock,
+      store: storeB,
+      providers: [provider],
+      fetchUrl: fetchDead,
+    }).sync();
+
+    // … then A holds the file and the flag, so it uploads the bytes.
+    await storeA.localEdit({
+      ...bookRecord('3', 'Dead Link', 1000),
+      fields: {
+        ...bookRecord('3', 'Dead Link', 1000).fields,
+        sha256: sha,
+        identifiers: { syncVia: 'url', blobNeeded: '1' },
+      },
+    });
+    wall = 2000;
+    const roundA = await createSyncEngine({
+      deviceId: 'device-a',
+      clock: storeA.clock,
+      store: storeA,
+      providers: [provider],
+    }).sync();
+    expect(roundA.ok).toBe(true);
+    expect(roundA.providers[0]?.uploadedBlobs).toBe(1);
+    expect(await provider.head(`Hamesh/books/${sha}/book.epub`)).not.toBeNull();
+
+    // Without the flag, the same holder stays silent (no storage waste).
+    const provider2 = createMemoryProvider();
+    const storeC = createMemoryStore('device-c', now);
+    await storeC.localEdit({
+      ...bookRecord('4', 'Healthy Link', 1000),
+      fields: {
+        ...bookRecord('4', 'Healthy Link', 1000).fields,
+        sha256: sha,
+        identifiers: { syncVia: 'url' },
+      },
+    });
+    const roundC = await createSyncEngine({
+      deviceId: 'device-c',
+      clock: storeC.clock,
+      store: storeC,
+      providers: [provider2],
+    }).sync();
+    expect(roundC.providers[0]?.uploadedBlobs).toBe(0);
+    expect(await provider2.head(`Hamesh/books/${sha}/book.epub`)).toBeNull();
+  });
+
   it('ignores url sync for books without a fetcher', async () => {
     const provider = createMemoryProvider();
     const bytes = new Uint8Array([1]);

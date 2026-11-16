@@ -1377,6 +1377,136 @@ test('keeps highlights intact after changing font size', async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
+test('re-anchors a highlight to the same text after font-size and window changes', async ({
+  page,
+}) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+
+  await openReader(page);
+
+  // Record the CFI the app hands to foliate when the highlight is drawn.
+  await page.evaluate(() => {
+    const view = document.querySelector('foliate-view') as unknown as {
+      addAnnotation: (annotation: { value: string }) => Promise<unknown>;
+    };
+    const original = view.addAnnotation.bind(view);
+    Object.assign(view, {
+      addAnnotation: (annotation: { value: string }) => {
+        (window as unknown as { __driftCfi?: string }).__driftCfi = annotation.value;
+        return original(annotation);
+      },
+    });
+  });
+  // A text-anchored selection, like a real user drag. (An element-boundary
+  // range from selectNodeContents round-trips through foliate's CFI as a
+  // collapsed range, so the drift probe needs text offsets.)
+  const frame = page.frames().find((item) => item.url().startsWith('blob:'));
+  expect(frame).toBeTruthy();
+  if (!frame) return;
+  await frame.waitForSelector('p');
+  await frame.evaluate(() => {
+    const paragraph = document.querySelector('p');
+    const textNode = paragraph?.firstChild;
+    if (!paragraph || !textNode) throw new Error('no paragraph text');
+    const range = document.createRange();
+    range.setStart(textNode, 5);
+    range.setEnd(textNode, Math.min(40, textNode.textContent?.length ?? 0));
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.dispatchEvent(new Event('selectionchange'));
+  });
+  const popover = page.locator('.selection-popover');
+  await expect(popover).toBeVisible();
+  await popover.getByRole('button', { name: 'Yellow' }).click();
+  // The highlight flow does not open the notes panel itself; the drawn
+  // counter on the stage proves the annotation was applied (the SVG lives
+  // in a closed shadow root).
+  const drawnCount = () =>
+    page
+      .locator('.reader-stage')
+      .getAttribute('data-annotations-drawn')
+      .then((raw) => Number(raw ?? '0'));
+  await expect.poll(drawnCount).toBeGreaterThanOrEqual(1);
+
+  // What the highlight's CFI anchors, and what the drawn overlayer actually
+  // covers, must stay the same text across reflow.
+  const textAtCfi = () =>
+    page.evaluate(() => {
+      const view = document.querySelector('foliate-view') as unknown as {
+        resolveCFI: (cfi: string) => { anchor: (doc: Document) => Range };
+        renderer: { getContents: () => Array<{ doc: Document }> };
+      };
+      const cfi = (window as unknown as { __driftCfi?: string }).__driftCfi;
+      if (!cfi) throw new Error('no captured cfi');
+      const { anchor } = view.resolveCFI(cfi);
+      for (const content of view.renderer.getContents()) {
+        try {
+          const range = anchor(content.doc);
+          if (range && !range.collapsed) return range.toString();
+        } catch {
+          // The anchor lives in another loaded section.
+        }
+      }
+      throw new Error('cfi did not resolve in any loaded section');
+    });
+
+  const drawnHighlightText = () =>
+    page.evaluate(() => {
+      const view = document.querySelector('foliate-view') as unknown as {
+        resolveCFI: (cfi: string) => { anchor: (doc: Document) => Range };
+        renderer: {
+          getContents: () => Array<{
+            doc: Document;
+            overlayer: { hitTest: (point: { x: number; y: number }) => [string, Range] | [] };
+          }>;
+        };
+      };
+      const cfi = (window as unknown as { __driftCfi?: string }).__driftCfi;
+      if (!cfi) throw new Error('no captured cfi');
+      const { anchor } = view.resolveCFI(cfi);
+      for (const content of view.renderer.getContents()) {
+        let range: Range;
+        try {
+          range = anchor(content.doc);
+        } catch {
+          continue;
+        }
+        if (!range || range.collapsed) continue;
+        // Probe a point inside the anchor's own client rects: the drawn
+        // highlight must be found there, or it has drifted off its text.
+        const rects = Array.from(range.getClientRects()).filter(
+          (item) => item.width > 1 && item.height > 1,
+        );
+        const rect = rects[Math.min(1, rects.length - 1)];
+        if (!rect) continue;
+        const hit = content.overlayer.hitTest({
+          x: rect.left + 2,
+          y: rect.top + rect.height / 2,
+        });
+        return hit.length > 0 ? hit[1].toString() : null;
+      }
+      return null;
+    });
+
+  const textBefore = await textAtCfi();
+  expect(textBefore.length).toBeGreaterThan(0);
+  expect(await drawnHighlightText()).toBe(textBefore);
+
+  // Reflow both ways: bigger type, then a narrower window.
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Increase font size' }).click();
+  await page.waitForTimeout(600);
+  await page.locator('.settings-panel').getByRole('button', { name: 'Close' }).click();
+  await page.setViewportSize({ width: 900, height: 700 });
+  await page.waitForTimeout(800);
+
+  expect(await textAtCfi()).toBe(textBefore);
+  expect(await drawnHighlightText()).toBe(textBefore);
+  expect(pageErrors).toEqual([]);
+});
+
 test('finds text inside book contents and opens the book', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles(fixture);

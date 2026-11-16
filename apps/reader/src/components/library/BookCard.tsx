@@ -72,7 +72,7 @@ export const BookCard = ({
       </button>
 
       <div className="book-plate-meta">
-        <h3 className="book-plate-title">
+        <h3 className="book-plate-title" title={book.title}>
           <span dir="auto">{book.title}</span>
         </h3>
         <p className="book-plate-author" dir="auto">
@@ -82,16 +82,19 @@ export const BookCard = ({
           <span className="format-chip">{FORMAT_LABEL[book.format]}</span>
           {book.language ? <span className="format-chip">{book.language}</span> : null}
         </p>
-        {fraction > 0 ? (
-          <span className="book-plate-progress">
-            <span className="progress-track">
-              <span style={{ inlineSize: `${percent}%` }} />
-            </span>
-            <span className="progress-value">
-              {t('library.percent', { percent: percentFormat.format(percent) })}
-            </span>
-          </span>
-        ) : null}
+        {/* The row renders even at 0% so cards align across a row. */}
+        <span className="book-plate-progress">
+          {fraction > 0 ? (
+            <>
+              <span className="progress-track">
+                <span style={{ inlineSize: `${percent}%` }} />
+              </span>
+              <span className="progress-value">
+                {t('library.percent', { percent: percentFormat.format(percent) })}
+              </span>
+            </>
+          ) : null}
+        </span>
         <div className="book-plate-actions">
           <button type="button" className="book-open-button" disabled={opening} onClick={onOpen}>
             {label}

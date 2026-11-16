@@ -1706,6 +1706,30 @@ test('shelves view features a book and shelves each category', async ({ page }) 
   await expect(page.locator('.shelf-title')).toHaveText(['Classics', 'Uncategorized']);
   await expect(page.locator('.shelf-track .book-card')).toHaveCount(2);
 
+  // Cards keep uniform rows (two clamped title lines + a reserved progress
+  // row even at 0%) and expose the full title as a hover tooltip.
+  const titleHeights = await page
+    .locator('.shelf-track .book-plate-title')
+    .evaluateAll((nodes) => nodes.map((node) => Math.round(node.getBoundingClientRect().height)));
+  expect(new Set(titleHeights).size).toBe(1);
+  await expect(page.locator('.shelf-track .book-plate-progress')).toHaveCount(2);
+  await expect(page.locator('.shelf-track .book-plate-title').first()).toHaveAttribute(
+    'title',
+    /./,
+  );
+
+  // The divider belongs to the category header, not under the covers.
+  const shelfHeadRule = await page
+    .locator('.shelf-head')
+    .first()
+    .evaluate((node) => getComputedStyle(node).borderBlockEndWidth);
+  expect(shelfHeadRule).toBe('1px');
+  const plank = await page
+    .locator('.shelf-track')
+    .first()
+    .evaluate((node) => getComputedStyle(node, '::after').content);
+  expect(plank).toBe('none');
+
   // The layout choice persists across a reload.
   await page.reload();
   await expect(page.locator('.shelves-view')).toBeVisible();

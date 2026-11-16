@@ -18,14 +18,18 @@ export interface BookRecord extends BookMetadata {
 }
 
 /**
- * A shelf inside a category (ADR-0025). Membership lives on the book
- * (`BookRecord.groupId`); `order` is the member display order and may keep
- * stale ids after a book is deleted — callers filter against live books.
+ * A shelf inside a category (ADR-0025), nestable (ADR-0027). Membership lives
+ * on the book (`BookRecord.groupId`) and on the group (`parentId`); `order` is
+ * the display order of member books and child groups and may keep stale ids
+ * after one is deleted — callers filter against live records.
  */
 export interface BookGroupRecord {
   id: string;
   name: string;
+  /** Root category; a child keeps its root ancestor's category. */
   category: string | null;
+  /** Parent group (ADR-0027); null means a root group in `category`. */
+  parentId: string | null;
   order: string[];
   createdAt: number;
   updatedAt: number;

@@ -1,5 +1,6 @@
 import type { DataStorePort } from '@hamesh/platform';
 import type {
+  BookGroupRecord,
   BookNoteRecord,
   BookRecord,
   ReadingState,
@@ -35,6 +36,7 @@ interface FakeRepos {
   books: Map<string, BookRecord>;
   reading: Map<string, ReadingState>;
   notes: Map<string, BookNoteRecord>;
+  groups?: Map<string, BookGroupRecord>;
 }
 
 const createFakeStorage = (repos: FakeRepos, clockMap: Map<string, string>): ActiveStorage => {
@@ -75,11 +77,22 @@ const createFakeStorage = (repos: FakeRepos, clockMap: Map<string, string>): Act
     },
     storage: {
       groups: {
-        list: async () => [],
-        get: async () => null,
-        upsert: async () => undefined,
-        remove: async () => undefined,
-        clearMembers: async () => undefined,
+        async list() {
+          return [...(repos.groups ?? new Map<string, BookGroupRecord>()).values()];
+        },
+        async get(id) {
+          return repos.groups?.get(id) ?? null;
+        },
+        async upsert(group) {
+          if (!repos.groups) repos.groups = new Map<string, BookGroupRecord>();
+          repos.groups.set(group.id, group);
+        },
+        async remove(id) {
+          repos.groups?.delete(id);
+        },
+        async clearMembers() {
+          return undefined;
+        },
       },
       texts: {
         replace: async () => undefined,
@@ -343,6 +356,41 @@ describe('sql sync store adapter', () => {
     expect(repos.notes.get('n1')?.text).toBe('hi');
     await store.apply({ id: 'n1', kind: 'note', fields: {}, deleted: true, updatedAt: 0 });
     expect(repos.notes.get('n1')?.deletedAt).not.toBeNull();
+  });
+
+  it('applies a nested group and keeps parentId across partial diffs (ADR-0027)', async () => {
+    const repos: FakeRepos = {
+      books: new Map(),
+      reading: new Map(),
+      notes: new Map(),
+      groups: new Map(),
+    };
+    const store = createSqlSyncStore(createFakeStorage(repos, new Map()), createFakeDataStore());
+    await store.apply({
+      id: 'g2',
+      kind: 'group',
+      fields: { name: 'Week 1', category: 'Course', parentId: 'g1', order: [] },
+      deleted: false,
+      updatedAt: 1,
+    });
+    expect(repos.groups?.get('g2')).toMatchObject({
+      name: 'Week 1',
+      category: 'Course',
+      parentId: 'g1',
+    });
+
+    // A diff that only carries the rename must not unnest the group.
+    await store.apply({
+      id: 'g2',
+      kind: 'group',
+      fields: { name: 'Week 1 (renamed)' },
+      deleted: false,
+      updatedAt: 2,
+    });
+    expect(repos.groups?.get('g2')).toMatchObject({
+      name: 'Week 1 (renamed)',
+      parentId: 'g1',
+    });
   });
 
   it('round-trips book blobs through the data store', async () => {

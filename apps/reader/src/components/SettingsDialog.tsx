@@ -291,7 +291,7 @@ export const SettingsDialog = ({ open, onClose }: SettingsDialogProps) => {
   );
 
   return (
-    <div className="settings-backdrop">
+    <div className="settings-backdrop settings-page">
       <div
         ref={dialogRef}
         className="settings-dialog"

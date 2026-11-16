@@ -8,6 +8,7 @@ import type {
   LibrarySnapshot,
   ReadingState,
 } from '@hamesh/storage';
+import type { GroupDeletionPlan } from '../library/groups';
 import { useLibraryStore } from '../stores/libraryStore';
 import { useNotesStore } from '../stores/notesStore';
 import { useReadingStore } from '../stores/readingStore';
@@ -34,8 +35,8 @@ const BOOK_SYNC_FIELDS = [
   'sha256',
   'ext',
 ] as const;
-/** Group fields (ADR-0025); stamped on `group:<id>` like a book's fields. */
-const GROUP_SYNC_FIELDS = ['name', 'category', 'order'] as const;
+/** Group fields (ADR-0025/0027); stamped on `group:<id>` like a book's fields. */
+const GROUP_SYNC_FIELDS = ['name', 'category', 'parentId', 'order'] as const;
 const NOTE_SYNC_FIELDS = ['bookId', 'type', 'locator', 'color', 'text', 'note'] as const;
 let store: DataStorePort | null = null;
 let activeStorage: ActiveStorage | null = null;
@@ -288,23 +289,59 @@ export const persistGroup = async (group: BookGroupRecord): Promise<void> => {
 };
 
 /**
- * Delete a group (ADR-0025): the group tombstones for sync, membership on
- * every book clears with its own field clock, and no book or file is touched.
+ * Delete groups and adjust the surviving records according to a plan
+ * (ADR-0027): every removed group tombstones for sync, promoted child groups
+ * and moved books each stamp only the field that changed. Books in
+ * `deletedBookIds` are removed by the caller through the normal book-delete
+ * path so files and notes go with them; this function never touches files.
  */
-export const deleteGroupPersisted = async (group: BookGroupRecord): Promise<void> => {
+export const applyGroupDeletionPersisted = async (plan: GroupDeletionPlan): Promise<void> => {
   const clock = syncClock;
-  if (activeStorage && clock) {
-    await stampRecordClock(activeStorage.clocks, clock, `group:${group.id}:deleted`);
-    await activeStorage.storage.groups.clearMembers(group.id);
-    const members = useLibraryStore.getState().books.filter((book) => book.groupId === group.id);
-    for (const book of members) {
-      await activeStorage.storage.books.upsert({ ...book, groupId: null, updatedAt: Date.now() });
-      await stampFieldClocks(activeStorage.clocks, clock, `book:${book.id}`, ['groupId']);
+  if (activeStorage) {
+    for (const id of plan.groupIds) {
+      if (clock) await stampRecordClock(activeStorage.clocks, clock, `group:${id}:deleted`);
+      await activeStorage.storage.groups.remove(id);
     }
-    await activeStorage.storage.groups.remove(group.id);
+    const groups = useLibraryStore.getState().groups;
+    for (const promoted of plan.promoteGroups) {
+      const group = groups.find((item) => item.id === promoted.id);
+      if (!group) continue;
+      const updatedAt = Date.now();
+      await activeStorage.storage.groups.upsert({
+        ...group,
+        parentId: promoted.parentId,
+        updatedAt,
+      });
+      if (clock) {
+        await stampFieldClocks(activeStorage.clocks, clock, `group:${group.id}`, ['parentId']);
+      }
+    }
+    const books = useLibraryStore.getState().books;
+    for (const moved of plan.moveBooks) {
+      const book = books.find((item) => item.id === moved.id);
+      if (!book) continue;
+      const updatedAt = Date.now();
+      await activeStorage.storage.books.upsert({ ...book, groupId: moved.groupId, updatedAt });
+      if (clock) {
+        await stampFieldClocks(activeStorage.clocks, clock, `book:${book.id}`, ['groupId']);
+      }
+    }
+    await activeStorage.flush();
   }
-  useLibraryStore.getState().removeGroup(group.id);
-  await activeStorage?.flush();
+  for (const id of plan.groupIds) useLibraryStore.getState().removeGroup(id);
+  for (const promoted of plan.promoteGroups) {
+    const group = useLibraryStore.getState().groups.find((item) => item.id === promoted.id);
+    if (group) {
+      useLibraryStore
+        .getState()
+        .upsertGroup({ ...group, parentId: promoted.parentId, updatedAt: Date.now() });
+    }
+  }
+  for (const moved of plan.moveBooks) {
+    useLibraryStore
+      .getState()
+      .updateBook(moved.id, { groupId: moved.groupId, updatedAt: Date.now() });
+  }
   schedulePersist();
 };
 

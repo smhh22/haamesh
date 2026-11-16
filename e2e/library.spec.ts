@@ -1839,11 +1839,87 @@ test('groups file books into one library item (ADR-0025)', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'Remove from this group' }).click();
   await expect(page.locator('.member-row')).toHaveCount(1);
 
-  // Deleting the group keeps the books in the library.
+  // Deleting the group keeps the books in the library (ADR-0027 option 2).
   await page.getByRole('button', { name: 'Delete group' }).click();
-  await page.getByRole('button', { name: 'Remove' }).click();
+  const deleteDialog = page.getByRole('dialog', { name: 'Delete group' });
+  await deleteDialog.getByRole('radio', { name: /Groups only, keep the files/ }).check();
+  await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(page.locator('.group-view')).toHaveCount(0);
   await expect(page.locator('.book-row', { hasText: 'Sample Book' })).toBeVisible();
+  await expect(page.locator('.book-row', { hasText: 'نمونه کتاب' })).toBeVisible();
+});
+
+test('nests groups and deletes them three ways (ADR-0027)', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+  await expect(page.locator('.book-card')).toHaveCount(2);
+
+  // Course root → Week 1 → Slides.
+  await page.getByRole('button', { name: 'New group' }).click();
+  await page.getByLabel('Group name').fill('CS224W');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.group-row', { hasText: 'CS224W' })).toBeVisible();
+
+  await page
+    .locator('.group-row', { hasText: 'CS224W' })
+    .getByRole('button', { name: 'Group actions' })
+    .click();
+  await page.getByRole('menuitem', { name: 'New subgroup' }).click();
+  await page.getByLabel('Group name').fill('Week 1');
+  await page.getByRole('button', { name: 'Save' }).click();
+
+  // The root stays the only catalog row; the child lives inside it.
+  await page
+    .locator('.group-row', { hasText: 'CS224W' })
+    .getByRole('button', { name: 'Open' })
+    .click();
+  await expect(page.locator('.group-children .group-row', { hasText: 'Week 1' })).toBeVisible();
+  await page
+    .locator('.group-children .group-row', { hasText: 'Week 1' })
+    .getByRole('button', { name: 'Open' })
+    .click();
+
+  // Nested breadcrumb is present; create a third level.
+  await expect(page.locator('.group-crumb', { hasText: 'CS224W' })).toBeVisible();
+  await page.getByRole('button', { name: 'New subgroup' }).click();
+  await page.getByLabel('Group name').fill('Slides');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.group-children .group-row', { hasText: 'Slides' })).toBeVisible();
+
+  // File a book into the deepest group: counts roll up to the root.
+  await page
+    .locator('.group-children .group-row', { hasText: 'Slides' })
+    .getByRole('button', { name: 'Open' })
+    .click();
+  await page.getByRole('button', { name: 'Add books' }).click();
+  const addDialog = page.getByRole('dialog', { name: /Add books to “Slides”/ });
+  await addDialog
+    .locator('.group-add-row', { hasText: 'Sample Book' })
+    .getByRole('button', { name: 'Add', exact: true })
+    .click();
+  await addDialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.locator('.group-view .group-header-meta')).toContainText('1 file');
+
+  // Breadcrumb ancestors navigate up one level at a time.
+  await page.locator('.group-crumb', { hasText: 'Week 1' }).click();
+  await expect(page.locator('.group-children .group-row', { hasText: 'Slides' })).toBeVisible();
+
+  // Delete Week 1 only: Slides moves up under CS224W, its book survives.
+  await page.getByRole('button', { name: 'Delete group' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Delete group' });
+  await expect(dialog.getByRole('radio')).toHaveCount(3);
+  await dialog.getByRole('radio', { name: /Only this group/ }).check();
+  await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.locator('.group-children .group-row', { hasText: 'Slides' })).toBeVisible();
+  await expect(page.locator('.group-children .group-row', { hasText: 'Week 1' })).toHaveCount(0);
+
+  // Delete the root with contents: the subtree's book and file go too.
+  await page.getByRole('button', { name: 'Delete group' }).click();
+  const rootDialog = page.getByRole('dialog', { name: 'Delete group' });
+  await rootDialog.getByRole('radio', { name: /Group and everything in it/ }).check();
+  await rootDialog.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.locator('.group-row')).toHaveCount(0);
+  await expect(page.locator('.book-row')).toHaveCount(1);
   await expect(page.locator('.book-row', { hasText: 'نمونه کتاب' })).toBeVisible();
 });
 

@@ -6,6 +6,10 @@ interface GroupRowProps {
   name: string;
   total: number;
   started: number;
+  /** Direct child groups (ADR-0027). */
+  subgroups?: number;
+  /** Ancestor path for search results, so nested groups stay identifiable. */
+  pathLabel?: string;
   updatedAt: number;
   locale: string;
   isDropTarget: boolean;
@@ -24,6 +28,8 @@ export const GroupRow = ({
   name,
   total,
   started,
+  subgroups = 0,
+  pathLabel = '',
   updatedAt,
   locale,
   isDropTarget,
@@ -52,7 +58,18 @@ export const GroupRow = ({
           <span dir="auto">{name}</span>
         </h3>
         <p className="book-row-meta">
+          {pathLabel ? (
+            <span className="group-path" dir="auto">
+              {pathLabel}
+            </span>
+          ) : null}
           <span className="group-count">
+            {subgroups > 0
+              ? `${t('library.groupSubgroups', {
+                  count: subgroups,
+                  total: numberFormat.format(subgroups),
+                })} · `
+              : ''}
             {t('library.groupFiles', { count: total, total: numberFormat.format(total) })}
           </span>
           <span>

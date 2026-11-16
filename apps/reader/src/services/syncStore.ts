@@ -102,7 +102,12 @@ export const createSqlSyncStore = (
     return groups.map((group) => ({
       id: group.id,
       kind: 'group',
-      fields: { name: group.name, category: group.category, order: group.order },
+      fields: {
+        name: group.name,
+        category: group.category,
+        parentId: group.parentId,
+        order: group.order,
+      },
       deleted: false,
       updatedAt: group.updatedAt,
     }));
@@ -241,6 +246,12 @@ export const createSqlSyncStore = (
           order: Array.isArray(fields.order)
             ? (fields.order as unknown[]).filter((id): id is string => typeof id === 'string')
             : (existing?.order ?? []),
+          parentId:
+            typeof fields.parentId === 'string'
+              ? fields.parentId
+              : fields.parentId === null
+                ? null
+                : (existing?.parentId ?? null),
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
         });

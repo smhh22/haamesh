@@ -46,7 +46,7 @@ describe('storage migrations', () => {
     const db = port(new SQL.Database());
     await migrate(db);
 
-    expect(await version(db)).toBe(7);
+    expect(await version(db)).toBe(8);
     expect(await columns(db)).toEqual(expect.arrayContaining(['category', 'tags_json']));
     for (const table of [
       'sync_clocks',
@@ -80,7 +80,7 @@ describe('storage migrations', () => {
 
     await migrate(db);
 
-    expect(await version(db)).toBe(7);
+    expect(await version(db)).toBe(8);
     expect(await columns(db)).toEqual(expect.arrayContaining(['category', 'tags_json']));
     const rows = await db.all<{ title: string; category: string | null; tags_json: string }>(
       'SELECT title, category, tags_json FROM books WHERE id = ?',
@@ -89,10 +89,34 @@ describe('storage migrations', () => {
     expect(rows[0]).toEqual({ title: 'Book', category: null, tags_json: '[]' });
   });
 
+  it('adds the group parent column to a v7 library (ADR-0027)', async () => {
+    const db = port(new SQL.Database());
+    await migrate(db);
+
+    // Rewind to the v7 group shape.
+    db.run('ALTER TABLE book_groups DROP COLUMN parent_id');
+    db.run('PRAGMA user_version = 7');
+    db.run(
+      `INSERT INTO book_groups (id, name, category, order_json, created_at, updated_at)
+       VALUES ('g1', 'Course', 'Teaching', '[]', 1, 1)`,
+    );
+
+    await migrate(db);
+
+    expect(await version(db)).toBe(8);
+    const groupColumns = await db.all<{ name: string }>('PRAGMA table_info(book_groups)');
+    expect(groupColumns.map((column) => column.name)).toContain('parent_id');
+    const rows = await db.all<{ parent_id: string | null }>(
+      'SELECT parent_id FROM book_groups WHERE id = ?',
+      ['g1'],
+    );
+    expect(rows[0]?.parent_id).toBeNull();
+  });
+
   it('is idempotent when run again', async () => {
     const db = port(new SQL.Database());
     await migrate(db);
     await migrate(db);
-    expect(await version(db)).toBe(7);
+    expect(await version(db)).toBe(8);
   });
 });

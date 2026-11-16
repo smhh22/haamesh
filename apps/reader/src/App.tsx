@@ -30,6 +30,7 @@ import { type ContinueItem, ContinueReading } from './components/library/Continu
 import { GroupActionsMenu } from './components/library/GroupActionsMenu';
 import { GroupAddBooksDialog } from './components/library/GroupAddBooksDialog';
 import { GroupCard } from './components/library/GroupCard';
+import { GroupDeleteDialog } from './components/library/GroupDeleteDialog';
 import { GroupRow } from './components/library/GroupRow';
 import { GroupView } from './components/library/GroupView';
 import { type ShelfSection, ShelvesView } from './components/library/ShelvesView';
@@ -49,7 +50,21 @@ import {
   flattenCategoryPaths,
   siblingCategoryPaths,
 } from './library/categoryTree';
-import { matchGroupsByName, orderMembers, reorderBefore } from './library/groups';
+import {
+  childrenOf,
+  displayParentId,
+  type GroupDeleteMode,
+  groupAncestors,
+  groupPathLabel,
+  matchGroupsByName,
+  orderMembers,
+  orderSubgroups,
+  planGroupDeletion,
+  reorderBefore,
+  subtreeBooks,
+  subtreeGroupIds,
+  withOrderId,
+} from './library/groups';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
 import {
   type ContentMatch,
@@ -65,7 +80,7 @@ import {
 } from './services/importBook';
 import {
   addBookToGroupPersisted,
-  deleteGroupPersisted,
+  applyGroupDeletionPersisted,
   deletePersistedBook,
   listBookHashes,
   loadBookFile,
@@ -209,6 +224,8 @@ export const App = () => {
     group: BookGroupRecord | null;
     /** Category a created group lands in (null = uncategorized). */
     category: string | null;
+    /** Parent for a created subgroup (ADR-0027). */
+    parentId?: string | null;
   } | null>(null);
   const [addBooksGroupId, setAddBooksGroupId] = useState<string | null>(null);
   const [pickGroupBookId, setPickGroupBookId] = useState<string | null>(null);
@@ -308,6 +325,42 @@ export const App = () => {
     }
     return map;
   }, [books, groups]);
+  /**
+   * Child groups per parent (ADR-0027), in display order. The `null` key is
+   * the catalog level: root groups, plus any group whose synced parent is
+   * missing or cyclic (displayParentId resolves those to a root).
+   */
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string | null, BookGroupRecord[]>();
+    for (const group of groups) {
+      const parentId = displayParentId(groups, group);
+      const list = map.get(parentId) ?? [];
+      list.push(group);
+      map.set(parentId, list);
+    }
+    for (const [parentId, list] of map) {
+      if (parentId === null) {
+        list.sort((a, b) => a.createdAt - b.createdAt);
+      } else {
+        const parent = groups.find((group) => group.id === parentId);
+        if (parent) map.set(parentId, orderSubgroups(parent, list));
+      }
+    }
+    return map;
+  }, [groups]);
+  const topGroups = childrenByParent.get(null) ?? [];
+  /** Files and started files in a group's whole subtree, for counts. */
+  const subtreeStats = useMemo(() => {
+    const map = new Map<string, { files: number; started: number }>();
+    for (const group of groups) {
+      const members = subtreeBooks(groups, books, group.id);
+      map.set(group.id, {
+        files: members.length,
+        started: members.filter((book) => (readingStates[book.id]?.fraction ?? 0) > 0).length,
+      });
+    }
+    return map;
+  }, [groups, books, readingStates]);
   /** In search mode a group surfaces only when its name matches. */
   const matchedGroups = useMemo(() => matchGroupsByName(groups, query), [groups, query]);
   const visibleBooks = useMemo(() => {
@@ -318,7 +371,7 @@ export const App = () => {
   }, [filteredBooks, groupedBookIds, isFiltering, query, sort, collator, tagFilter]);
   const openGroup = openGroupId ? (groupById.get(openGroupId) ?? null) : null;
   /** Groups render on their own even when every book is filed into one. */
-  const hasVisibleGroups = isFiltering ? matchedGroups.length > 0 : groups.length > 0;
+  const hasVisibleGroups = isFiltering ? matchedGroups.length > 0 : topGroups.length > 0;
   const statusCounts = useMemo(() => {
     const counts: Record<ReadingStatus | 'all', number> = {
       all: books.length,
@@ -419,11 +472,14 @@ export const App = () => {
     return rows;
   }, [categoryRoots, collapsedGroups]);
   const uncategorizedGroup = bookGroups.find((group) => group.category === null) ?? null;
-  /** Groups sorted by creation inside one category (ADR-0025). */
+  /**
+   * Root groups inside one category (ADR-0025/0027). Children belong to their
+   * parent group's surface, never to the catalog section directly.
+   */
   const groupsInCategory = (category: string | null): BookGroupRecord[] =>
-    groups
-      .filter((group) => (isFiltering ? false : group.category === category))
-      .sort((a, b) => a.createdAt - b.createdAt);
+    (isFiltering ? [] : (childrenByParent.get(null) ?? [])).filter(
+      (group) => group.category === category,
+    );
   /** Filing a book also appends it to the group's display order. */
   const fileBookIntoGroup = async (book: BookRecord, group: BookGroupRecord) => {
     if (book.groupId === group.id) return;
@@ -437,6 +493,19 @@ export const App = () => {
   const reorderGroupMembers = (group: BookGroupRecord, draggedId: string, targetId: string) => {
     const next = reorderBefore(group.order, draggedId, targetId);
     if (next) void persistGroup({ ...group, order: next, updatedAt: Date.now() });
+  };
+  /** Apply one of the three delete choices (ADR-0027). */
+  const deleteGroupWithMode = (group: BookGroupRecord, mode: GroupDeleteMode) => {
+    const plan = planGroupDeletion(groups, books, group.id, mode);
+    if (openGroupId && plan.groupIds.includes(openGroupId)) {
+      setOpenGroupId(displayParentId(groups, group));
+    }
+    for (const bookId of plan.deletedBookIds) {
+      const book = books.find((item) => item.id === bookId);
+      if (book) removeBookAndFile(book);
+    }
+    void applyGroupDeletionPersisted(plan);
+    setGroupAction(null);
   };
   const bookDragProps = (book: BookRecord) => ({
     draggable: true,
@@ -465,14 +534,16 @@ export const App = () => {
       if (book) void fileBookIntoGroup(book, group);
     },
   });
-  const renderGroupRow = (group: BookGroupRecord) => {
-    const members = membersByGroup.get(group.id) ?? [];
+  const renderGroupRow = (group: BookGroupRecord, showPath = true) => {
+    const stats = subtreeStats.get(group.id) ?? { files: 0, started: 0 };
     return (
       <GroupRow
         key={`group:${group.id}`}
         name={group.name}
-        total={members.length}
-        started={members.filter((book) => (readingStates[book.id]?.fraction ?? 0) > 0).length}
+        total={stats.files}
+        started={stats.started}
+        subgroups={(childrenByParent.get(group.id) ?? []).length}
+        pathLabel={showPath ? groupPathLabel(groups, group.id) : ''}
         updatedAt={group.updatedAt}
         locale={locale}
         onOpen={() => setOpenGroupId(group.id)}
@@ -481,6 +552,14 @@ export const App = () => {
           <GroupActionsMenu
             onRename={() => setGroupAction({ type: 'rename', group, category: null })}
             onAddBooks={() => setAddBooksGroupId(group.id)}
+            onAddSubgroup={() =>
+              setGroupAction({
+                type: 'create',
+                group: null,
+                category: group.category,
+                parentId: group.id,
+              })
+            }
             onDelete={() => setGroupAction({ type: 'delete', group, category: null })}
           />
         }
@@ -488,13 +567,15 @@ export const App = () => {
     );
   };
   const renderGroupCard = (group: BookGroupRecord) => {
-    const members = membersByGroup.get(group.id) ?? [];
+    const stats = subtreeStats.get(group.id) ?? { files: 0, started: 0 };
     return (
       <GroupCard
         key={`group:${group.id}`}
         name={group.name}
-        total={members.length}
-        started={members.filter((book) => (readingStates[book.id]?.fraction ?? 0) > 0).length}
+        total={stats.files}
+        started={stats.started}
+        subgroups={(childrenByParent.get(group.id) ?? []).length}
+        pathLabel={groupPathLabel(groups, group.id)}
         locale={locale}
         onOpen={() => setOpenGroupId(group.id)}
         {...groupDropProps(group)}
@@ -502,6 +583,14 @@ export const App = () => {
           <GroupActionsMenu
             onRename={() => setGroupAction({ type: 'rename', group, category: null })}
             onAddBooks={() => setAddBooksGroupId(group.id)}
+            onAddSubgroup={() =>
+              setGroupAction({
+                type: 'create',
+                group: null,
+                category: group.category,
+                parentId: group.id,
+              })
+            }
             onDelete={() => setGroupAction({ type: 'delete', group, category: null })}
           />
         }
@@ -1467,11 +1556,24 @@ export const App = () => {
                   <GroupView
                     group={openGroup}
                     members={membersByGroup.get(openGroup.id) ?? []}
+                    subgroups={childrenByParent.get(openGroup.id) ?? []}
+                    ancestors={groupAncestors(groups, openGroup.id)}
+                    totalFiles={subtreeStats.get(openGroup.id)?.files ?? 0}
                     locale={locale}
                     metaFor={(book) => FORMAT_LABEL[book.format]}
                     percentFor={(book) => Math.round((readingStates[book.id]?.fraction ?? 0) * 100)}
-                    onBack={() => setOpenGroupId(null)}
+                    onBack={() => setOpenGroupId(displayParentId(groups, openGroup))}
+                    onNavigate={(groupId) => setOpenGroupId(groupId)}
                     onOpenBook={(book) => void openReader(book)}
+                    renderSubgroup={(subgroup) => renderGroupRow(subgroup, false)}
+                    onCreateSubgroup={() =>
+                      setGroupAction({
+                        type: 'create',
+                        group: null,
+                        category: openGroup.category,
+                        parentId: openGroup.id,
+                      })
+                    }
                     onRename={() =>
                       setGroupAction({ type: 'rename', group: openGroup, category: null })
                     }
@@ -1737,20 +1839,35 @@ export const App = () => {
         />
         <PromptDialog
           open={groupAction?.type === 'create'}
-          title={t('library.newGroup')}
+          title={groupAction?.parentId ? t('library.newSubgroup') : t('library.newGroup')}
           label={t('library.groupName')}
           initialValue=""
           onConfirm={(name) => {
             if (groupAction?.type === 'create') {
+              const parentId = groupAction.parentId ?? null;
+              const parent = parentId ? (groupById.get(parentId) ?? null) : null;
               const now = Date.now();
-              void persistGroup({
+              const created: BookGroupRecord = {
                 id: crypto.randomUUID(),
                 name,
-                category: groupAction.category,
+                category: parent?.category ?? groupAction.category,
+                parentId: parent?.id ?? null,
                 order: [],
                 createdAt: now,
                 updatedAt: now,
-              });
+              };
+              void (async () => {
+                await persistGroup(created);
+                // Appending to the parent's order keeps subgroups ordered like
+                // member books; a stale parent id here is harmless.
+                if (parent) {
+                  await persistGroup({
+                    ...parent,
+                    order: withOrderId(parent.order, created.id),
+                    updatedAt: Date.now(),
+                  });
+                }
+              })();
             }
             setGroupAction(null);
           }}
@@ -1769,19 +1886,25 @@ export const App = () => {
           }}
           onClose={() => setGroupAction(null)}
         />
-        <ConfirmDialog
+        <GroupDeleteDialog
           open={groupAction?.type === 'delete'}
-          title={t('library.groupDeleteTitle')}
-          message={t('library.groupDeleteBody', { name: groupAction?.group?.name ?? '' })}
-          confirmLabel={t('library.removeConfirm')}
-          danger
-          onConfirm={() => {
+          group={groupAction?.type === 'delete' ? groupAction.group : null}
+          subgroupCount={
+            groupAction?.type === 'delete' && groupAction.group
+              ? subtreeGroupIds(groups, groupAction.group.id).length - 1
+              : 0
+          }
+          fileCount={
+            groupAction?.type === 'delete' && groupAction.group
+              ? (subtreeStats.get(groupAction.group.id)?.files ?? 0)
+              : 0
+          }
+          onConfirm={(mode) => {
             if (groupAction?.type === 'delete' && groupAction.group) {
-              const group = groupAction.group;
-              if (openGroupId === group.id) setOpenGroupId(null);
-              void deleteGroupPersisted(group);
+              deleteGroupWithMode(groupAction.group, mode);
+            } else {
+              setGroupAction(null);
             }
-            setGroupAction(null);
           }}
           onClose={() => setGroupAction(null)}
         />

@@ -208,29 +208,42 @@ describe('SQL repositories', () => {
     expect(deleted.find((item) => item.id === 'note-1')?.note).toBe('یادداشت من');
   });
 
-  it('round-trips groups and membership (ADR-0025)', async () => {
+  it('round-trips groups, nesting and membership (ADR-0025/0027)', async () => {
     const storage = createSqlStorage(await openDb());
     await storage.groups.upsert({
       id: 'g1',
       name: 'Lecture Notes',
       category: 'Calculus II',
+      parentId: null,
       order: ['book-1'],
       createdAt: 1,
       updatedAt: 2,
+    });
+    await storage.groups.upsert({
+      id: 'g1-child',
+      name: 'Week 1',
+      category: 'Calculus II',
+      parentId: 'g1',
+      order: [],
+      createdAt: 3,
+      updatedAt: 4,
     });
     await storage.books.upsert(book({ groupId: 'g1' }));
 
     expect(await storage.groups.get('g1')).toMatchObject({
       name: 'Lecture Notes',
       category: 'Calculus II',
+      parentId: null,
       order: ['book-1'],
     });
+    expect((await storage.groups.get('g1-child'))?.parentId).toBe('g1');
     expect((await storage.books.get('book-1'))?.groupId).toBe('g1');
 
     await storage.groups.upsert({
       id: 'g1',
       name: 'Lecture Notes (renamed)',
       category: 'Calculus II',
+      parentId: null,
       order: [],
       createdAt: 1,
       updatedAt: 3,

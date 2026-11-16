@@ -3868,8 +3868,9 @@ body:has(.player-bar) .shell {
 /* ===== Direction 1 settings page =================================== */
 
 /* Settings is a page, not a modal: an opaque surface with its own top bar,
-   a sticky index, and a reading-width column. */
-.settings-backdrop {
+   a sticky index, and a reading-width column. Scoped to `.settings-page` so
+   the same backdrop class keeps centering ordinary modals. */
+.settings-page {
   display: block;
   padding: 0;
   /* The page surface spans the whole window, so its content must clear the
@@ -3882,7 +3883,7 @@ body:has(.player-bar) .shell {
   overflow-y: auto;
 }
 
-.settings-dialog {
+.settings-page .settings-dialog {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   inline-size: 100%;
@@ -4222,6 +4223,28 @@ body:has(.player-bar) .shell {
   opacity: 0.6;
 }
 
+/* Ancestor crumbs stay clickable so deep nesting never traps the user. */
+.group-crumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hamesh-space-2);
+}
+
+.group-crumb {
+  padding: 0.1rem 0.2rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.group-crumb:hover {
+  color: var(--hamesh-color-ink);
+  text-decoration: underline;
+}
+
 .group-back {
   display: inline-flex;
   align-items: center;
@@ -4238,6 +4261,10 @@ body:has(.player-bar) .shell {
 .group-back:hover {
   color: var(--hamesh-color-ink);
   background: color-mix(in srgb, var(--hamesh-color-accent) 8%, transparent);
+}
+
+[dir="rtl"] .group-back svg {
+  transform: scaleX(-1);
 }
 
 .group-header {
@@ -4279,6 +4306,25 @@ body:has(.player-bar) .shell {
   font-size: 0.85rem;
 }
 
+/* Child groups inside a group view (ADR-0027). */
+.group-children {
+  display: grid;
+  gap: var(--hamesh-space-2);
+}
+
+.group-section-title {
+  margin: 0;
+  color: var(--hamesh-color-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.group-path {
+  color: var(--hamesh-color-muted);
+}
+
 /* Member rows: grip before the thumb; otherwise catalog-row geometry. The
    is-list selector keeps it above the catalog row's own template. */
 .member-row,
@@ -4314,6 +4360,16 @@ body:has(.player-bar) .shell {
 }
 
 /* Add-books and pick-group dialogs reuse the confirm-dialog chrome. */
+.group-add-dialog {
+  padding-block-end: var(--hamesh-space-3);
+}
+
+.group-add-dialog > .group-add-hint,
+.group-add-dialog > .group-add-list,
+.group-add-dialog > .confirm-actions {
+  padding-inline: var(--hamesh-space-3);
+}
+
 .group-add-hint {
   margin: 0 0 var(--hamesh-space-2);
   color: var(--hamesh-color-muted);
@@ -4341,6 +4397,65 @@ body:has(.player-bar) .shell {
 
 .group-add-row:hover {
   background: color-mix(in srgb, var(--hamesh-color-accent) 8%, transparent);
+}
+
+/* Three-way group delete (ADR-0027): choices differ in data loss. */
+.group-delete-dialog {
+  inline-size: min(30rem, 100%);
+}
+
+.group-delete-dialog .confirm-body {
+  overflow-y: auto;
+}
+
+.group-delete-body {
+  margin: 0 0 var(--hamesh-space-2);
+  color: var(--hamesh-color-muted);
+  font-size: 0.85rem;
+}
+
+.group-delete-options {
+  display: grid;
+  gap: var(--hamesh-space-2);
+  margin: 0 0 var(--hamesh-space-3);
+  padding: 0;
+  border: 0;
+}
+
+.group-delete-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--hamesh-space-2);
+  padding: var(--hamesh-space-2) var(--hamesh-space-3);
+  border: 1px solid var(--hamesh-color-border);
+  border-radius: var(--hamesh-radius-sm, 0.375rem);
+  cursor: pointer;
+}
+
+.group-delete-option.is-selected {
+  border-color: var(--hamesh-color-accent);
+  background: color-mix(in srgb, var(--hamesh-color-accent) 8%, transparent);
+}
+
+.group-delete-option input {
+  margin-block-start: 0.25rem;
+  accent-color: var(--hamesh-color-accent);
+}
+
+.group-delete-option-text {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.group-delete-option-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.group-delete-option-hint {
+  color: var(--hamesh-color-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
 }
 
 .group-add-title {

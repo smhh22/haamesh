@@ -4,11 +4,18 @@ import { OverflowMenu } from './OverflowMenu';
 interface GroupActionsMenuProps {
   onRename: () => void;
   onAddBooks: () => void;
+  /** Create a nested group under this one (ADR-0027). */
+  onAddSubgroup: () => void;
   onDelete: () => void;
 }
 
 /** Group row/card actions collapse into one menu, like category headers. */
-export const GroupActionsMenu = ({ onRename, onAddBooks, onDelete }: GroupActionsMenuProps) => {
+export const GroupActionsMenu = ({
+  onRename,
+  onAddBooks,
+  onAddSubgroup,
+  onDelete,
+}: GroupActionsMenuProps) => {
   const { t } = useTranslation();
 
   return (
@@ -22,6 +29,9 @@ export const GroupActionsMenu = ({ onRename, onAddBooks, onDelete }: GroupAction
           <>
             <button type="button" role="menuitem" onClick={() => run(onAddBooks)}>
               {t('library.groupAddBooks')}
+            </button>
+            <button type="button" role="menuitem" onClick={() => run(onAddSubgroup)}>
+              {t('library.groupAddSubgroup')}
             </button>
             <button type="button" role="menuitem" onClick={() => run(onRename)}>
               {t('library.groupRename')}

@@ -6,6 +6,10 @@ interface GroupCardProps {
   name: string;
   total: number;
   started: number;
+  /** Direct child groups (ADR-0027). */
+  subgroups?: number;
+  /** Ancestor path for search results, so nested groups stay identifiable. */
+  pathLabel?: string;
   locale: string;
   isDropTarget: boolean;
   onOpen: () => void;
@@ -19,6 +23,8 @@ export const GroupCard = ({
   name,
   total,
   started,
+  subgroups = 0,
+  pathLabel = '',
   locale,
   isDropTarget,
   onOpen,
@@ -48,6 +54,17 @@ export const GroupCard = ({
           <span dir="auto">{name}</span>
         </h3>
         <p className="book-plate-author">
+          {pathLabel ? (
+            <span className="group-path" dir="auto">
+              {pathLabel} ·{' '}
+            </span>
+          ) : null}
+          {subgroups > 0
+            ? `${t('library.groupSubgroups', {
+                count: subgroups,
+                total: numberFormat.format(subgroups),
+              })} · `
+            : ''}
           {t('library.groupFiles', { count: total, total: numberFormat.format(total) })} ·{' '}
           {t('library.groupStarted', {
             started: numberFormat.format(started),

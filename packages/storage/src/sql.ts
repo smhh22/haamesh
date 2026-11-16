@@ -85,12 +85,14 @@ const SYNC_CLOCKS_TABLE = `CREATE TABLE IF NOT EXISTS sync_clocks (
   hlc TEXT NOT NULL
 );`;
 
-// ADR-0025: categories' shelves. Membership lives on books.group_id; `order`
-// is the display order and may hold ids of books that were since deleted.
+// ADR-0025: categories' shelves; ADR-0027 nests them via parent_id. Membership
+// lives on books.group_id (and a child's parent_id); `order` is the display
+// order and may hold ids of books or groups that were since deleted.
 const BOOK_GROUPS_TABLE = `CREATE TABLE IF NOT EXISTS book_groups (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   category TEXT,
+  parent_id TEXT,
   order_json TEXT NOT NULL DEFAULT '[]',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
@@ -168,6 +170,16 @@ export const migrate = async (db: SqlDatabase): Promise<void> => {
     if (!names.has('group_id')) await db.exec('ALTER TABLE books ADD COLUMN group_id TEXT');
     await db.exec(BOOK_GROUPS_TABLE);
     await db.exec('PRAGMA user_version = 7');
+  }
+  // v8 nests groups (ADR-0027). Idempotent column check like v5/v7; a fresh
+  // database already created the column in BOOK_GROUPS_TABLE above.
+  if (version < 8) {
+    const columns = await db.all<{ name: string }>('PRAGMA table_info(book_groups)');
+    const names = new Set(columns.map((column) => column.name));
+    if (!names.has('parent_id')) {
+      await db.exec('ALTER TABLE book_groups ADD COLUMN parent_id TEXT');
+    }
+    await db.exec('PRAGMA user_version = 8');
   }
 };
 
@@ -382,6 +394,7 @@ const mapGroup = (row: Record<string, unknown>): BookGroupRecord => ({
   id: String(row.id ?? ''),
   name: String(row.name ?? ''),
   category: row.category == null ? null : String(row.category),
+  parentId: row.parent_id == null ? null : String(row.parent_id),
   order: parseJson<string[]>(row.order_json, []).filter((id) => typeof id === 'string'),
   createdAt: Number(row.created_at ?? 0),
   updatedAt: Number(row.updated_at ?? 0),
@@ -403,16 +416,17 @@ export const createBookGroupRepository = (db: SqlDatabase): BookGroupRepository 
   },
   async upsert(group) {
     await db.run(
-      `INSERT INTO book_groups (id, name, category, order_json, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO book_groups (id, name, category, parent_id, order_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          name = excluded.name, category = excluded.category,
-         order_json = excluded.order_json,
+         parent_id = excluded.parent_id, order_json = excluded.order_json,
          created_at = excluded.created_at, updated_at = excluded.updated_at`,
       [
         group.id,
         group.name,
         group.category ?? null,
+        group.parentId ?? null,
         JSON.stringify(group.order ?? []),
         group.createdAt,
         group.updatedAt,

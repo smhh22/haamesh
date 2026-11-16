@@ -133,12 +133,23 @@ export const GroupMemberRow = ({
 export interface GroupViewProps {
   group: BookGroupRecord;
   members: BookRecord[];
+  /** Direct child groups (ADR-0027), already in display order. */
+  subgroups: BookGroupRecord[];
+  /** Ancestors from the root down, excluding this group. */
+  ancestors: BookGroupRecord[];
+  /** Files in the whole subtree, for the header and the mark. */
+  totalFiles: number;
   locale: string;
   /** Human lines per member id (format/pages/progress summary). */
   metaFor: (book: BookRecord) => string;
   percentFor: (book: BookRecord) => number;
   onBack: () => void;
+  /** Jump to an ancestor group from the breadcrumb. */
+  onNavigate: (groupId: string) => void;
   onOpenBook: (book: BookRecord) => void;
+  /** Row renderer supplied by the App (drop targets, menus, counts). */
+  renderSubgroup: (group: BookGroupRecord) => React.ReactNode;
+  onCreateSubgroup: () => void;
   onRename: () => void;
   onAddBooks: () => void;
   onDelete: () => void;
@@ -147,18 +158,25 @@ export interface GroupViewProps {
 }
 
 /**
- * The group surface (ADR-0025): breadcrumb back to the category, a header
- * with the folder mark and actions, then the members. Member rows drag to
- * reorder; drops on rows reorder, drops elsewhere in the view do nothing.
+ * The group surface (ADR-0025/0027): breadcrumb back through the ancestor
+ * chain, a header with the folder mark and actions, then child groups and
+ * members. Member rows drag to reorder; drops on rows reorder, drops
+ * elsewhere in the view do nothing.
  */
 export const GroupView = ({
   group,
   members,
+  subgroups,
+  ancestors,
+  totalFiles,
   locale,
   metaFor,
   percentFor,
   onBack,
+  onNavigate,
   onOpenBook,
+  renderSubgroup,
+  onCreateSubgroup,
   onRename,
   onAddBooks,
   onDelete,
@@ -198,30 +216,58 @@ export const GroupView = ({
         <span className="group-breadcrumb-sep" aria-hidden="true">
           /
         </span>
-        {group.category ? <span>{group.category}</span> : null}
         {group.category ? (
-          <span className="group-breadcrumb-sep" aria-hidden="true">
-            /
-          </span>
+          <>
+            <span>{group.category}</span>
+            <span className="group-breadcrumb-sep" aria-hidden="true">
+              /
+            </span>
+          </>
         ) : null}
-        <span aria-current="page">{group.name}</span>
+        {ancestors.map((ancestor) => (
+          <span key={ancestor.id} className="group-crumb-item">
+            <button
+              type="button"
+              className="group-crumb"
+              onClick={() => onNavigate(ancestor.id)}
+              dir="auto"
+            >
+              {ancestor.name}
+            </button>
+            <span className="group-breadcrumb-sep" aria-hidden="true">
+              /
+            </span>
+          </span>
+        ))}
+        <span aria-current="page" dir="auto">
+          {group.name}
+        </span>
       </nav>
 
       <div className="group-header">
-        <GroupMark count={members.length} size="header" />
+        <GroupMark count={totalFiles} size="header" />
         <div className="group-header-text">
           <h2 className="group-header-name">
             <span dir="auto">{group.name}</span>
           </h2>
           <p className="group-header-meta">
+            {subgroups.length > 0
+              ? `${t('library.groupSubgroups', {
+                  count: subgroups.length,
+                  total: numberFormat.format(subgroups.length),
+                })} · `
+              : ''}
             {t('library.groupFiles', {
-              count: members.length,
-              total: numberFormat.format(members.length),
-            })}{' '}
-            · {t('library.groupReorderHint')}
+              count: totalFiles,
+              total: numberFormat.format(totalFiles),
+            })}
+            {ordered.length > 1 ? ` · ${t('library.groupReorderHint')}` : ''}
           </p>
         </div>
         <div className="group-header-actions">
+          <button type="button" className="reader-action" onClick={onCreateSubgroup}>
+            {t('library.groupAddSubgroup')}
+          </button>
           <button type="button" className="reader-action" onClick={onRename}>
             {t('library.groupRename')}
           </button>
@@ -234,9 +280,16 @@ export const GroupView = ({
         </div>
       </div>
 
-      {ordered.length === 0 ? (
+      {subgroups.length > 0 ? (
+        <section className="group-children">
+          <h3 className="group-section-title">{t('library.groupSubgroupsTitle')}</h3>
+          <ul className="book-grid is-list">{subgroups.map(renderSubgroup)}</ul>
+        </section>
+      ) : null}
+
+      {ordered.length === 0 && subgroups.length === 0 ? (
         <p className="group-empty">{t('library.groupEmpty')}</p>
-      ) : (
+      ) : ordered.length === 0 ? null : (
         <ul className={`book-grid is-list${touch.liftedId ? ' is-touch-reordering' : ''}`}>
           {ordered.map((book) => (
             <GroupMemberRow

@@ -2,6 +2,7 @@ import type { BookGroupRecord, BookRecord } from '@hamesh/storage';
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDialogFocus } from '../../hooks/useDialogFocus';
+import { flattenGroups } from '../../library/groups';
 
 interface BookPickGroupDialogProps {
   open: boolean;
@@ -69,8 +70,16 @@ const BookPickGroupContent = ({
           <p className="group-empty">{t('library.groupPickEmpty')}</p>
         ) : (
           <ul className="group-add-list">
-            {groups.map((group) => (
-              <li key={group.id} className="group-add-row">
+            {flattenGroups(groups).map(({ group, depth }) => (
+              <li
+                key={group.id}
+                className="group-add-row"
+                style={
+                  depth > 0
+                    ? { paddingInlineStart: `calc(${depth} * var(--hamesh-space-4))` }
+                    : undefined
+                }
+              >
                 <span className="group-add-title" dir="auto">
                   {group.name}
                   {book.groupId === group.id ? (

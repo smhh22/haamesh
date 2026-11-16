@@ -370,6 +370,46 @@ export const App = () => {
     return filterAndSortBooks(source, query, sort, collator, { tags: tagFilter });
   }, [filteredBooks, groupedBookIds, isFiltering, query, sort, collator, tagFilter]);
   const openGroup = openGroupId ? (groupById.get(openGroupId) ?? null) : null;
+  /**
+   * An open group follows the active filters like the catalog does (ADR-0025
+   * flatten rule applied one level down): member books go through the same
+   * query/status/format/tag pipeline, child groups surface by name. While a
+   * filter is active the header counts stay whole-subtree, only the list
+   * narrows.
+   */
+  const openGroupContent = useMemo(() => {
+    if (!openGroup) return null;
+    const children = childrenByParent.get(openGroup.id) ?? [];
+    if (!isFiltering) {
+      return {
+        filtering: false as const,
+        members: membersByGroup.get(openGroup.id) ?? [],
+        children,
+      };
+    }
+    const members = filterAndSortBooks(
+      filteredBooks.filter((book) => book.groupId === openGroup.id),
+      query,
+      sort,
+      collator,
+      { tags: tagFilter },
+    );
+    return {
+      filtering: true as const,
+      members,
+      children: matchGroupsByName(children, query),
+    };
+  }, [
+    openGroup,
+    isFiltering,
+    filteredBooks,
+    query,
+    sort,
+    collator,
+    tagFilter,
+    membersByGroup,
+    childrenByParent,
+  ]);
   /** Groups render on their own even when every book is filed into one. */
   const hasVisibleGroups = isFiltering ? matchedGroups.length > 0 : topGroups.length > 0;
   const statusCounts = useMemo(() => {
@@ -1552,11 +1592,12 @@ export const App = () => {
               ) : null}
 
               <div className="library-content">
-                {openGroup ? (
+                {openGroup && openGroupContent ? (
                   <GroupView
                     group={openGroup}
-                    members={membersByGroup.get(openGroup.id) ?? []}
-                    subgroups={childrenByParent.get(openGroup.id) ?? []}
+                    members={openGroupContent.members}
+                    subgroups={openGroupContent.children}
+                    filtering={openGroupContent.filtering}
                     ancestors={groupAncestors(groups, openGroup.id)}
                     totalFiles={subtreeStats.get(openGroup.id)?.files ?? 0}
                     locale={locale}

@@ -34,6 +34,17 @@ export const FORMAT_LABEL: Record<BookRecord['format'], string> = {
   video: 'MP4',
 };
 
+/**
+ * Chip label for a book. Media records carry their real container
+ * (`identifiers.container`, ADR-0021/0023), so a WebM course does not claim
+ * to be MP4; formats without a container keep the format label.
+ */
+export const formatLabel = (book: BookRecord): string => {
+  const container = book.identifiers.container?.toUpperCase();
+  if ((book.format === 'audio' || book.format === 'video') && container) return container;
+  return FORMAT_LABEL[book.format];
+};
+
 interface BookCoverProps {
   book: BookRecord;
   /** `cover` fills the grid cell; `thumb` is the compact catalog thumbnail. */

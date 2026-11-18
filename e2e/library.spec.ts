@@ -1789,6 +1789,15 @@ test('imports a video course and watches it with a persisted position', async ({
   await page.locator('input[type="file"]').setInputFiles(videoFixture);
   await expect(page.getByRole('heading', { name: 'lecture' })).toBeVisible();
 
+  // Videos have no embedded artwork: the import frames a still from the file,
+  // and the chip names the real container instead of a generic video label.
+  const videoCover = page.locator('.book-card .book-cover img').first();
+  await expect(videoCover).toBeVisible();
+  expect(await videoCover.getAttribute('src')).toMatch(/^blob:/);
+  await expect(
+    page.locator('.book-card', { hasText: 'lecture' }).locator('.format-chip').first(),
+  ).toHaveText('WEBM');
+
   await page.getByRole('button', { name: 'Watch', exact: true }).click();
   const video = page.locator('.video-stage video');
   await expect(video).toBeVisible();
@@ -1805,9 +1814,11 @@ test('imports a video course and watches it with a persisted position', async ({
   await expect.poll(currentTime, { timeout: 10_000 }).toBeGreaterThan(0.3);
   const watched = await currentTime();
 
-  // The position persists through the reading state and restores on reopen.
+  // The position persists through the reading state and restores on reopen;
+  // the captured cover is stored with the book and comes back too.
   await page.waitForTimeout(300);
   await page.reload();
+  await expect(page.locator('.book-card .book-cover img').first()).toBeVisible();
   await page.getByRole('button', { name: 'Watch', exact: true }).click();
   await expect(video).toBeVisible();
   await expect.poll(currentTime, { timeout: 10_000 }).toBeGreaterThan(0.1);

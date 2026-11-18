@@ -9,6 +9,7 @@ import {
 } from '@hamesh/engine';
 import type { BookRecord } from '@hamesh/storage';
 import { rememberBookFile } from './bookFiles';
+import { captureVideoCover } from './videoCover';
 
 export interface ImportedBookFile {
   record: BookRecord;
@@ -25,11 +26,18 @@ export interface ImportedBookFile {
  */
 export const importBookFile = async (file: File): Promise<ImportedBookFile> => {
   const bookFile = isMarkdownFile(file) ? await convertMarkdownToEpub(file) : file;
-  const { metadata, cover } = isAudioFile(bookFile)
+  const imported = isAudioFile(bookFile)
     ? await importAudio(bookFile)
     : isVideoFile(bookFile)
       ? await importVideo(bookFile)
       : await importBook(bookFile);
+  const { metadata } = imported;
+  let { cover } = imported;
+  // Videos carry no artwork; frame a still so a course does not look like a
+  // grid of empty plates (best effort — the placeholder stays on failure).
+  if (!cover && isVideoFile(bookFile)) {
+    cover = (await captureVideoCover(bookFile))?.blob ?? null;
+  }
   const now = Date.now();
   const coverPath =
     cover && typeof URL.createObjectURL === 'function' ? URL.createObjectURL(cover) : null;

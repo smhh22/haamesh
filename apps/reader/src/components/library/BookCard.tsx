@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { formatAuthorList, primaryActionLabel } from '../../library/bookDisplay';
 import type { UiLocale } from '../../stores/uiStore';
 import { BookActionsMenu } from './BookActionsMenu';
-import { BookCover, FORMAT_LABEL } from './BookCover';
+import { BookCover, formatLabel } from './BookCover';
 
 interface BookCardProps {
   book: BookRecord;
@@ -87,7 +87,7 @@ export const BookCard = ({
           {authors}
         </p>
         <p className="book-plate-tags">
-          <span className="format-chip">{FORMAT_LABEL[book.format]}</span>
+          <span className="format-chip">{formatLabel(book)}</span>
           {book.identifiers.pending === '1' ? (
             <span className="format-chip is-link">{t('library.linkSource')}</span>
           ) : null}

@@ -137,9 +137,12 @@ export const GroupMemberRow = ({
 
 export interface GroupViewProps {
   group: BookGroupRecord;
+  /** Members after the active filters (the whole list when unfiltered). */
   members: BookRecord[];
-  /** Direct child groups (ADR-0027), already in display order. */
+  /** Direct child groups (ADR-0027), after the query when filtering. */
   subgroups: BookGroupRecord[];
+  /** True while a search or rail filter narrows the lists. */
+  filtering?: boolean;
   /** Ancestors from the root down, excluding this group. */
   ancestors: BookGroupRecord[];
   /** Files in the whole subtree, for the header and the mark. */
@@ -172,6 +175,7 @@ export const GroupView = ({
   group,
   members,
   subgroups,
+  filtering = false,
   ancestors,
   totalFiles,
   locale,
@@ -293,7 +297,11 @@ export const GroupView = ({
       ) : null}
 
       {ordered.length === 0 && subgroups.length === 0 ? (
-        <p className="group-empty">{t('library.groupEmpty')}</p>
+        // While filtering, an empty view means the query matched nothing in
+        // this group; unfiltered emptiness is the "add books" hint instead.
+        <p className="group-empty">
+          {filtering ? t('library.noResults') : t('library.groupEmpty')}
+        </p>
       ) : ordered.length === 0 ? null : (
         <ul className={`book-grid is-list${touch.liftedId ? ' is-touch-reordering' : ''}`}>
           {ordered.map((book) => (

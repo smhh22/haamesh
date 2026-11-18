@@ -2075,6 +2075,44 @@ test('nests groups and deletes them three ways (ADR-0027)', async ({ page }) => 
   await expect(page.locator('.book-row', { hasText: 'نمونه کتاب' })).toBeVisible();
 });
 
+test('narrows an open group with the active search', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+  await expect(page.locator('.book-card')).toHaveCount(2);
+
+  await page.getByRole('button', { name: 'New group' }).click();
+  await page.getByLabel('Group name').fill('Course');
+  await page.getByRole('button', { name: 'Save' }).click();
+  for (const title of ['Sample Book', 'نمونه کتاب']) {
+    await page
+      .locator('.book-row', { hasText: title })
+      .getByRole('button', { name: 'Book actions' })
+      .click();
+    await page.getByRole('menuitem', { name: 'Add to group…' }).click();
+    await page
+      .getByRole('dialog', { name: /Add [.“]/ })
+      .locator('.group-add-row', { hasText: 'Course' })
+      .getByRole('button', { name: 'Add', exact: true })
+      .click();
+  }
+
+  await page.locator('.group-row').getByRole('button', { name: 'Open', exact: true }).click();
+  await expect(page.locator('.member-row')).toHaveCount(2);
+
+  // The query narrows the member list inside the open group.
+  await page.getByRole('searchbox').fill('sample');
+  await expect(page.locator('.member-row')).toHaveCount(1);
+  await expect(page.locator('.member-row', { hasText: 'Sample Book' })).toBeVisible();
+
+  // Nothing matches inside the group: the view says so.
+  await page.getByRole('searchbox').fill('zzz');
+  await expect(page.locator('.group-view')).toContainText('No books match this search.');
+
+  // Clearing restores the whole group.
+  await page.getByRole('searchbox').fill('');
+  await expect(page.locator('.member-row')).toHaveCount(2);
+});
+
 test('search surfaces group members with their group path (ADR-0025)', async ({ page }) => {
   await page.goto('/');
   await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);

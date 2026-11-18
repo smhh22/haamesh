@@ -1,7 +1,7 @@
 import type { BookGroupRecord, BookRecord } from '@hamesh/storage';
 import type { DragEvent as ReactDragEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BookCover, FORMAT_LABEL } from './BookCover';
+import { BookCover, formatLabel } from './BookCover';
 import { GroupMark } from './GroupMark';
 import { OverflowMenu } from './OverflowMenu';
 import { useTouchReorder } from './useTouchReorder';
@@ -93,7 +93,7 @@ export const GroupMemberRow = ({
           <span dir="auto">{book.title}</span>
         </h3>
         <p className="book-row-meta">
-          <span className="format-chip">{FORMAT_LABEL[book.format]}</span>
+          <span className="format-chip">{formatLabel(book)}</span>
           {book.identifiers.pending === '1' ? (
             <span className="format-chip is-link">{t('library.linkSource')}</span>
           ) : null}

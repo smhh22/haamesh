@@ -42,6 +42,7 @@ import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { type TagSummary, TagsDialog } from './components/TagsDialog';
 import { UpdateBanner } from './components/UpdateBanner';
 import { UrlImportDialog } from './components/UrlImportDialog';
+import { useMediaQuery } from './hooks/useMediaQuery';
 import { primaryActionLabel } from './library/bookDisplay';
 import { type BookSort, filterAndSortBooks, groupBooksByCategory } from './library/bookList';
 import {
@@ -51,7 +52,6 @@ import {
   siblingCategoryPaths,
 } from './library/categoryTree';
 import {
-  childrenOf,
   displayParentId,
   type GroupDeleteMode,
   groupAncestors,
@@ -72,6 +72,11 @@ import {
   searchBookContent,
   storeBookTexts,
 } from './services/bookTexts';
+import {
+  FolderImportError,
+  type FolderImportPlan,
+  planFolderImport,
+} from './services/folderImport';
 import {
   importBookFile,
   importBookFromUrl,
@@ -148,6 +153,23 @@ export const App = () => {
   const setLocale = useUiStore((state) => state.setLocale);
   const [isImporting, setIsImporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const isPhone = useMediaQuery('(max-width: 47.99rem)');
+  const [importMenuOpen, setImportMenuOpen] = useState(false);
+  const importMenuRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderCancelRef = useRef(false);
+  const [folderProgress, setFolderProgress] = useState<{
+    done: number;
+    total: number;
+    name: string;
+  } | null>(null);
+  const [folderNotice, setFolderNotice] = useState<{
+    imported: number;
+    skipped: number;
+    failed: number;
+    cancelled: boolean;
+  } | null>(null);
+  const [folderErrorCode, setFolderErrorCode] = useState<'EMPTY' | 'TOO_MANY' | null>(null);
   const [errorCode, setErrorCode] = useState<
     | ImportErrorCode
     | 'UNKNOWN'
@@ -251,7 +273,6 @@ export const App = () => {
   const removeExtraCategory = useUiStore((state) => state.removeExtraCategory);
   const order = useUiStore((state) => state.categoryOrder);
   const setCategoryOrder = useUiStore((state) => state.setCategoryOrder);
-  const purgeCategoryOrder = useUiStore((state) => state.purgeCategoryOrder);
   const tagSummaries = useMemo<TagSummary[]>(() => {
     const counts = new Map<string, number>();
     for (const book of books) {
@@ -734,8 +755,147 @@ export const App = () => {
   };
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    void handleFiles(event.currentTarget.files);
-    event.currentTarget.value = '';
+    const input = event.currentTarget;
+    // Clearing the value empties the live FileList, so copy it first.
+    const files = Array.from(input.files ?? []);
+    const isFolderPick = input.hasAttribute('webkitdirectory');
+    input.value = '';
+    if (files.length === 0) return;
+    if (isFolderPick) {
+      void handleFolderImport(files);
+    } else {
+      void handleFiles(files);
+    }
+  };
+
+  const openFilePicker = () => {
+    const input = fileInputRef.current;
+    if (!input) return;
+    input.removeAttribute('webkitdirectory');
+    input.value = '';
+    input.click();
+  };
+
+  /** Pick a directory; the same input becomes a webkitdirectory input. */
+  const openFolderPicker = () => {
+    const input = fileInputRef.current;
+    if (!input) return;
+    input.setAttribute('webkitdirectory', '');
+    input.value = '';
+    input.click();
+  };
+
+  useEffect(() => {
+    if (!importMenuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!importMenuRef.current?.contains(event.target as Node)) setImportMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setImportMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [importMenuOpen]);
+
+  /**
+   * Bulk import a picked folder (design 2026-11-26): the folder tree becomes
+   * groups (ADR-0027), every book file imports in order, Cancel stops between
+   * files. Partial imports stay, matching plain file import.
+   */
+  const handleFolderImport = async (files: File[]): Promise<void> => {
+    if (files.length === 0) return;
+    let plan: FolderImportPlan;
+    try {
+      plan = planFolderImport(files);
+    } catch (error) {
+      if (error instanceof FolderImportError) setFolderErrorCode(error.code);
+      else setErrorCode('UNKNOWN');
+      return;
+    }
+    setFolderErrorCode(null);
+    setFolderNotice(null);
+    setErrorCode(null);
+    folderCancelRef.current = false;
+    setIsImporting(true);
+    setFolderProgress({ done: 0, total: plan.total, name: '' });
+    const created = new Map<string, BookGroupRecord>();
+    let imported = 0;
+    let failed = 0;
+    let done = 0;
+    try {
+      for (const groupPlan of plan.groups) {
+        if (folderCancelRef.current) break;
+        const now = Date.now();
+        const parent = groupPlan.parentPath ? (created.get(groupPlan.parentPath) ?? null) : null;
+        const group: BookGroupRecord = {
+          id: crypto.randomUUID(),
+          name: groupPlan.name,
+          category: parent?.category ?? null,
+          parentId: parent?.id ?? null,
+          order: [],
+          createdAt: now,
+          updatedAt: now,
+        };
+        await persistGroup(group);
+        created.set(groupPlan.path, group);
+        if (parent) {
+          const live = useLibraryStore.getState().groups.find((item) => item.id === parent.id);
+          if (live) {
+            await persistGroup({
+              ...live,
+              order: withOrderId(live.order, group.id),
+              updatedAt: Date.now(),
+            });
+          }
+        }
+      }
+      const entries = [
+        ...plan.rootFiles.map((file) => ({ file, groupPath: null as string | null })),
+        ...plan.groups.flatMap((group) =>
+          group.files.map((file) => ({ file, groupPath: group.path as string | null })),
+        ),
+      ];
+      for (const entry of entries) {
+        if (folderCancelRef.current) break;
+        setFolderProgress({ done, total: plan.total, name: entry.file.name });
+        try {
+          const importedBook = await importBookFile(entry.file);
+          addBook(importedBook.record);
+          await persistBook(importedBook.record, importedBook.file, importedBook.cover);
+          void storeBookTexts(importedBook.record.id, importedBook.file);
+          const group = entry.groupPath ? (created.get(entry.groupPath) ?? null) : null;
+          if (group) {
+            await addBookToGroupPersisted(importedBook.record, group);
+            const live = useLibraryStore.getState().groups.find((item) => item.id === group.id);
+            if (live && !live.order.includes(importedBook.record.id)) {
+              await persistGroup({
+                ...live,
+                order: [...live.order, importedBook.record.id],
+                updatedAt: Date.now(),
+              });
+            }
+          }
+          imported += 1;
+        } catch {
+          failed += 1;
+        }
+        done += 1;
+        setFolderProgress({ done, total: plan.total, name: entry.file.name });
+      }
+    } finally {
+      setIsImporting(false);
+      setFolderProgress(null);
+      setFolderNotice({
+        imported,
+        skipped: plan.skipped,
+        failed,
+        cancelled: folderCancelRef.current,
+      });
+    }
   };
 
   /**
@@ -1233,34 +1393,71 @@ export const App = () => {
               </svg>
               <span className="url-label">{t('library.addFromUrl')}</span>
             </button>
-            <label className={isImporting ? 'import-button is-busy' : 'import-button'}>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                aria-hidden="true"
-              >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              <span className="import-label">
-                {isImporting ? t('library.importing') : t('library.import')}
-              </span>
-              <span className="import-label-short">
-                {isImporting ? t('library.importing') : t('library.importShort')}
-              </span>
-              <input
-                className="visually-hidden"
-                type="file"
-                accept=".epub,.pdf,.md,.markdown,.mp3,.m4b,.m4a,.flac,.ogg,.opus,.mp4,.mkv,.webm,application/epub+zip,application/pdf,text/markdown,audio/*,video/*"
-                multiple
+            <div className="import-wrap" ref={importMenuRef}>
+              <button
+                type="button"
+                className={isImporting ? 'import-button is-busy' : 'import-button'}
+                aria-haspopup={isPhone ? undefined : 'menu'}
+                aria-expanded={isPhone ? undefined : importMenuOpen}
                 disabled={isImporting}
-                onChange={handleInputChange}
-              />
-            </label>
+                onClick={() => {
+                  if (isPhone) openFilePicker();
+                  else setImportMenuOpen((open) => !open);
+                }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                <span className="import-label">
+                  {isImporting ? t('library.importing') : t('library.import')}
+                </span>
+                <span className="import-label-short">
+                  {isImporting ? t('library.importing') : t('library.importShort')}
+                </span>
+              </button>
+              {!isPhone && importMenuOpen ? (
+                <div className="book-menu import-menu" role="menu" aria-label={t('library.import')}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setImportMenuOpen(false);
+                      openFilePicker();
+                    }}
+                  >
+                    {t('library.importFiles')}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setImportMenuOpen(false);
+                      openFolderPicker();
+                    }}
+                  >
+                    {t('library.importFolder')}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            <input
+              ref={fileInputRef}
+              className="visually-hidden"
+              type="file"
+              accept=".epub,.pdf,.md,.markdown,.mp3,.m4b,.m4a,.flac,.ogg,.opus,.mp4,.mkv,.webm,application/epub+zip,application/pdf,text/markdown,audio/*,video/*"
+              multiple
+              disabled={isImporting}
+              onChange={handleInputChange}
+            />
             <button type="button" className="ghost-button locale-toggle" onClick={toggleLocale}>
               {t('app.switch')}
             </button>
@@ -1307,6 +1504,60 @@ export const App = () => {
           <h2 id="library-heading" className="visually-hidden">
             {t('library.heading')}
           </h2>
+
+          {folderProgress ? (
+            <div className="update-banner folder-import-banner" role="status">
+              <span>
+                {t('library.folderImportProgress', {
+                  done: numberFormat.format(folderProgress.done),
+                  total: numberFormat.format(folderProgress.total),
+                  name: folderProgress.name,
+                })}
+              </span>
+              <button
+                type="button"
+                className="reader-action"
+                onClick={() => {
+                  folderCancelRef.current = true;
+                }}
+              >
+                {t('reader.cancel')}
+              </button>
+            </div>
+          ) : null}
+          {folderNotice ? (
+            <div className="update-banner folder-import-banner" role="status">
+              <span>
+                {t('library.folderImportImported', {
+                  count: folderNotice.imported,
+                  total: numberFormat.format(folderNotice.imported),
+                })}
+                {folderNotice.skipped > 0
+                  ? ` · ${t('library.folderImportSkipped', {
+                      count: folderNotice.skipped,
+                      total: numberFormat.format(folderNotice.skipped),
+                    })}`
+                  : ''}
+                {folderNotice.failed > 0
+                  ? ` · ${t('library.folderImportFailed', {
+                      count: folderNotice.failed,
+                      total: numberFormat.format(folderNotice.failed),
+                    })}`
+                  : ''}
+                {folderNotice.cancelled ? ` · ${t('library.folderImportCancelled')}` : ''}
+              </span>
+              <button type="button" className="reader-action" onClick={() => setFolderNotice(null)}>
+                {t('reader.close')}
+              </button>
+            </div>
+          ) : null}
+          {folderErrorCode ? (
+            <p className="error" role="alert">
+              {folderErrorCode === 'EMPTY'
+                ? t('library.errors.FOLDER_EMPTY')
+                : t('library.errors.FOLDER_TOO_MANY')}
+            </p>
+          ) : null}
 
           <div className="library-toolbar">
             <div className="chip-rail">

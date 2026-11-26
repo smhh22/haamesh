@@ -2277,5 +2277,64 @@ test('keeps the phone top bar complete: link import and paired create buttons', 
   expect(group).toBeTruthy();
   expect(Math.round(category?.y ?? -1)).toBe(Math.round(group?.y ?? -2));
 
+  // On a phone the Import button opens the file picker directly (no folder
+  // menu: the platform has no directory picker, so the menu would only add a
+  // tap).
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(chooser).resolves.toBeTruthy();
+
   await context.close();
+});
+
+test('imports a folder tree as nested groups with a summary', async ({ page }) => {
+  const { readFileSync } = await import('node:fs');
+  const epub = [...readFileSync(fixture)];
+  const english = [...readFileSync(englishFixture)];
+  const pdf = [...readFileSync(fileURLToPath(new URL('./fixtures/book.pdf', import.meta.url)))];
+  await page.goto('/');
+
+  // Desktop Import is a menu now.
+  await page.getByRole('button', { name: 'Import books' }).click();
+  await page.getByRole('menuitem', { name: 'Import a folder…' }).click();
+
+  // The same hidden input is in directory mode; feed it a synthetic tree
+  // (a real folder picker cannot run headless).
+  await page.evaluate(
+    ({ epub, english, pdf }) => {
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      const transfer = new DataTransfer();
+      const add = (name: string, path: string, bytes: number[], type: string) => {
+        const file = new File([new Uint8Array(bytes)], name, { type });
+        Object.defineProperty(file, 'webkitRelativePath', { value: path });
+        transfer.items.add(file);
+      };
+      add('01.epub', 'CS224W/01-intro.epub', epub, 'application/epub+zip');
+      add('02.epub', 'CS224W/slides/02-nodeemb.epub', english, 'application/epub+zip');
+      add('03.pdf', 'CS224W/slides/03-GNN1.pdf', pdf, 'application/pdf');
+      add('notes.txt', 'CS224W/notes.txt', [110, 111], 'text/plain');
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+    { epub, english, pdf },
+  );
+
+  // Summary reports the imports and the skipped non-book file.
+  const summary = page.locator('.folder-import-banner');
+  await expect(summary).toContainText('3 books imported', { timeout: 30_000 });
+  await expect(summary).toContainText('1 file skipped');
+
+  // The folder tree became groups: root files in CS224W, slides nested.
+  await expect(page.locator('.group-row', { hasText: 'CS224W' })).toBeVisible();
+  await page
+    .locator('.group-row', { hasText: 'CS224W' })
+    .getByRole('button', { name: 'Open', exact: true })
+    .click();
+  await expect(page.locator('.group-children .group-row', { hasText: 'slides' })).toBeVisible();
+  await expect(page.locator('.member-row')).toHaveCount(1);
+  await page
+    .locator('.group-children .group-row', { hasText: 'slides' })
+    .getByRole('button', { name: 'Open', exact: true })
+    .click();
+  await expect(page.locator('.member-row')).toHaveCount(2);
 });

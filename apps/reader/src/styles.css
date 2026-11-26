@@ -2419,6 +2419,15 @@ body:has(.player-bar) .shell {
   gap: var(--hamesh-space-2);
 }
 
+.import-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.import-menu {
+  min-inline-size: 12rem;
+}
+
 .topbar .import-button {
   display: inline-flex;
   align-items: center;

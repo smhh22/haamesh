@@ -194,6 +194,20 @@ export const App = () => {
   } | null>(null);
   const linkAbortRef = useRef<AbortController | null>(null);
   const linkTokenRef = useRef<string | null>(null);
+  /** Sequential download of every pending link in a group (link-only courses). */
+  const [linkQueue, setLinkQueue] = useState<{
+    total: number;
+    done: number;
+    failed: number;
+    name: string;
+    fraction: number | null;
+  } | null>(null);
+  const queueCancelRef = useRef(false);
+  const [queueNotice, setQueueNotice] = useState<{
+    downloaded: number;
+    failed: number;
+    cancelled: boolean;
+  } | null>(null);
   const [query, setQuery] = useState('');
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
@@ -1113,6 +1127,66 @@ export const App = () => {
     if (token) void cancelLinkDownload(token);
   };
 
+  const stopLinkQueue = () => {
+    queueCancelRef.current = true;
+    linkAbortRef.current?.abort();
+    const token = linkTokenRef.current;
+    if (token) void cancelLinkDownload(token);
+  };
+
+  /**
+   * Download every pending link in a group's subtree, one at a time. This is
+   * the other half of link-only courses: register links cheaply, then pull
+   * the bytes when the connection is good. A failed link is counted and the
+   * queue moves on; Cancel stops after the current item.
+   */
+  const downloadPendingLinks = async (group: BookGroupRecord): Promise<void> => {
+    if (linkQueue) return;
+    const pending = subtreeBooks(groups, books, group.id).filter(
+      (book) => isPendingBook(book) && !fileHashes.has(book.hash),
+    );
+    if (pending.length === 0) return;
+    queueCancelRef.current = false;
+    setQueueNotice(null);
+    setErrorCode(null);
+    setLinkQueue({ total: pending.length, done: 0, failed: 0, name: '', fraction: null });
+    let done = 0;
+    let failed = 0;
+    try {
+      for (const book of pending) {
+        if (queueCancelRef.current) break;
+        const controller = new AbortController();
+        linkAbortRef.current = controller;
+        linkTokenRef.current = crypto.randomUUID();
+        setLinkProgress({ bookId: book.id, fraction: null });
+        setLinkQueue({ total: pending.length, done, failed, name: book.title, fraction: null });
+        try {
+          const result = await materializePendingBook(book, {
+            signal: controller.signal,
+            onProgress: (fraction) => {
+              setLinkProgress({ bookId: book.id, fraction });
+              setLinkQueue((current) =>
+                current ? { ...current, name: book.title, fraction } : current,
+              );
+            },
+          });
+          setFileHashes((current) => new Set(current).add(result.book.hash));
+          done += 1;
+        } catch (error) {
+          if (error instanceof LinkImportError && error.code === 'CANCELLED') break;
+          failed += 1;
+        } finally {
+          linkAbortRef.current = null;
+          linkTokenRef.current = null;
+          setLinkProgress(null);
+        }
+      }
+    } finally {
+      setLinkQueue(null);
+      setQueueNotice({ downloaded: done, failed, cancelled: queueCancelRef.current });
+    }
+  };
+
   const openReader = async (book: BookRecord) => {
     if (openingRef.current) return;
     openingRef.current = book.id;
@@ -1505,6 +1579,45 @@ export const App = () => {
             {t('library.heading')}
           </h2>
 
+          {linkQueue ? (
+            <div className="update-banner folder-import-banner" role="status">
+              <span>
+                {t('library.linkQueueProgress', {
+                  done: numberFormat.format(linkQueue.done),
+                  total: numberFormat.format(linkQueue.total),
+                  name: linkQueue.name,
+                })}
+                {linkQueue.fraction !== null
+                  ? ` · ${t('library.percent', {
+                      percent: numberFormat.format(Math.round(linkQueue.fraction * 100)),
+                    })}`
+                  : ''}
+              </span>
+              <button type="button" className="reader-action" onClick={stopLinkQueue}>
+                {t('reader.cancel')}
+              </button>
+            </div>
+          ) : null}
+          {queueNotice ? (
+            <div className="update-banner folder-import-banner" role="status">
+              <span>
+                {t('library.linkQueueDone', {
+                  count: queueNotice.downloaded,
+                  total: numberFormat.format(queueNotice.downloaded),
+                })}
+                {queueNotice.failed > 0
+                  ? ` · ${t('library.linkQueueFailed', {
+                      count: queueNotice.failed,
+                      total: numberFormat.format(queueNotice.failed),
+                    })}`
+                  : ''}
+                {queueNotice.cancelled ? ` · ${t('library.linkQueueCancelled')}` : ''}
+              </span>
+              <button type="button" className="reader-action" onClick={() => setQueueNotice(null)}>
+                {t('reader.close')}
+              </button>
+            </div>
+          ) : null}
           {folderProgress ? (
             <div className="update-banner folder-import-banner" role="status">
               <span>
@@ -1871,6 +1984,12 @@ export const App = () => {
                     filtering={openGroupContent.filtering}
                     ancestors={groupAncestors(groups, openGroup.id)}
                     totalFiles={subtreeStats.get(openGroup.id)?.files ?? 0}
+                    downloadLinksCount={
+                      subtreeBooks(groups, books, openGroup.id).filter(
+                        (book) => isPendingBook(book) && !fileHashes.has(book.hash),
+                      ).length
+                    }
+                    onDownloadLinks={() => void downloadPendingLinks(openGroup)}
                     locale={locale}
                     primaryLabelFor={(book) =>
                       primaryActionLabel(

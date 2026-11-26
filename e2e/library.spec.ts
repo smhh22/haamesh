@@ -2338,3 +2338,64 @@ test('imports a folder tree as nested groups with a summary', async ({ page }) =
     .click();
   await expect(page.locator('.member-row')).toHaveCount(2);
 });
+
+test('downloads every pending link in a group as one queue', async ({ page }) => {
+  const { readFileSync } = await import('node:fs');
+  const persianEpub = readFileSync(fixture);
+  const englishEpub = readFileSync(englishFixture);
+  const downloads: string[] = [];
+  await page.route('https://queue.test/**', (route) => {
+    const url = route.request().url();
+    if (route.request().method() !== 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/epub+zip',
+        body: persianEpub,
+      });
+    }
+    downloads.push(url);
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/epub+zip',
+      body: url.endsWith('english.epub') ? englishEpub : persianEpub,
+    });
+  });
+  await page.goto('/');
+
+  for (const url of ['https://queue.test/persian.epub', 'https://queue.test/english.epub']) {
+    await page.getByRole('button', { name: 'Add from URL' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add from URL' });
+    await dialog.getByLabel('Book URL').fill(url);
+    await dialog.getByText('Keep only the link; the file downloads when you open it').click();
+    await dialog.getByRole('button', { name: 'Import books' }).click();
+    await expect(dialog).toHaveCount(0);
+  }
+
+  await page.getByRole('button', { name: 'New group' }).click();
+  await page.getByLabel('Group name').fill('Course');
+  await page.getByRole('button', { name: 'Save' }).click();
+  for (const title of ['persian', 'english']) {
+    await page
+      .locator('.book-row', { hasText: title })
+      .getByRole('button', { name: 'Book actions' })
+      .click();
+    await page.getByRole('menuitem', { name: 'Add to group…' }).click();
+    await page
+      .getByRole('dialog', { name: /Add [.“]/ })
+      .locator('.group-add-row', { hasText: 'Course' })
+      .getByRole('button', { name: 'Add', exact: true })
+      .click();
+  }
+
+  await page.locator('.group-row').getByRole('button', { name: 'Open', exact: true }).click();
+  await page.getByRole('button', { name: 'Download 2 links' }).click();
+
+  // The queue fetches both links, materializes them, and the summary closes
+  // the loop; the member rows lose their Link chips.
+  await expect(page.locator('.folder-import-banner')).toContainText('2 links downloaded', {
+    timeout: 30_000,
+  });
+  await expect(page.locator('.format-chip.is-link')).toHaveCount(0);
+  await expect(page.locator('.member-row')).toHaveCount(2);
+  expect(downloads).toHaveLength(2);
+});

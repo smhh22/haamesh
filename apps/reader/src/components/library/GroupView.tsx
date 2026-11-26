@@ -143,6 +143,9 @@ export interface GroupViewProps {
   subgroups: BookGroupRecord[];
   /** True while a search or rail filter narrows the lists. */
   filtering?: boolean;
+  /** Pending links in this group's subtree that have no local file. */
+  downloadLinksCount?: number;
+  onDownloadLinks?: () => void;
   /** Ancestors from the root down, excluding this group. */
   ancestors: BookGroupRecord[];
   /** Files in the whole subtree, for the header and the mark. */
@@ -176,6 +179,8 @@ export const GroupView = ({
   members,
   subgroups,
   filtering = false,
+  downloadLinksCount = 0,
+  onDownloadLinks,
   ancestors,
   totalFiles,
   locale,
@@ -274,6 +279,13 @@ export const GroupView = ({
           </p>
         </div>
         <div className="group-header-actions">
+          {downloadLinksCount > 0 ? (
+            <button type="button" className="reader-action" onClick={onDownloadLinks}>
+              {t('library.groupDownloadLinks', {
+                total: numberFormat.format(downloadLinksCount),
+              })}
+            </button>
+          ) : null}
           <button type="button" className="reader-action" onClick={onCreateSubgroup}>
             {t('library.groupAddSubgroup')}
           </button>

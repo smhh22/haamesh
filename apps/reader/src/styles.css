@@ -2397,6 +2397,28 @@ body:has(.player-bar) .shell {
   margin-inline-start: auto;
 }
 
+.topbar .ghost-button.is-url {
+  gap: 0.4rem;
+}
+
+.topbar .ghost-button.is-url .url-icon {
+  display: none;
+}
+
+.chip-rail {
+  display: contents;
+}
+
+.chip-rail-fade {
+  display: none;
+}
+
+.create-actions {
+  display: flex;
+  flex: none;
+  gap: var(--hamesh-space-2);
+}
+
 .topbar .import-button {
   display: inline-flex;
   align-items: center;
@@ -3010,9 +3032,55 @@ body:has(.player-bar) .shell {
   }
 
   .topbar-sub,
-  .topbar .ghost-button.is-url,
   .topbar .locale-toggle {
     display: none;
+  }
+
+  /* Link import is a first-class phone action (link-only courses); the
+     button keeps its label on desktop and shows a link glyph here. */
+  .topbar .ghost-button.is-url {
+    display: inline-flex;
+    padding-inline: 0.65rem;
+  }
+
+  .topbar .ghost-button.is-url .url-icon {
+    display: block;
+  }
+
+  .topbar .ghost-button.is-url .url-label {
+    display: none;
+  }
+
+  .chip-rail {
+    position: relative;
+    display: block;
+    flex: 1 1 100%;
+    min-inline-size: 0;
+  }
+
+  .chip-rail .filter-chips {
+    padding-inline-end: 1.25rem;
+  }
+
+  .chip-rail-fade {
+    position: absolute;
+    inset-inline-end: 0;
+    inset-block: 0;
+    display: block;
+    inline-size: 1.5rem;
+    pointer-events: none;
+  }
+
+  [dir="ltr"] .chip-rail-fade {
+    background: linear-gradient(to right, transparent, var(--hamesh-color-canvas));
+  }
+
+  [dir="rtl"] .chip-rail-fade {
+    background: linear-gradient(to left, transparent, var(--hamesh-color-canvas));
+  }
+
+  .create-actions {
+    flex: 1 1 100%;
   }
 
   .import-label {

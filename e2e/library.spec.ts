@@ -2227,3 +2227,55 @@ test('reorders group members with a grip long-press on touch (ADR-0025)', async 
 
   await context.close();
 });
+
+test('animates page turns unless reduced motion is requested', async ({ page }) => {
+  const animated = () =>
+    page.evaluate(() => {
+      const view = document.querySelector('foliate-view') as unknown as {
+        renderer?: { hasAttribute?: (name: string) => boolean };
+      };
+      return Boolean(view?.renderer?.hasAttribute?.('animated'));
+    });
+
+  await openReader(page);
+  await expect.poll(animated).toBe(true);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.getByRole('button', { name: 'Library' }).click();
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+  await expect.poll(animated).toBe(false);
+});
+
+test('keeps the phone top bar complete: link import and paired create buttons', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  const page = await context.newPage();
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(fixture);
+  await expect(page.locator('.book-card')).toHaveCount(1);
+
+  // Link-only import used to be display:none on phones; it is now a compact
+  // icon button that still opens the URL dialog.
+  const urlButton = page.getByRole('button', { name: 'Add from URL' });
+  await expect(urlButton).toBeVisible();
+  await urlButton.click();
+  await expect(page.getByRole('dialog', { name: 'Add from URL' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+
+  // New category and New group wrap as one cluster, not a lone button.
+  const category = await page.getByRole('button', { name: 'New category' }).boundingBox();
+  const group = await page.getByRole('button', { name: 'New group' }).boundingBox();
+  expect(category).toBeTruthy();
+  expect(group).toBeTruthy();
+  expect(Math.round(category?.y ?? -1)).toBe(Math.round(group?.y ?? -2));
+
+  await context.close();
+});

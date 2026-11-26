@@ -54,6 +54,7 @@ import { TocTree } from './reader/TocTree';
 interface FoliateRenderer {
   getContents(): Array<{ doc: Document; index: number }>;
   setAttribute(name: string, value: string): void;
+  removeAttribute(name: string): void;
   render?(): void;
   /** Repaints the paginator gutter/filter from the document background. */
   setStyles?(styles: string): void;
@@ -400,6 +401,19 @@ export const ReaderView = ({
     const view = document.createElement('foliate-view') as FoliateViewElement;
     viewRef.current = view;
     stage.append(view);
+    // Foliate animates page turns only when the renderer carries this
+    // attribute (300 ms easeOutQuad). Without it every turn is an instant
+    // jump, which reads as jank on a phone; reduced-motion users keep the
+    // jump. The renderer exists lazily, so set it when the book is ready.
+    const applyTurnAnimation = () => {
+      const renderer = view.renderer;
+      if (!renderer) return;
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        renderer.removeAttribute('animated');
+      } else {
+        renderer.setAttribute('animated', '');
+      }
+    };
 
     const applyNote = (note: BookNoteRecord) => {
       if (isPdf || note.type === 'bookmark' || note.locator.kind !== 'cfi') return;
@@ -756,6 +770,7 @@ export const ReaderView = ({
         setToc((parsed.toc ?? []) as TocItem[]);
 
         await view.open(parsed);
+        applyTurnAnimation();
         // A spread change re-opens the book; resume on the newest page seen
         // rather than the page saved when the reader mounted.
         const resumePage = isPdf ? (currentPageRef.current ?? initialPage) : null;

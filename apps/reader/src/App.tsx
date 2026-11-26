@@ -1211,10 +1211,27 @@ export const App = () => {
             <button
               type="button"
               className="ghost-button is-url"
+              aria-label={t('library.addFromUrl')}
               onClick={() => setUrlImportOpen(true)}
               disabled={isImporting}
             >
-              {t('library.addFromUrl')}
+              {/* Phone: icon-only (the label is hidden below 48rem). */}
+              <svg
+                className="url-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1" />
+                <path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1" />
+              </svg>
+              <span className="url-label">{t('library.addFromUrl')}</span>
             </button>
             <label className={isImporting ? 'import-button is-busy' : 'import-button'}>
               <svg
@@ -1292,51 +1309,54 @@ export const App = () => {
           </h2>
 
           <div className="library-toolbar">
-            <fieldset className="filter-chips" aria-label={t('library.filters')}>
-              {(
-                [
-                  ['all', 'library.statusAll', statusCounts.all],
-                  ['reading', 'library.statusReading', statusCounts.reading],
-                  ['finished', 'library.statusFinished', statusCounts.finished],
-                  ['unread', 'library.statusUnread', statusCounts.unread],
-                ] as const
-              ).map(([value, key, count]) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={
-                    statusFilter === value ? 'chip chip-status is-selected' : 'chip chip-status'
-                  }
-                  aria-pressed={statusFilter === value}
-                  onClick={() => setStatusFilter(value)}
-                >
-                  {t(key)}
-                  <span className="chip-count">{numberFormat.format(count)}</span>
-                </button>
-              ))}
-              <span className="chip-divider" aria-hidden="true" />
-
-              {(
-                [
-                  ['epub', 'EPUB'],
-                  ['pdf', 'PDF'],
-                  ['audio', 'library.audio'],
-                  ['video', 'library.video'],
-                ] as const
-              )
-                .filter(([value]) => (formatCounts.get(value) ?? 0) > 0)
-                .map(([value, label]) => (
+            <div className="chip-rail">
+              <fieldset className="filter-chips" aria-label={t('library.filters')}>
+                {(
+                  [
+                    ['all', 'library.statusAll', statusCounts.all],
+                    ['reading', 'library.statusReading', statusCounts.reading],
+                    ['finished', 'library.statusFinished', statusCounts.finished],
+                    ['unread', 'library.statusUnread', statusCounts.unread],
+                  ] as const
+                ).map(([value, key, count]) => (
                   <button
                     key={value}
                     type="button"
-                    className={formatFilter === value ? 'chip is-selected' : 'chip'}
-                    aria-pressed={formatFilter === value}
-                    onClick={() => setFormatFilter(formatFilter === value ? 'all' : value)}
+                    className={
+                      statusFilter === value ? 'chip chip-status is-selected' : 'chip chip-status'
+                    }
+                    aria-pressed={statusFilter === value}
+                    onClick={() => setStatusFilter(value)}
                   >
-                    {label.startsWith('library.') ? t(label) : label}
+                    {t(key)}
+                    <span className="chip-count">{numberFormat.format(count)}</span>
                   </button>
                 ))}
-            </fieldset>
+                <span className="chip-divider" aria-hidden="true" />
+
+                {(
+                  [
+                    ['epub', 'EPUB'],
+                    ['pdf', 'PDF'],
+                    ['audio', 'library.audio'],
+                    ['video', 'library.video'],
+                  ] as const
+                )
+                  .filter(([value]) => (formatCounts.get(value) ?? 0) > 0)
+                  .map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={formatFilter === value ? 'chip is-selected' : 'chip'}
+                      aria-pressed={formatFilter === value}
+                      onClick={() => setFormatFilter(formatFilter === value ? 'all' : value)}
+                    >
+                      {label.startsWith('library.') ? t(label) : label}
+                    </button>
+                  ))}
+              </fieldset>
+              <span className="chip-rail-fade" aria-hidden="true" />
+            </div>
 
             <div className="toolbar-end">
               <span className="sort-control">
@@ -1470,7 +1490,7 @@ export const App = () => {
                 </>
               ) : null}
               {books.length > 0 ? (
-                <>
+                <div className="create-actions">
                   <button
                     type="button"
                     className="toolbar-button"
@@ -1485,7 +1505,7 @@ export const App = () => {
                   >
                     {t('library.newGroup')}
                   </button>
-                </>
+                </div>
               ) : null}
               {hasSyncProvider ? (
                 <button

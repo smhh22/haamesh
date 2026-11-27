@@ -2206,6 +2206,32 @@ body:has(.player-bar) .shell {
     align-items: center;
   }
 
+  /* Library controls measured 30-32 px tall on a 407 px phone (audit).
+     min-block-size/inline-size beat the fixed sizes these rules set. */
+  .chip,
+  .toolbar-button,
+  .book-open-button,
+  .book-menu-button,
+  .icon-button,
+  .ghost-button,
+  .import-button,
+  .sort-select,
+  .view-switcher button {
+    min-block-size: 2.75rem;
+  }
+
+  /* Later and more specific rules supply their own 2rem min for the pill. */
+  .toolbar-end .sort-control .sort-select {
+    min-block-size: 2.75rem;
+  }
+
+  .book-menu-button,
+  .icon-button,
+  .ghost-button,
+  .view-switcher button {
+    min-inline-size: 2.75rem;
+  }
+
   /* A keyboard-shortcuts tab is noise on a device with no keyboard; the tab
      stays available on desktop and web. */
   .settings-nav-item[data-shortcuts] {
@@ -2227,7 +2253,7 @@ body:has(.player-bar) .shell {
   .text-input,
   .search-input,
   .sort-select {
-    min-block-size: 2.6rem;
+    min-block-size: 2.75rem;
   }
 
   .toc-item {
@@ -3097,7 +3123,8 @@ body:has(.player-bar) .shell {
     inset-inline-end: 0;
     inset-block: 0;
     display: block;
-    inline-size: 1.5rem;
+    /* Wide enough to read as "more over here" against a 44 px chip. */
+    inline-size: 2.5rem;
     pointer-events: none;
   }
 

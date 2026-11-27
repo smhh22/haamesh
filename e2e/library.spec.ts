@@ -2613,3 +2613,33 @@ test('an empty group does not claim a reading streak', async ({ page }) => {
   // "0 of 0 started" is noise; the line only appears once a file exists.
   await expect(row).not.toContainText('started');
 });
+
+test.describe('phone touch targets', () => {
+  test.use({
+    viewport: { width: 407, height: 904 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+  });
+
+  test('every interactive control is at least a thumb target', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+    await expect(page.locator('.book-card')).toHaveCount(2);
+
+    const small = await page.evaluate(() =>
+      [...document.querySelectorAll('button, select, input, a[href]')]
+        .filter((node) => {
+          const box = node.getBoundingClientRect();
+          if (box.width === 0 || box.height === 0) return false;
+          if (node.classList.contains('visually-hidden')) return false;
+          return box.height < 44;
+        })
+        .map((node) => ({
+          label: (node.getAttribute('aria-label') ?? node.textContent ?? '').trim().slice(0, 24),
+          height: Math.round(node.getBoundingClientRect().height),
+        })),
+    );
+    expect(small).toEqual([]);
+  });
+});

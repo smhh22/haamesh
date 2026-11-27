@@ -72,12 +72,14 @@ export const GroupRow = ({
               : ''}
             {t('library.groupFiles', { count: total, total: numberFormat.format(total) })}
           </span>
-          <span>
-            {t('library.groupStarted', {
-              started: numberFormat.format(started),
-              total: numberFormat.format(total),
-            })}
-          </span>
+          {total > 0 ? (
+            <span>
+              {t('library.groupStarted', {
+                started: numberFormat.format(started),
+                total: numberFormat.format(total),
+              })}
+            </span>
+          ) : null}
         </p>
       </div>
       <span className="book-row-progress is-desktop">

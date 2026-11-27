@@ -2598,6 +2598,22 @@ test('a group view drops top-level create actions and scopes the search label', 
   await expect(page.getByRole('menuitem', { name: 'Delete group' })).toBeVisible();
 });
 
+test('an empty group does not claim a reading streak', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture]);
+  await expect(page.locator('.book-card')).toHaveCount(1);
+
+  await page.getByRole('button', { name: 'New group' }).click();
+  await page.getByLabel('Group name').fill('Empty group');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'List view' }).click();
+
+  const row = page.locator('.group-row').first();
+  await expect(row).toContainText('0 files');
+  // "0 of 0 started" is noise; the line only appears once a file exists.
+  await expect(row).not.toContainText('started');
+});
+
 test.describe('phone touch targets', () => {
   test.use({
     viewport: { width: 407, height: 904 },

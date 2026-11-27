@@ -63,7 +63,6 @@ import {
   planGroupDeletion,
   reorderBefore,
   subtreeBooks,
-  subtreeGroupIds,
   withOrderId,
 } from './library/groups';
 import { forgetBookFile, getBookFile } from './services/bookFiles';
@@ -2344,16 +2343,6 @@ export const App = () => {
         <GroupDeleteDialog
           open={groupAction?.type === 'delete'}
           group={groupAction?.type === 'delete' ? groupAction.group : null}
-          subgroupCount={
-            groupAction?.type === 'delete' && groupAction.group
-              ? subtreeGroupIds(groups, groupAction.group.id).length - 1
-              : 0
-          }
-          fileCount={
-            groupAction?.type === 'delete' && groupAction.group
-              ? (subtreeStats.get(groupAction.group.id)?.files ?? 0)
-              : 0
-          }
           onConfirm={(mode) => {
             if (groupAction?.type === 'delete' && groupAction.group) {
               deleteGroupWithMode(groupAction.group, mode);

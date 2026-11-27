@@ -7,10 +7,6 @@ import type { GroupDeleteMode } from '../../library/groups';
 interface GroupDeleteDialogProps {
   open: boolean;
   group: BookGroupRecord | null;
-  /** Descendant groups that would go with it. */
-  subgroupCount: number;
-  /** Books in the whole subtree. */
-  fileCount: number;
   onConfirm: (mode: GroupDeleteMode) => void;
   onClose: () => void;
 }
@@ -20,36 +16,19 @@ interface GroupDeleteDialogProps {
  * files, so this is a radio list rather than a yes/no confirm; the default is
  * the least destructive one.
  */
-export const GroupDeleteDialog = ({
-  open,
-  group,
-  subgroupCount,
-  fileCount,
-  onConfirm,
-  onClose,
-}: GroupDeleteDialogProps) => {
+export const GroupDeleteDialog = ({ open, group, onConfirm, onClose }: GroupDeleteDialogProps) => {
   if (!open || !group) return null;
-  return (
-    <GroupDeleteContent
-      group={group}
-      subgroupCount={subgroupCount}
-      fileCount={fileCount}
-      onConfirm={onConfirm}
-      onClose={onClose}
-    />
-  );
+  return <GroupDeleteContent group={group} onConfirm={onConfirm} onClose={onClose} />;
 };
 
 const modes: GroupDeleteMode[] = ['only-group', 'keep-books', 'with-contents'];
 
 const GroupDeleteContent = ({
   group,
-  subgroupCount,
-  fileCount,
   onConfirm,
   onClose,
 }: Omit<GroupDeleteDialogProps, 'open' | 'group'> & { group: BookGroupRecord }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<GroupDeleteMode>('only-group');
   useDialogFocus(true, dialogRef);
@@ -70,11 +49,6 @@ const GroupDeleteContent = ({
     };
   }, [onClose]);
 
-  const numberFormat = new Intl.NumberFormat(i18n.language === 'fa' ? 'fa-IR' : 'en-US');
-  const counts = {
-    subgroups: numberFormat.format(subgroupCount),
-    files: numberFormat.format(fileCount),
-  };
   const titleKey: Record<GroupDeleteMode, string> = {
     'with-contents': 'library.groupDeleteWithContents',
     'keep-books': 'library.groupDeleteKeepBooks',
@@ -118,7 +92,7 @@ const GroupDeleteContent = ({
                   <span className="group-delete-option-title" dir="auto">
                     {t(titleKey[value])}
                   </span>
-                  <span className="group-delete-option-hint">{t(hintKey[value], counts)}</span>
+                  <span className="group-delete-option-hint">{t(hintKey[value])}</span>
                 </span>
               </label>
             ))}

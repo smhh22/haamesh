@@ -2775,6 +2775,11 @@ body:has(.player-bar) .shell {
   border-radius: 0.375rem;
   background: var(--cover-a, var(--hamesh-color-border));
   color: var(--cover-b, var(--hamesh-color-ink));
+  /* A hairline edge: a scanned white PDF page on the Light canvas was
+     indistinguishable from a broken image otherwise. An outline survives the
+     hover translate that replaces box-shadow. */
+  outline: 1px solid rgb(36 33 28 / 12%);
+  outline-offset: -1px;
 }
 
 .book-cover.is-cover {

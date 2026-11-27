@@ -1822,7 +1822,7 @@ export const App = () => {
                 ))}
               </fieldset>
               {hasCategories && !openGroupId ? (
-                <>
+                <div className="category-bulk-actions">
                   <button
                     type="button"
                     className="icon-button"
@@ -1867,7 +1867,7 @@ export const App = () => {
                       <path d="M7 19l5-5 5 5" />
                     </svg>
                   </button>
-                </>
+                </div>
               ) : null}
               {books.length > 0 && !openGroupId ? (
                 <div className="create-actions">

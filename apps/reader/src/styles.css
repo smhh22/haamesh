@@ -2461,6 +2461,14 @@ body:has(.player-bar) .shell {
   gap: var(--hamesh-space-2);
 }
 
+/* Expand-all / collapse-all: one cluster, so a narrow toolbar wraps the pair
+   together instead of stranding a single icon on its own row. */
+.category-bulk-actions {
+  display: inline-flex;
+  flex: none;
+  gap: var(--hamesh-space-1);
+}
+
 .import-wrap {
   position: relative;
   display: inline-flex;

@@ -11,6 +11,7 @@ const markdownFixture = fileURLToPath(new URL('./fixtures/sample.md', import.met
 const audioFixture = fileURLToPath(new URL('./fixtures/sample.mp3', import.meta.url));
 const bigPdfFixture = fileURLToPath(new URL('./fixtures/book.pdf', import.meta.url));
 const videoFixture = fileURLToPath(new URL('./fixtures/lecture.webm', import.meta.url));
+const headingsFixture = fileURLToPath(new URL('./fixtures/headings.epub', import.meta.url));
 
 /** Category header actions live in one overflow menu now. */
 const runCategoryAction = async (group: Locator, name: string) => {
@@ -2398,4 +2399,55 @@ test('downloads every pending link in a group as one queue', async ({ page }) =>
   await expect(page.locator('.format-chip.is-link')).toHaveCount(0);
   await expect(page.locator('.member-row')).toHaveCount(2);
   expect(downloads).toHaveLength(2);
+});
+
+test('aligns headings to the reading direction and keeps body justification', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles(headingsFixture);
+  await page.getByRole('button', { name: 'Read', exact: true }).click();
+  await expect(page.locator('.reader-shell')).toHaveAttribute('data-ready', 'true', {
+    timeout: 15_000,
+  });
+
+  /** Computed alignment of the chapter currently rendered in a book frame. */
+  const chapterAlignment = async (heading: string) => {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      for (const frame of page.frames()) {
+        if (!frame.url().startsWith('blob:')) continue;
+        const result = await frame
+          .evaluate((needle) => {
+            const h1 = document.querySelector('h1');
+            const h2 = document.querySelector('h2');
+            const p = document.querySelector('p');
+            if (!h1 || !h2 || !p || !h1.textContent?.includes(needle)) return null;
+            return {
+              direction: getComputedStyle(document.documentElement).direction,
+              heading: getComputedStyle(h1).textAlign,
+              centeredHeading: getComputedStyle(h2).textAlign,
+              paragraph: getComputedStyle(p).textAlign,
+            };
+          }, heading)
+          .catch(() => null);
+        if (result) return result;
+      }
+      await page.waitForTimeout(200);
+    }
+    throw new Error(`no chapter rendered with "${heading}"`);
+  };
+
+  // Justification must not stretch a heading, and it must not override a
+  // publisher's inline centering either (ADR-0028).
+  const ltr = await chapterAlignment('5.2 Monte Carlo');
+  expect(ltr.direction).toBe('ltr');
+  expect(ltr.heading).toBe('start');
+  expect(ltr.centeredHeading).toBe('center');
+  expect(ltr.paragraph).toBe('justify');
+
+  // Same rule in RTL: "start" resolves to the right edge.
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  const rtl = await chapterAlignment('برآورد مونت کارلو');
+  expect(rtl.direction).toBe('rtl');
+  expect(rtl.heading).toBe('start');
+  expect(rtl.centeredHeading).toBe('center');
+  expect(rtl.paragraph).toBe('justify');
 });

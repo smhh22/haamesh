@@ -2451,3 +2451,33 @@ test('aligns headings to the reading direction and keeps body justification', as
   expect(rtl.centeredHeading).toBe('center');
   expect(rtl.paragraph).toBe('justify');
 });
+
+test('system back closes the open screen instead of leaving the app', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+
+  // A group is a screen: back returns to the catalog.
+  await page.getByRole('button', { name: 'New group' }).click();
+  await page.getByLabel('Group name').fill('Course');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await page.locator('.group-row').getByRole('button', { name: 'Open', exact: true }).click();
+  await expect(page.locator('.group-view')).toBeVisible();
+  await page.evaluate(() => window.history.back());
+  await expect(page.locator('.group-view')).toHaveCount(0);
+
+  // The reader is a screen too: back returns to the library.
+  await page.getByRole('button', { name: 'Read', exact: true }).first().click();
+  await expect(page.locator('.reader-shell')).toBeVisible();
+  await page.evaluate(() => window.history.back());
+  await expect(page.locator('.reader-shell')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Hāmesh' })).toBeVisible();
+
+  // Closing from the UI must not leave a stale history entry behind: a second
+  // back is a plain app-level back, not a reopen of the reader.
+  await page.getByRole('button', { name: 'Read', exact: true }).first().click();
+  await expect(page.locator('.reader-shell')).toBeVisible();
+  await page.getByRole('button', { name: 'Library' }).click();
+  await expect(page.locator('.reader-shell')).toHaveCount(0);
+  await page.evaluate(() => window.history.back());
+  await expect(page.locator('.reader-shell')).toHaveCount(0);
+});

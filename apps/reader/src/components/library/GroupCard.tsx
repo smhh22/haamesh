@@ -65,11 +65,13 @@ export const GroupCard = ({
                 total: numberFormat.format(subgroups),
               })} · `
             : ''}
-          {t('library.groupFiles', { count: total, total: numberFormat.format(total) })} ·{' '}
-          {t('library.groupStarted', {
-            started: numberFormat.format(started),
-            total: numberFormat.format(total),
-          })}
+          {t('library.groupFiles', { count: total, total: numberFormat.format(total) })}
+          {total > 0
+            ? ` · ${t('library.groupStarted', {
+                started: numberFormat.format(started),
+                total: numberFormat.format(total),
+              })}`
+            : ''}
         </p>
         <div className="book-plate-actions">{actions}</div>
       </div>

@@ -71,6 +71,7 @@
     "uncategorized": "Uncategorized",
     "edit": "Edit",
     "search": "Search title, author, or series",
+    "searchInGroup": "Search in “{{name}}”",
     "sort": "Sort books",
     "sortRecent": "Recently added",
     "sortTitle": "Title A–Z",

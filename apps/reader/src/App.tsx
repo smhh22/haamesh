@@ -1447,7 +1447,11 @@ export const App = () => {
               ref={searchRef}
               type="search"
               className="search-input"
-              placeholder={t('library.search')}
+              placeholder={
+                openGroup
+                  ? t('library.searchInGroup', { name: openGroup.name })
+                  : t('library.search')
+              }
               aria-label={t('library.search')}
               value={query}
               onChange={(event) => setQuery(event.currentTarget.value)}
@@ -1818,7 +1822,7 @@ export const App = () => {
                   </button>
                 ))}
               </fieldset>
-              {hasCategories ? (
+              {hasCategories && !openGroupId ? (
                 <>
                   <button
                     type="button"
@@ -1866,7 +1870,7 @@ export const App = () => {
                   </button>
                 </>
               ) : null}
-              {books.length > 0 ? (
+              {books.length > 0 && !openGroupId ? (
                 <div className="create-actions">
                   <button
                     type="button"

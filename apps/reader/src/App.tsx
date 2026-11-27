@@ -42,6 +42,7 @@ import { ShortcutsDialog } from './components/ShortcutsDialog';
 import { type TagSummary, TagsDialog } from './components/TagsDialog';
 import { UpdateBanner } from './components/UpdateBanner';
 import { UrlImportDialog } from './components/UrlImportDialog';
+import { useBackGuard } from './hooks/useBackGuard';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { primaryActionLabel } from './library/bookDisplay';
 import { type BookSort, filterAndSortBooks, groupBooksByCategory } from './library/bookList';
@@ -447,6 +448,18 @@ export const App = () => {
   ]);
   /** Groups render on their own even when every book is filed into one. */
   const hasVisibleGroups = isFiltering ? matchedGroups.length > 0 : topGroups.length > 0;
+
+  // System back (Android) and browser Back close the current screen instead of
+  // exiting the app (ADR-0029). Inside a group they step up one level, which
+  // keeps a single history entry per screen. The reader guard watches the
+  // session only: `openFile` is resolved further down.
+  useBackGuard(settingsOpen, () => setSettingsOpen(false));
+  useBackGuard(Boolean(videoSession), () => setVideoSession(null));
+  useBackGuard(Boolean(openGroupId), () =>
+    setOpenGroupId(openGroup ? displayParentId(groups, openGroup) : null),
+  );
+  useBackGuard(Boolean(readerSession), () => setReaderSession(null));
+
   const statusCounts = useMemo(() => {
     const counts: Record<ReadingStatus | 'all', number> = {
       all: books.length,

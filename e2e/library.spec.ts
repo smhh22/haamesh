@@ -2004,7 +2004,11 @@ test('groups file books into one library item (ADR-0025)', async ({ page }) => {
   await expect(page.locator('.member-row')).toHaveCount(1);
 
   // Deleting the group keeps the books in the library (ADR-0027 option 2).
-  await page.getByRole('button', { name: 'Delete group' }).click();
+  await page
+    .locator('.group-header-actions')
+    .getByRole('button', { name: 'Group actions' })
+    .click();
+  await page.getByRole('menuitem', { name: 'Delete group' }).click();
   const deleteDialog = page.getByRole('dialog', { name: 'Delete group' });
   await deleteDialog.getByRole('radio', { name: /Groups only, keep the files/ }).check();
   await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
@@ -2069,7 +2073,11 @@ test('nests groups and deletes them three ways (ADR-0027)', async ({ page }) => 
   await expect(page.locator('.group-children .group-row', { hasText: 'Slides' })).toBeVisible();
 
   // Delete Week 1 only: Slides moves up under CS224W, its book survives.
-  await page.getByRole('button', { name: 'Delete group' }).click();
+  await page
+    .locator('.group-header-actions')
+    .getByRole('button', { name: 'Group actions' })
+    .click();
+  await page.getByRole('menuitem', { name: 'Delete group' }).click();
   const dialog = page.getByRole('dialog', { name: 'Delete group' });
   await expect(dialog.getByRole('radio')).toHaveCount(3);
   await dialog.getByRole('radio', { name: /Only this group/ }).check();
@@ -2078,7 +2086,11 @@ test('nests groups and deletes them three ways (ADR-0027)', async ({ page }) => 
   await expect(page.locator('.group-children .group-row', { hasText: 'Week 1' })).toHaveCount(0);
 
   // Delete the root with contents: the subtree's book and file go too.
-  await page.getByRole('button', { name: 'Delete group' }).click();
+  await page
+    .locator('.group-header-actions')
+    .getByRole('button', { name: 'Group actions' })
+    .click();
+  await page.getByRole('menuitem', { name: 'Delete group' }).click();
   const rootDialog = page.getByRole('dialog', { name: 'Delete group' });
   await rootDialog.getByRole('radio', { name: /Group and everything in it/ }).check();
   await rootDialog.getByRole('button', { name: 'Delete', exact: true }).click();
@@ -2552,4 +2564,36 @@ test.describe('phone-sized dialogs', () => {
     expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
     await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
   });
+});
+
+test('a group view drops top-level create actions and scopes the search label', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+  await expect(page.locator('.book-card')).toHaveCount(2);
+
+  await page.getByRole('button', { name: 'New group' }).click();
+  await page.getByLabel('Group name').fill('CS224W');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'List view' }).click();
+  await page
+    .locator('.group-row')
+    .first()
+    .getByRole('button', { name: 'Open', exact: true })
+    .click();
+  await expect(page.locator('.group-view')).toBeVisible();
+
+  // Creating a category or a top-level group from inside a group is a trap.
+  await expect(page.getByRole('button', { name: 'New category' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'New group' })).toHaveCount(0);
+  // The search box says what it now searches.
+  await expect(page.getByPlaceholder('Search in “CS224W”')).toBeVisible();
+  // Delete is behind the group menu, not a full red block beside the actions.
+  await expect(page.locator('.group-header-actions .reader-action.is-danger')).toHaveCount(0);
+  await page
+    .locator('.group-header-actions')
+    .getByRole('button', { name: 'Group actions' })
+    .click();
+  await expect(page.getByRole('menuitem', { name: 'Delete group' })).toBeVisible();
 });

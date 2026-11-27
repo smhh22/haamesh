@@ -295,9 +295,23 @@ export const GroupView = ({
           <button type="button" className="reader-action" onClick={onAddBooks}>
             {t('library.groupAddBooks')}
           </button>
-          <button type="button" className="reader-action is-danger" onClick={onDelete}>
-            {t('library.groupDelete')}
-          </button>
+          {/* Destructive, so it lives behind the menu instead of a full red
+              block competing with the primary actions on a phone. */}
+          <OverflowMenu label={t('library.groupActions')} className="group-actions-menu">
+            {(close) => (
+              <button
+                type="button"
+                role="menuitem"
+                className="is-danger"
+                onClick={() => {
+                  close();
+                  onDelete();
+                }}
+              >
+                {t('library.groupDelete')}
+              </button>
+            )}
+          </OverflowMenu>
         </div>
       </div>
 

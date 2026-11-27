@@ -39,6 +39,13 @@ describe('buildReaderCss', () => {
     expect(buildReaderCss({ ...base, hyphenate: true })).toContain('hyphens: auto');
   });
 
+  it('keeps justification off headings but lets inline centering win', () => {
+    const css = buildReaderCss(base);
+    expect(css).toContain('h1, h2, h3, h4, h5, h6 { text-align: start; }');
+    // Not !important, or a publisher's centered chapter title could not win.
+    expect(css).not.toMatch(/h1,[^{]*\{[^}]*!important/);
+  });
+
   it('pads the body only in scrolled flow', () => {
     expect(buildReaderCss({ ...base, margin: 32 })).not.toContain('padding-inline: 32px');
     expect(buildReaderCss({ ...base, margin: 32, flow: 'scrolled' })).toContain(

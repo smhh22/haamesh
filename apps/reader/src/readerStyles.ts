@@ -111,6 +111,10 @@ body {
   ${padding}
 }
 p, div, li, blockquote { text-align: ${alignment} !important; }
+/* Justifying a multi-line heading stretches it into gappy word spacing, so
+   headings take the reading direction's start edge. Deliberately not
+   !important: a publisher's inline centering still wins. */
+h1, h2, h3, h4, h5, h6 { text-align: start; }
 a { color: ${colors.link} !important; }
 ${imageFilter}
 

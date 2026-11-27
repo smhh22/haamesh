@@ -618,7 +618,23 @@ button.import-button {
 }
 
 .book-details-dialog .settings-content {
-  overflow: visible;
+  /* The dialog is capped at the viewport (92dvh on a phone), so the fields
+     scroll while the actions row stays put. `overflow: visible` here used to
+     clip the footer — including Save — off the bottom of a phone. */
+  overflow-y: auto;
+  padding-block-end: 0;
+}
+
+.book-details-actions {
+  position: sticky;
+  inset-block-end: 0;
+  margin-block-start: 0;
+  /* Full-bleed across the form's padding so nothing scrolls under it. */
+  margin-inline: calc(-1 * var(--hamesh-space-4));
+  padding-block: var(--hamesh-space-2) var(--hamesh-space-4);
+  padding-inline: var(--hamesh-space-4);
+  border-block-start: 1px solid var(--hamesh-color-border);
+  background: var(--hamesh-color-surface);
 }
 
 .book-details-title {

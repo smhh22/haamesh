@@ -2481,3 +2481,75 @@ test('system back closes the open screen instead of leaving the app', async ({ p
   await page.evaluate(() => window.history.back());
   await expect(page.locator('.reader-shell')).toHaveCount(0);
 });
+
+test.describe('phone-sized dialogs', () => {
+  // Redmi Note 13 Pro: 1220x2712 px at density 480.
+  test.use({
+    viewport: { width: 407, height: 904 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+  });
+
+  test('book details scroll their fields and keep Save on screen', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+    await expect(page.locator('.book-card')).toHaveCount(2);
+
+    await page.locator('.book-card').first().getByRole('button', { name: 'Book actions' }).click();
+    await page.getByRole('menuitem', { name: 'Edit' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Book details' });
+    await expect(dialog).toBeVisible();
+
+    const geometry = await page.evaluate(() => {
+      const node = document.querySelector('[role="dialog"]') as HTMLElement;
+      const form = node.querySelector('form') as HTMLElement;
+      const save = [...node.querySelectorAll('button')].find(
+        (button) => (button.textContent ?? '').trim() === 'Save',
+      );
+      const saveBox = save?.getBoundingClientRect();
+      return {
+        dialogBottom: Math.round(node.getBoundingClientRect().bottom),
+        viewportH: window.innerHeight,
+        formScrolls: form.scrollHeight > form.clientHeight,
+        saveBottom: saveBox ? Math.round(saveBox.bottom) : null,
+      };
+    });
+    expect(geometry.dialogBottom).toBeLessThanOrEqual(geometry.viewportH);
+    expect(geometry.formScrolls).toBe(true);
+    expect(geometry.saveBottom).not.toBeNull();
+    expect(geometry.saveBottom ?? 0).toBeLessThanOrEqual(geometry.viewportH);
+
+    // The footer is reachable and the edit round-trips.
+    await dialog.getByLabel('Series').fill('Phone Series');
+    await dialog.getByRole('button', { name: 'Save' }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator('.book-card').first()).toContainText('Phone Series');
+  });
+
+  test('add-books dialog stays inside the viewport', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('input[type="file"]').setInputFiles([fixture, englishFixture]);
+    await expect(page.locator('.book-card')).toHaveCount(2);
+
+    await page.getByRole('button', { name: 'New group' }).click();
+    await page.getByLabel('Group name').fill('Phone group');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'List view' }).click();
+    await page
+      .locator('.group-row')
+      .first()
+      .getByRole('button', { name: 'Open', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Add books' }).click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    const box = await dialog.boundingBox();
+    const viewport = page.viewportSize();
+    expect(box).not.toBeNull();
+    if (!box || !viewport) return;
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+    await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
+  });
+});

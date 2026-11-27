@@ -141,6 +141,7 @@ const BookOrganizationDialogContent = ({
           </button>
         </div>
         <form
+          id="book-details-form"
           className="settings-content"
           onSubmit={(event) => {
             event.preventDefault();
@@ -264,7 +265,9 @@ const BookOrganizationDialogContent = ({
               <option value="rtl">{t('library.directionRtl')}</option>
             </select>
           </div>
-          <div className="setting-row">
+          {/* Sticky inside the scrolling form: on a phone the fields scroll
+              while Save stays on screen (the dialog is capped at 92dvh). */}
+          <div className="setting-row book-details-actions">
             <span />
             <div className="setting-controls">
               <button type="button" className="reader-action" onClick={onClose}>
